@@ -13,12 +13,16 @@ public class UpdateScreen extends Screen {
     private final UpdateRelease release;
     private String status;
     private ButtonWidget downloadButton;
+    private boolean downloading;
+    private boolean updateReady;
 
     public UpdateScreen(Screen parent, UpdateRelease release) {
         super(new LiteralText("ZSG Rooms Update"));
         this.parent = parent;
         this.release = release;
         this.status = "A newer version is available.";
+        this.downloading = false;
+        this.updateReady = false;
     }
 
     @Override
@@ -27,14 +31,37 @@ public class UpdateScreen extends Screen {
         int x = panelX + 16;
         int y = panelY() + 72;
         int innerWidth = panelWidth() - 32;
+
+        if (this.updateReady) {
+            this.addButton(new ButtonWidget(x, y, innerWidth, 20, new LiteralText("Close This Instance"), button -> {
+                this.client.scheduleStop();
+            }));
+            return;
+        }
+
+        if (this.downloading) {
+            ButtonWidget progressButton = new ButtonWidget(x, y, innerWidth, 20, new LiteralText("Downloading Update..."), button -> {
+            });
+            progressButton.active = false;
+            this.addButton(progressButton);
+            return;
+        }
+
         this.downloadButton = new ButtonWidget(x, y, innerWidth, 20, new LiteralText("Download Update"), button -> {
-            button.active = false;
+            this.downloading = true;
             this.status = "Downloading and verifying update...";
+            rebuildButtons();
             UpdateManager.download(this.release,
-                    message -> this.client.execute(() -> this.status = message),
                     message -> this.client.execute(() -> {
                         this.status = message;
-                        this.downloadButton.active = true;
+                        this.downloading = false;
+                        this.updateReady = true;
+                        rebuildButtons();
+                    }),
+                    message -> this.client.execute(() -> {
+                        this.status = message;
+                        this.downloading = false;
+                        rebuildButtons();
                     }));
         });
         this.addButton(this.downloadButton);
@@ -60,7 +87,10 @@ public class UpdateScreen extends Screen {
         drawCenteredString(matrices, this.textRenderer, "ZSG Rooms " + this.release.version, this.width / 2, panelY + 10, 0xFFFFFF);
         drawCenteredString(matrices, this.textRenderer, this.status, this.width / 2, panelY + 42,
                 this.status.toLowerCase().contains("failed") ? 0xFF7777 : 0xA8D8FF);
-        drawCenteredString(matrices, this.textRenderer, "You can keep using this version.", this.width / 2, panelY + 56, 0xAAAAAA);
+        String detail = this.updateReady
+                ? "Close Minecraft to finish installing."
+                : (this.downloading ? "Please wait while the JAR is verified." : "You can keep using this version.");
+        drawCenteredString(matrices, this.textRenderer, detail, this.width / 2, panelY + 56, 0xAAAAAA);
         super.render(matrices, mouseX, mouseY, delta);
     }
 
@@ -75,5 +105,9 @@ public class UpdateScreen extends Screen {
 
     private int panelY() {
         return Math.max(10, (this.height - 142) / 2);
+    }
+
+    private void rebuildButtons() {
+        this.init(this.client, this.width, this.height);
     }
 }
