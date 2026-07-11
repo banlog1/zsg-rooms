@@ -20,6 +20,7 @@ public class RoomLobbyScreen extends Screen {
     private TextFieldWidget chatField;
     private ButtonWidget optionsButton;
     private ButtonWidget startButton;
+    private ButtonWidget copyCodeButton;
     private int chatScrollOffset;
 
     public RoomLobbyScreen(Screen parent, String roomName) {
@@ -36,6 +37,14 @@ public class RoomLobbyScreen extends Screen {
         int chatX = compact ? 8 : 16;
         int chatWidth = compact ? this.width - 16 : Math.max(160, Math.min(this.width - 360, 330));
         int chatY = compact ? footerTop + 4 : footerTop - 28;
+
+        int copyWidth = 46;
+        int copyX = this.width - copyWidth - 8;
+        this.copyCodeButton = new ButtonWidget(copyX, compact ? 16 : 11, copyWidth, 20, new LiteralText("Copy"), button -> {
+            this.client.keyboard.setClipboard(this.roomName);
+            button.setMessage(new LiteralText("Copied"));
+        });
+        this.addButton(this.copyCodeButton);
 
         this.chatField = new TextFieldWidget(this.textRenderer, chatX, chatY, chatWidth, 20, new LiteralText("Chat"));
         this.chatField.setMaxLength(120);
@@ -147,13 +156,15 @@ public class RoomLobbyScreen extends Screen {
     private void drawRoomCode(MatrixStack matrices) {
         String code = "Code: " + this.roomName;
         if (isCompact()) {
-            drawCenteredString(matrices, this.textRenderer, trimToWidth(code, this.width - 20), this.width / 2, 20, 0xA8D8FF);
+            int availableWidth = Math.max(80, this.width - 72);
+            drawCenteredString(matrices, this.textRenderer, trimToWidth(code, availableWidth), availableWidth / 2 + 4, 20, 0xA8D8FF);
             return;
         }
+        int right = this.copyCodeButton == null ? this.width - 8 : this.copyCodeButton.x - 5;
         code = trimToWidth(code, Math.max(110, this.width / 3));
         int textWidth = this.textRenderer.getWidth(code);
-        int x = Math.max(8, this.width - textWidth - 14);
-        fill(matrices, x - 6, 11, this.width - 8, 31, 0x66000000);
+        int x = Math.max(8, right - textWidth - 6);
+        fill(matrices, x - 6, 11, right, 31, 0x66000000);
         this.textRenderer.drawWithShadow(matrices, code, x, 17, 0xA8D8FF);
     }
 

@@ -65,17 +65,27 @@ public class RoomSetupScreen extends Screen {
         int panelX = panelX();
         int fieldX = panelX + labelWidth();
         int fieldWidth = panelWidth() - labelWidth() - 16;
+        int copyWidth = 44;
+        int copyGap = 5;
         int y = formTop();
         int rowGap = rowGap();
 
-        this.roomCodeField = new TextFieldWidget(this.textRenderer, fieldX, y, fieldWidth, 20, new LiteralText("Room Code"));
+        this.roomCodeField = new TextFieldWidget(this.textRenderer, fieldX, y, fieldWidth - copyWidth - copyGap, 20, new LiteralText("Room Code"));
         this.roomCodeField.setText(roomCode);
         this.addButton(this.roomCodeField);
+        this.addButton(new ButtonWidget(fieldX + fieldWidth - copyWidth, y, copyWidth, 20, new LiteralText("Copy"), button -> {
+            String code = this.roomCodeField.getText().trim();
+            if (code.isEmpty()) {
+                button.setMessage(new LiteralText("Empty"));
+                return;
+            }
+            this.client.keyboard.setClipboard(code);
+            button.setMessage(new LiteralText("Copied"));
+        }));
 
         this.serverAddressField = new TextFieldWidget(this.textRenderer, fieldX, y + rowGap, fieldWidth, 20, new LiteralText("Relay URL"));
-        this.serverAddressField.setText(serverAddress);
-        this.serverAddressField.setCursorToEnd();
         this.serverAddressField.setMaxLength(200);
+        this.serverAddressField.setText(serverAddress);
         updateSuggestion(this.serverAddressField, "https://your-relay.workers.dev");
         this.addButton(this.serverAddressField);
 
@@ -83,7 +93,7 @@ public class RoomSetupScreen extends Screen {
         this.maxPlayersField.setText(maxPlayersText);
         this.addButton(this.maxPlayersField);
 
-        this.finishGoalField = new TextFieldWidget(this.textRenderer, fieldX, y + rowGap * 3, fieldWidth, 20, new LiteralText("Finish Goal"));
+        this.finishGoalField = new TextFieldWidget(this.textRenderer, fieldX, y + rowGap * 3, fieldWidth, 20, new LiteralText("Series Goal"));
         this.finishGoalField.setText(finishGoalText);
         this.addButton(this.finishGoalField);
 
@@ -200,7 +210,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Room", labelX, y + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Relay", labelX, y + rowGap + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Players", labelX, y + rowGap * 2 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "Goal", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "Series Goal", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Filter", labelX, y + rowGap * 4 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
 
@@ -234,6 +244,7 @@ public class RoomSetupScreen extends Screen {
         textY = drawWrappedText(matrices, "Enter the deployed relay URL, create a room, then share the short room code with your friend.", textX, textY + 13, textWidth, 0xD8D8D8);
         this.textRenderer.drawWithShadow(matrices, "Friend", textX, textY + 3, 0xA8D8FF);
         textY = drawWrappedText(matrices, "Open Join Room and enter the same relay URL and room code. No ports or tunnel programs are needed.", textX, textY + 16, textWidth, 0xD8D8D8);
+        textY = drawWrappedText(matrices, "Series Goal is reserved for first-to-N match series; current races finish after one completed run.", textX, textY + 4, textWidth, 0xD8D8D8);
         drawWrappedText(matrices, "Worlds stay local; the relay only carries room and race state.", textX, textY + 4, textWidth, 0x88FF88);
         drawCenteredString(matrices, this.textRenderer, "Click anywhere or press Esc to close", this.width / 2, y + boxH - 15, 0x777777);
     }
@@ -282,7 +293,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int panelWidth() {
-        return Math.min(420, this.width - 16);
+        return Math.min(500, this.width - 16);
     }
 
     private int panelHeight() {
@@ -298,7 +309,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int labelWidth() {
-        return isCompact() ? 72 : 116;
+        return isCompact() ? 72 : 100;
     }
 
     private int rowGap() {
