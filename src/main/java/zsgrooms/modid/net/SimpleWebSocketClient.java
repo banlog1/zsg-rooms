@@ -40,6 +40,7 @@ public class SimpleWebSocketClient {
     private InputStream input;
     private OutputStream output;
     private volatile boolean running;
+    private Thread heartbeatThread;
 
     public SimpleWebSocketClient(URI uri, String authorization, Listener listener) {
         this.uri = uri;
@@ -87,6 +88,7 @@ public class SimpleWebSocketClient {
         Thread reader = new Thread(this::readLoop, "ZSG Room WebSocket");
         reader.setDaemon(true);
         reader.start();
+        startHeartbeat();
     }
 
     public boolean isOpen() {
@@ -251,6 +253,31 @@ public class SimpleWebSocketClient {
         }
     }
 
+    private void startHeartbeat() {
+        this.heartbeatThread = new Thread(() -> {
+            while (this.running) {
+                try {
+                    Thread.sleep(15000L);
+                    if (this.running) {
+                        synchronized (this) {
+                            writeFrame(0x9, new byte[]{'z', 's', 'g'});
+                        }
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (IOException exception) {
+                    this.running = false;
+                    closeSocket();
+                    notifyClosed(exception.getMessage() == null ? "Relay heartbeat failed" : exception.getMessage());
+                    return;
+                }
+            }
+        }, "ZSG Room WebSocket Heartbeat");
+        this.heartbeatThread.setDaemon(true);
+        this.heartbeatThread.start();
+    }
+
     private Frame readFrame() throws IOException {
         int first = readByte();
         int second = readByte();
@@ -336,6 +363,9 @@ public class SimpleWebSocketClient {
     }
 
     private void closeSocket() {
+        if (this.heartbeatThread != null && this.heartbeatThread != Thread.currentThread()) {
+            this.heartbeatThread.interrupt();
+        }
         if (this.socket != null) {
             try {
                 this.socket.close();

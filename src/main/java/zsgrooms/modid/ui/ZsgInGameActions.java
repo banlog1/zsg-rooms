@@ -4,6 +4,8 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.SaveLevelScreen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.text.LiteralText;
+import net.minecraft.text.MutableText;
+import net.minecraft.util.Formatting;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
@@ -22,8 +24,10 @@ public class ZsgInGameActions {
         }
         if (client != null && client.inGameHud != null) {
             client.inGameHud.setOverlayMessage(new LiteralText("Seed change requested"), false);
+            client.inGameHud.getChatHud().addMessage(roomMessage("Seed change requested. Waiting for every player.", Formatting.YELLOW));
+            client.openScreen(null);
+            client.mouse.lockCursor();
         }
-        returnToRoom(client);
     }
 
     public static void forfeit(MinecraftClient client) {
@@ -51,7 +55,23 @@ public class ZsgInGameActions {
         }
         String[] parts = value == null ? new String[0] : value.split("\\t", 2);
         String title = parts.length > 1 ? parts[1] : (parts.length > 0 ? parts[0] : "advancement");
-        client.inGameHud.getChatHud().addMessage(new LiteralText(player + " made the advancement [" + title + "]"));
+        MutableText message = new LiteralText(player + " made the advancement ").formatted(Formatting.WHITE)
+                .append(new LiteralText("[" + title + "]").formatted(Formatting.GREEN));
+        client.inGameHud.getChatHud().addMessage(message);
+    }
+
+    public static void showSeedChangeAgreement(MinecraftClient client) {
+        if (client != null && client.inGameHud != null) {
+            client.inGameHud.getChatHud().addMessage(roomMessage(
+                    "All players agreed. Preparing a new seed...", Formatting.GOLD));
+        }
+    }
+
+    public static void showSeedReady(MinecraftClient client) {
+        if (client != null && client.inGameHud != null) {
+            client.inGameHud.getChatHud().addMessage(roomMessage(
+                    "New seed ready. Starting now!", Formatting.GREEN));
+        }
     }
 
     public static void tick(MinecraftClient client) {
@@ -88,5 +108,10 @@ public class ZsgInGameActions {
 
     private static String localPlayerName(MinecraftClient client) {
         return ZsgRoomsClient.localPlayerName(client);
+    }
+
+    private static MutableText roomMessage(String message, Formatting color) {
+        return new LiteralText("[ZSG Room] ").formatted(Formatting.AQUA)
+                .append(new LiteralText(message).formatted(color));
     }
 }

@@ -2,7 +2,6 @@ package zsgrooms.modid;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import org.apache.logging.log4j.LogManager;
@@ -28,7 +27,6 @@ public class ZsgRooms implements ModInitializer {
 		LOGGER.info("Registering ZSG room lifecycle hooks");
 
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
-		ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
 		ZsgRoomNetworking.registerServer();
 	}
 
@@ -130,6 +128,8 @@ public class ZsgRooms implements ModInitializer {
 
 		if ("join_room".equals(action)) {
 			return;
+		} else if ("profile".equals(action)) {
+			setPlayerUuid(roomName, cleanPlayerName(playerName), value);
 		} else if ("chat".equals(action)) {
 			shareChat(roomName, "<" + cleanPlayerName(playerName) + "> " + value);
 		} else if ("filter".equals(action)) {
@@ -158,6 +158,17 @@ public class ZsgRooms implements ModInitializer {
 			String[] result = value == null ? new String[0] : value.split("\\t", 2);
 			finishMatch(roomName, result.length > 0 ? result[0] : "Match ended",
 					result.length > 1 ? result[1] : "Match finished");
+		}
+	}
+
+	public static void setPlayerUuid(String roomName, String playerName, String uuid) {
+		Room room = ACTIVE_ROOMS.get(roomName);
+		if (room == null) {
+			return;
+		}
+		Player player = room.getPlayer(cleanPlayerName(playerName));
+		if (player != null) {
+			player.setUuid(uuid);
 		}
 	}
 
@@ -204,9 +215,10 @@ public class ZsgRooms implements ModInitializer {
 		if (player == null && room.getPlayerCount() == 1) {
 			player = room.host;
 		}
-		if (player != null) {
-			player.setRequestingSeedChange(true);
+		if (player == null || player.getIsRequestingSeedChange()) {
+			return false;
 		}
+		player.setRequestingSeedChange(true);
 		shareChat(room.roomName, playerName + " requested a seed change");
 
 		if (allPlayersRequestedSeedChange(room)) {
@@ -482,7 +494,7 @@ public class ZsgRooms implements ModInitializer {
 		if ("minecraft:story/mine_stone".equals(id)) return 2;
 		if ("minecraft:story/smelt_iron".equals(id) || "minecraft:story/iron_tools".equals(id)) return 3;
 		if ("minecraft:nether/root".equals(id)) return 4;
-		if ("minecraft:nether/find_fortress".equals(id)) return 5;
+		if ("minecraft:nether/find_fortress".equals(id) || "minecraft:nether/find_bastion".equals(id)) return 5;
 		if ("minecraft:story/follow_ender_eye".equals(id)) return 6;
 		if ("minecraft:end/root".equals(id)) return 7;
 		if ("minecraft:end/kill_dragon".equals(id)) return 8;
@@ -492,6 +504,7 @@ public class ZsgRooms implements ModInitializer {
 	private static String advancementProgressLabel(String id, String fallback) {
 		if ("minecraft:nether/root".equals(id)) return "Entered Nether";
 		if ("minecraft:nether/find_fortress".equals(id)) return "Found Fortress";
+		if ("minecraft:nether/find_bastion".equals(id)) return "Entered Bastion";
 		if ("minecraft:story/follow_ender_eye".equals(id)) return "Found Stronghold";
 		if ("minecraft:end/root".equals(id)) return "Entered End";
 		if ("minecraft:end/kill_dragon".equals(id)) return "Finished";
@@ -502,11 +515,4 @@ public class ZsgRooms implements ModInitializer {
 		LOGGER.info("Server started, preparing ZSG room state");
 	}
 
-	private void onServerTick(MinecraftServer server) {
-		for (InGame game : ACTIVE_GAMES.values()) {
-			if (game != null && game.getIsInGame()) {
-				game.displayHud();
-			}
-		}
-	}
 }

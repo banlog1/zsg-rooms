@@ -300,6 +300,7 @@ public class RoomWebSocketTransport {
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
                 sendSnapshot();
                 if (ready) {
+                    announceSeedChangeAgreement();
                     requestAndLaunchExactSeed();
                 }
             } else if ("advancement".equals(type)) {
@@ -339,6 +340,7 @@ public class RoomWebSocketTransport {
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
                 sendSnapshot();
                 if (ready) {
+                    announceSeedChangeAgreement();
                     requestAndLaunchExactSeed();
                 }
                 return;
@@ -356,6 +358,7 @@ public class RoomWebSocketTransport {
                 return;
             }
             if (!"chat".equals(type)
+                    && !"profile".equals(type)
                     && !"share_seed".equals(type)
                     && !"progress".equals(type)) {
                 return;
@@ -363,7 +366,7 @@ public class RoomWebSocketTransport {
 
             ZsgRooms.applyRoomAction(type, this.roomName, player, value);
             send(type, player, value);
-            if ("progress".equals(type)) {
+            if ("progress".equals(type) || "profile".equals(type)) {
                 sendSnapshot();
             }
         }
@@ -407,10 +410,13 @@ public class RoomWebSocketTransport {
             sendSnapshot();
         }
 
+        private void announceSeedChangeAgreement() {
+            ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
+            send("seed_change_ready", this.playerName, "All players agreed. Preparing a new seed...");
+        }
+
         private void requestAndLaunchExactSeed() {
             if (this.preparingSeed) {
-                ZsgRooms.shareChat(this.roomName, "A seed request is already in progress");
-                sendSnapshot();
                 return;
             }
             Room room = ZsgRooms.getRoom(this.roomName);
@@ -425,23 +431,27 @@ public class RoomWebSocketTransport {
             ZsgRooms.shareChat(this.roomName, "Host is requesting a shared " + ZsgSeedBridge.seedTypeLabel(filter) + " seed...");
             sendSnapshot();
 
-            ZsgSeedBridge.requestExactSeedForRoom(this.roomName, filter).whenComplete((seed, error) -> runOnClientThread(() -> {
+            ZsgSeedBridge.requestExactSeedForRoom(this.roomName, filter).whenComplete((seed, error) -> {
                 this.preparingSeed = false;
-                if (error != null || seed == null || seed.trim().isEmpty()) {
-                    String reason = error == null ? "empty seed" : usefulMessage(error);
-                    status = "Seed request failed: " + reason;
-                    ZsgRooms.shareChat(this.roomName, "Could not get a shared seed: " + reason);
-                    sendSnapshot();
-                    return;
-                }
+                runOnClientThread(() -> {
+                    if (error != null || seed == null || seed.trim().isEmpty()) {
+                        String reason = error == null ? "empty seed" : usefulMessage(error);
+                        status = "Seed request failed: " + reason;
+                        ZsgRooms.shareChat(this.roomName, "Could not get a shared seed: " + reason);
+                        sendSnapshot();
+                        return;
+                    }
 
-                ZsgRooms.prepareRoomSeed(this.roomName, seed, filter);
-                sendSnapshot();
-                send("launch", this.playerName, seed);
-                ZsgRooms.launchRoomWithSeed(this.roomName, seed);
-                status = "Race launched with a synchronized seed";
-                sendSnapshot();
-            }));
+                    ZsgRooms.prepareRoomSeed(this.roomName, seed, filter);
+                    sendSnapshot();
+                    ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
+                    send("seed_ready", this.playerName, "New seed ready. Starting now!");
+                    send("launch", this.playerName, seed);
+                    ZsgRooms.launchRoomWithSeed(this.roomName, seed);
+                    status = "Race launched with a synchronized seed";
+                    sendSnapshot();
+                });
+            });
         }
 
         @Override
@@ -469,6 +479,12 @@ public class RoomWebSocketTransport {
                     if ("advancement".equals(type)) {
                         ZsgInGameActions.showRemoteAdvancement(MinecraftClient.getInstance(), decoded.get("player"), value);
                     }
+                    if ("seed_change_ready".equals(type)) {
+                        ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
+                    }
+                    if ("seed_ready".equals(type)) {
+                        ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
+                    }
                     if ("match_result".equals(type)) {
                         String[] result = value == null ? new String[0] : value.split("\\t", 2);
                         ZsgInGameActions.showMatchResult(MinecraftClient.getInstance(),
@@ -481,6 +497,7 @@ public class RoomWebSocketTransport {
 
         @Override
         public void onClosed(String reason) {
+            this.preparingSeed = false;
             this.welcomeLatch.countDown();
             if (!this.closing) {
                 status = reason == null || reason.trim().isEmpty() ? "Room relay disconnected" : reason;

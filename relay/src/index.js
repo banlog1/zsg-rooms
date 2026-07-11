@@ -1,6 +1,7 @@
 const MAX_MESSAGE_BYTES = 256 * 1024;
 const GUEST_ACTIONS = new Set([
   "chat",
+  "profile",
   "share_seed",
   "seed_change",
   "forfeit",

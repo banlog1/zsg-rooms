@@ -122,10 +122,12 @@ public class RoomSetupScreen extends Screen {
             int finishGoal = parseInt(this.finishGoalField.getText(), 1);
             String seedType = selectedSeedTypeValue();
             String playerName = ZsgRoomsClient.localPlayerName(this.client);
+            String playerUuid = ZsgRoomsClient.localPlayerUuid(this.client);
             String relayUrl = this.serverAddressField.getText().trim();
 
             if (this.createMode) {
                 ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName);
+                ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
                     this.statusText = RoomWebSocketTransport.getStatus();
@@ -139,6 +141,7 @@ public class RoomSetupScreen extends Screen {
                     return;
                 }
                 ZsgRooms.applyRoomAction("join_room", selectedRoomCode, playerName, seedType);
+                ZsgRoomsClient.sendRoomAction("profile", selectedRoomCode, playerUuid);
             }
 
             Room room = ZsgRooms.getRoom(selectedRoomCode);

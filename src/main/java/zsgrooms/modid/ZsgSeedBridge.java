@@ -397,8 +397,21 @@ public class ZsgSeedBridge {
             );
 
             seedProviderField.set(null, roomProvider);
-            atumClass.getMethod("createNewWorld").invoke(null);
-            logToFile("Launched Atum world creation with room seed: " + minecraftSeed);
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client != null && client.world != null) {
+                beginRoomSeedRequest();
+                RoomResetAuthorization.allowNextReset();
+                try {
+                    atumClass.getMethod("scheduleReset").invoke(null);
+                } catch (Exception exception) {
+                    RoomResetAuthorization.clear();
+                    throw exception;
+                }
+                logToFile("Scheduled an in-world Atum reset with room seed: " + minecraftSeed);
+            } else {
+                atumClass.getMethod("createNewWorld").invoke(null);
+                logToFile("Launched Atum world creation with room seed: " + minecraftSeed);
+            }
             return true;
         } catch (Exception e) {
             logToFile("Failed to launch Atum world: " + e.getClass().getSimpleName() + " - " + e.getMessage());

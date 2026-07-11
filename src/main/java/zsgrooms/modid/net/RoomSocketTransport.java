@@ -5,6 +5,7 @@ import zsgrooms.modid.InGame;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgSeedBridge;
+import zsgrooms.modid.ui.ZsgInGameActions;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -112,7 +113,15 @@ public class RoomSocketTransport {
             status = message.get("value");
             return;
         }
-        runOnClientThread(() -> ZsgRooms.applyRoomAction(message.get("type"), message.get("room"), message.get("player"), message.get("value")));
+        runOnClientThread(() -> {
+            String type = message.get("type");
+            ZsgRooms.applyRoomAction(type, message.get("room"), message.get("player"), message.get("value"));
+            if ("seed_change_ready".equals(type)) {
+                ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
+            } else if ("seed_ready".equals(type)) {
+                ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
+            }
+        });
     }
 
     private static void runOnClientThread(Runnable action) {
@@ -228,11 +237,13 @@ public class RoomSocketTransport {
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
                 broadcastSnapshot();
                 if (ready) {
+                    announceSeedChangeAgreement();
                     requestAndLaunchExactSeed();
                 }
                 return;
             }
             if (!"chat".equals(type)
+                    && !"profile".equals(type)
                     && !"share_seed".equals(type)
                     && !"forfeit".equals(type)
                     && !"leave_room".equals(type)
@@ -242,7 +253,7 @@ public class RoomSocketTransport {
 
             ZsgRooms.applyRoomAction(type, this.roomName, player, value);
             broadcast(type, this.roomName, player, value);
-            if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type)) {
+            if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type) || "profile".equals(type)) {
                 broadcastSnapshot();
             }
         }
@@ -260,12 +271,13 @@ public class RoomSocketTransport {
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
                 broadcastSnapshot();
                 if (ready) {
+                    announceSeedChangeAgreement();
                     requestAndLaunchExactSeed();
                 }
             } else {
                 ZsgRooms.applyRoomAction(type, room, player, value);
                 broadcast(type, room, player, value);
-                if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type)) {
+                if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type) || "profile".equals(type)) {
                     broadcastSnapshot();
                 }
             }
@@ -273,8 +285,6 @@ public class RoomSocketTransport {
 
         private void requestAndLaunchExactSeed() {
             if (this.preparingSeed) {
-                ZsgRooms.shareChat(this.roomName, "A seed request is already in progress");
-                broadcastSnapshot();
                 return;
             }
             Room room = ZsgRooms.getRoom(this.roomName);
@@ -289,23 +299,33 @@ public class RoomSocketTransport {
             ZsgRooms.shareChat(this.roomName, "Host is requesting a shared " + ZsgSeedBridge.seedTypeLabel(filter) + " seed...");
             broadcastSnapshot();
 
-            ZsgSeedBridge.requestExactSeedForRoom(this.roomName, filter).whenComplete((seed, error) -> runOnClientThread(() -> {
+            ZsgSeedBridge.requestExactSeedForRoom(this.roomName, filter).whenComplete((seed, error) -> {
                 this.preparingSeed = false;
-                if (error != null || seed == null || seed.trim().isEmpty()) {
-                    String reason = error == null ? "empty seed" : error.getMessage();
-                    status = "Seed request failed: " + reason;
-                    ZsgRooms.shareChat(this.roomName, "Could not get a shared seed: " + reason);
-                    broadcastSnapshot();
-                    return;
-                }
+                runOnClientThread(() -> {
+                    if (error != null || seed == null || seed.trim().isEmpty()) {
+                        String reason = error == null ? "empty seed" : error.getMessage();
+                        status = "Seed request failed: " + reason;
+                        ZsgRooms.shareChat(this.roomName, "Could not get a shared seed: " + reason);
+                        broadcastSnapshot();
+                        return;
+                    }
 
-                ZsgRooms.prepareRoomSeed(this.roomName, seed, filter);
-                broadcastSnapshot();
-                broadcast("launch", this.roomName, this.hostName, seed);
-                ZsgRooms.launchRoomWithSeed(this.roomName, seed);
-                status = "Race launched with a synchronized seed";
-                broadcastSnapshot();
-            }));
+                    ZsgRooms.prepareRoomSeed(this.roomName, seed, filter);
+                    broadcastSnapshot();
+                    ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
+                    broadcast("seed_ready", this.roomName, this.hostName, "New seed ready. Starting now!");
+                    broadcast("launch", this.roomName, this.hostName, seed);
+                    ZsgRooms.launchRoomWithSeed(this.roomName, seed);
+                    status = "Race launched with a synchronized seed";
+                    broadcastSnapshot();
+                });
+            });
+        }
+
+        private void announceSeedChangeAgreement() {
+            ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
+            broadcast("seed_change_ready", this.roomName, this.hostName,
+                    "All players agreed. Preparing a new seed...");
         }
 
         private void broadcast(String type, String room, String player, String value) {

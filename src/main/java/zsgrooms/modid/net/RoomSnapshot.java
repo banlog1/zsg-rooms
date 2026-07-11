@@ -82,6 +82,7 @@ public class RoomSnapshot {
 
     public static class PlayerState {
         public String name = "player";
+        public String uuid = "";
         public boolean inRoom = true;
         public boolean requestingSeedChange;
         public boolean host;
@@ -89,6 +90,7 @@ public class RoomSnapshot {
         private static PlayerState capture(Player player) {
             PlayerState state = new PlayerState();
             state.name = player.getName();
+            state.uuid = player.getUuid();
             state.inRoom = player.getIsInRoom();
             state.requestingSeedChange = player.getIsRequestingSeedChange();
             state.host = player.getIsHost();
@@ -96,7 +98,7 @@ public class RoomSnapshot {
         }
 
         public Player toPlayer() {
-            Player player = new Player(this.name, this.inRoom, this.host);
+            Player player = new Player(this.name, this.uuid, this.inRoom, this.host);
             player.setRequestingSeedChange(this.requestingSeedChange);
             return player;
         }

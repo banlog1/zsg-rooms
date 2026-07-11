@@ -5,6 +5,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.LiteralText;
+import zsgrooms.modid.Player;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
@@ -218,8 +219,9 @@ public class RoomLobbyScreen extends Screen {
             int avatarSize = compact ? 14 : 24;
             int avatarX = rowX + 6;
             int avatarY = y + (rowHeight - avatarSize) / 2;
-            fill(matrices, avatarX, avatarY, avatarX + avatarSize, avatarY + avatarSize, avatarColor(name));
-            fill(matrices, avatarX + 2, avatarY + 2, avatarX + avatarSize - 2, avatarY + 5, 0x55FFFFFF);
+            Player player = room.getPlayer(name);
+            PlayerHeadRenderer.draw(matrices, this.client, name, player == null ? "" : player.getUuid(),
+                    avatarX, avatarY, avatarSize);
 
             int nameColor = i == 0 ? 0xFFFFFF : 0xFFD85A;
             int textX = avatarX + avatarSize + 8;
@@ -375,14 +377,6 @@ public class RoomLobbyScreen extends Screen {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed + ellipsis;
-    }
-
-    private int avatarColor(String name) {
-        int hash = name == null ? 0 : name.hashCode();
-        int red = 80 + Math.abs(hash & 0x7F);
-        int green = 80 + Math.abs((hash >> 8) & 0x7F);
-        int blue = 80 + Math.abs((hash >> 16) & 0x7F);
-        return 0xFF000000 | red << 16 | green << 8 | blue;
     }
 
     private void updateChatSuggestion() {

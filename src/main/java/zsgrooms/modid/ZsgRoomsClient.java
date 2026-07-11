@@ -77,4 +77,12 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
         return "host";
     }
+
+    public static String localPlayerUuid(MinecraftClient client) {
+        if (client != null && client.getSession() != null && client.getSession().getProfile() != null
+                && client.getSession().getProfile().getId() != null) {
+            return client.getSession().getProfile().getId().toString();
+        }
+        return "";
+    }
 }

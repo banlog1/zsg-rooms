@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GameLogicTest {
@@ -57,6 +58,7 @@ public class GameLogicTest {
     @Test
     public void roomSnapshotRoundTripsAuthoritativeState() {
         Player host = new Player("Host", true, true);
+        host.setUuid("8667ba71-b85a-4004-af54-457a9734eed7");
         Player guest = new Player("Guest", true, false);
         guest.setRequestingSeedChange(true);
         Room room = new Room("room-code", "12345|structure:zsg|iron:4", host, 10);
@@ -83,6 +85,7 @@ public class GameLogicTest {
         assertEquals(10, decoded.maxPlayers);
         assertEquals(3, decoded.finishGoal);
         assertEquals(2, decoded.players.size());
+        assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", decoded.players.get(0).uuid);
         assertTrue(decoded.players.get(1).requestingSeedChange);
         assertEquals(2, decoded.progress.get("Guest"));
         assertEquals("Found Stronghold", decoded.progressLabels.get("Host"));
@@ -92,6 +95,7 @@ public class GameLogicTest {
         Room appliedRoom = ZsgRooms.getRoom("room-code");
         InGame appliedGame = ZsgRooms.getGame("room-code");
         assertEquals(Arrays.asList("Host", "Guest"), appliedRoom.getPlayerNames());
+        assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", appliedRoom.getPlayer("Host").getUuid());
         assertTrue(appliedRoom.getPlayer("Guest").getIsRequestingSeedChange());
         assertEquals(3, appliedGame.getFinishGoal());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
@@ -103,5 +107,46 @@ public class GameLogicTest {
 
         assertEquals("987654321", ZsgSeedBridge.extractMinecraftSeed(seed));
         assertEquals("manual", ZsgSeedBridge.resolveStructure(seed));
+    }
+
+    @Test
+    public void repeatedSeedChangeVoteDoesNotRestartRequest() {
+        ZsgRooms.createRoom("vote-test-room", 4, 1, "zsg", "Host");
+        ZsgRooms.applyRoomAction("join_room", "vote-test-room", "Guest", "");
+
+        assertFalse(ZsgRooms.registerSeedChangeRequest("Host"));
+        assertFalse(ZsgRooms.registerSeedChangeRequest("Host"));
+        assertTrue(ZsgRooms.registerSeedChangeRequest("Guest"));
+        assertFalse(ZsgRooms.registerSeedChangeRequest("Guest"));
+    }
+
+    @Test
+    public void roomResetPermissionCanOnlyBeConsumedOnce() {
+        RoomResetAuthorization.clear();
+        assertFalse(RoomResetAuthorization.consumeResetPermission());
+
+        RoomResetAuthorization.allowNextReset();
+        assertTrue(RoomResetAuthorization.consumeResetPermission());
+        assertFalse(RoomResetAuthorization.consumeResetPermission());
+    }
+
+    @Test
+    public void raceHudTracksBastionStrongholdAndEndMilestones() {
+        ZsgRooms.createRoom("milestone-test-room", 2, 1, "zsg", "Runner");
+
+        ZsgRooms.trackAdvancement("milestone-test-room", "Runner",
+                "minecraft:nether/find_bastion\tThose Were the Days");
+        assertEquals(5, ZsgRooms.getGame("milestone-test-room").getPlayerProgress().get("Runner"));
+        assertEquals("Entered Bastion", ZsgRooms.getGame("milestone-test-room").getPlayerProgressLabels().get("Runner"));
+
+        ZsgRooms.trackAdvancement("milestone-test-room", "Runner",
+                "minecraft:story/follow_ender_eye\tEye Spy");
+        assertEquals(6, ZsgRooms.getGame("milestone-test-room").getPlayerProgress().get("Runner"));
+        assertEquals("Found Stronghold", ZsgRooms.getGame("milestone-test-room").getPlayerProgressLabels().get("Runner"));
+
+        ZsgRooms.trackAdvancement("milestone-test-room", "Runner",
+                "minecraft:end/root\tThe End?");
+        assertEquals(7, ZsgRooms.getGame("milestone-test-room").getPlayerProgress().get("Runner"));
+        assertEquals("Entered End", ZsgRooms.getGame("milestone-test-room").getPlayerProgressLabels().get("Runner"));
     }
 }
