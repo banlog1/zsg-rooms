@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"package": "zsgrooms.modid.mixin",
+	"compatibilityLevel": "JAVA_8",
+	"mixins": [
+		"ExampleMixin",
+		"AtumResetGuardMixin",
+		"ClientAdvancementManagerMixin",
+		"GameMenuScreenMixin",
+		"SelectWorldScreenMixin",
+		"TitleScreenMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
