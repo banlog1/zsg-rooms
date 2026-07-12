@@ -118,8 +118,14 @@ public class RoomSocketTransport {
             ZsgRooms.applyRoomAction(type, message.get("room"), message.get("player"), message.get("value"));
             if ("seed_change_ready".equals(type)) {
                 ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
+            } else if ("seed_change_vote".equals(type)
+                    && !zsgrooms.modid.ZsgRoomsClient.localPlayerName(MinecraftClient.getInstance()).equals(message.get("player"))) {
+                ZsgInGameActions.showSeedChangeRequest(MinecraftClient.getInstance(), message.get("player"));
             } else if ("seed_ready".equals(type)) {
                 ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
+            } else if ("reset_run".equals(type)
+                    && !zsgrooms.modid.ZsgRoomsClient.localPlayerName(MinecraftClient.getInstance()).equals(message.get("player"))) {
+                ZsgInGameActions.showRunReset(MinecraftClient.getInstance(), message.get("player"));
             }
         });
     }
@@ -234,7 +240,11 @@ public class RoomSocketTransport {
                 return;
             }
             if ("seed_change".equals(type)) {
+                boolean newRequest = isNewSeedChangeRequest(player);
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
+                if (newRequest) {
+                    announceSeedChangeRequest(player);
+                }
                 broadcastSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
@@ -247,13 +257,18 @@ public class RoomSocketTransport {
                     && !"share_seed".equals(type)
                     && !"forfeit".equals(type)
                     && !"leave_room".equals(type)
+                    && !"reset_run".equals(type)
                     && !"progress".equals(type)) {
                 return;
             }
 
             ZsgRooms.applyRoomAction(type, this.roomName, player, value);
+            if ("reset_run".equals(type)) {
+                ZsgInGameActions.showRunReset(MinecraftClient.getInstance(), player);
+            }
             broadcast(type, this.roomName, player, value);
-            if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type) || "profile".equals(type)) {
+            if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type)
+                    || "profile".equals(type) || "reset_run".equals(type)) {
                 broadcastSnapshot();
             }
         }
@@ -268,7 +283,11 @@ public class RoomSocketTransport {
                 ZsgRooms.applyRoomAction(type, room, player, value);
                 broadcastSnapshot();
             } else if ("seed_change".equals(type)) {
+                boolean newRequest = isNewSeedChangeRequest(player);
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
+                if (newRequest) {
+                    announceSeedChangeRequest(player);
+                }
                 broadcastSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
@@ -277,7 +296,8 @@ public class RoomSocketTransport {
             } else {
                 ZsgRooms.applyRoomAction(type, room, player, value);
                 broadcast(type, room, player, value);
-                if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type) || "profile".equals(type)) {
+                if ("forfeit".equals(type) || "leave_room".equals(type) || "progress".equals(type)
+                        || "profile".equals(type) || "reset_run".equals(type)) {
                     broadcastSnapshot();
                 }
             }
@@ -326,6 +346,19 @@ public class RoomSocketTransport {
             ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
             broadcast("seed_change_ready", this.roomName, this.hostName,
                     "All players agreed. Preparing a new seed...");
+        }
+
+        private boolean isNewSeedChangeRequest(String player) {
+            Room room = ZsgRooms.getRoom(this.roomName);
+            return room != null && room.getPlayer(player) != null
+                    && !room.getPlayer(player).getIsRequestingSeedChange();
+        }
+
+        private void announceSeedChangeRequest(String player) {
+            if (!this.hostName.equals(player)) {
+                ZsgInGameActions.showSeedChangeRequest(MinecraftClient.getInstance(), player);
+            }
+            broadcast("seed_change_vote", this.roomName, player, player + " requested a seed change");
         }
 
         private void broadcast(String type, String room, String player, String value) {

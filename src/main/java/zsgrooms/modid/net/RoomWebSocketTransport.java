@@ -4,6 +4,7 @@ import net.minecraft.client.MinecraftClient;
 import zsgrooms.modid.InGame;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.ZsgRooms;
+import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
 import zsgrooms.modid.ui.ZsgInGameActions;
 
@@ -297,7 +298,11 @@ public class RoomWebSocketTransport {
                 ZsgRooms.applyRoomAction(type, this.roomName, player, value);
                 sendSnapshot();
             } else if ("seed_change".equals(type)) {
+                boolean newRequest = isNewSeedChangeRequest(player);
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
+                if (newRequest) {
+                    announceSeedChangeRequest(player);
+                }
                 sendSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
@@ -312,7 +317,7 @@ public class RoomWebSocketTransport {
             } else {
                 ZsgRooms.applyRoomAction(type, this.roomName, player, value);
                 send(type, player, value);
-                if ("progress".equals(type)) {
+                if ("progress".equals(type) || "reset_run".equals(type)) {
                     sendSnapshot();
                 }
             }
@@ -337,7 +342,11 @@ public class RoomWebSocketTransport {
                 return;
             }
             if ("seed_change".equals(type)) {
+                boolean newRequest = isNewSeedChangeRequest(player);
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
+                if (newRequest) {
+                    announceSeedChangeRequest(player);
+                }
                 sendSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
@@ -360,13 +369,17 @@ public class RoomWebSocketTransport {
             if (!"chat".equals(type)
                     && !"profile".equals(type)
                     && !"share_seed".equals(type)
+                    && !"reset_run".equals(type)
                     && !"progress".equals(type)) {
                 return;
             }
 
             ZsgRooms.applyRoomAction(type, this.roomName, player, value);
+            if ("reset_run".equals(type)) {
+                ZsgInGameActions.showRunReset(MinecraftClient.getInstance(), player);
+            }
             send(type, player, value);
-            if ("progress".equals(type) || "profile".equals(type)) {
+            if ("progress".equals(type) || "profile".equals(type) || "reset_run".equals(type)) {
                 sendSnapshot();
             }
         }
@@ -413,6 +426,19 @@ public class RoomWebSocketTransport {
         private void announceSeedChangeAgreement() {
             ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
             send("seed_change_ready", this.playerName, "All players agreed. Preparing a new seed...");
+        }
+
+        private boolean isNewSeedChangeRequest(String player) {
+            Room room = ZsgRooms.getRoom(this.roomName);
+            return room != null && room.getPlayer(player) != null
+                    && !room.getPlayer(player).getIsRequestingSeedChange();
+        }
+
+        private void announceSeedChangeRequest(String player) {
+            if (!this.playerName.equals(player)) {
+                ZsgInGameActions.showSeedChangeRequest(MinecraftClient.getInstance(), player);
+            }
+            send("seed_change_vote", player, player + " requested a seed change");
         }
 
         private void requestAndLaunchExactSeed() {
@@ -481,6 +507,14 @@ public class RoomWebSocketTransport {
                     }
                     if ("seed_change_ready".equals(type)) {
                         ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
+                    }
+                    if ("seed_change_vote".equals(type)
+                            && !ZsgRoomsClient.localPlayerName(MinecraftClient.getInstance()).equals(decoded.get("player"))) {
+                        ZsgInGameActions.showSeedChangeRequest(MinecraftClient.getInstance(), decoded.get("player"));
+                    }
+                    if ("reset_run".equals(type)
+                            && !ZsgRoomsClient.localPlayerName(MinecraftClient.getInstance()).equals(decoded.get("player"))) {
+                        ZsgInGameActions.showRunReset(MinecraftClient.getInstance(), decoded.get("player"));
                     }
                     if ("seed_ready".equals(type)) {
                         ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());

@@ -149,4 +149,20 @@ public class GameLogicTest {
         assertEquals(7, ZsgRooms.getGame("milestone-test-room").getPlayerProgress().get("Runner"));
         assertEquals("Entered End", ZsgRooms.getGame("milestone-test-room").getPlayerProgressLabels().get("Runner"));
     }
+
+    @Test
+    public void resettingOneRunKeepsTheSharedSeedAndResetsOnlyThatPlayer() {
+        ZsgRooms.createRoom("reset-test-room", 4, 1, "manual:12345", "Host");
+        ZsgRooms.applyRoomAction("join_room", "reset-test-room", "Guest", "");
+        ZsgRooms.getGame("reset-test-room").setPlayerProgress("Host", 6, "Found Stronghold");
+        ZsgRooms.getGame("reset-test-room").setPlayerProgress("Guest", 5, "Entered Bastion");
+        String seed = ZsgRooms.getGame("reset-test-room").getSeed();
+
+        ZsgRooms.applyRoomAction("reset_run", "reset-test-room", "Guest", "");
+
+        assertEquals(seed, ZsgRooms.getGame("reset-test-room").getSeed());
+        assertEquals(6, ZsgRooms.getGame("reset-test-room").getPlayerProgress().get("Host"));
+        assertEquals(0, ZsgRooms.getGame("reset-test-room").getPlayerProgress().get("Guest"));
+        assertEquals("Restarting", ZsgRooms.getGame("reset-test-room").getPlayerProgressLabels().get("Guest"));
+    }
 }

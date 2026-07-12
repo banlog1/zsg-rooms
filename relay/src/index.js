@@ -6,6 +6,7 @@ const GUEST_ACTIONS = new Set([
   "seed_change",
   "forfeit",
   "progress",
+  "reset_run",
   "advancement",
   "leave_room"
 ]);

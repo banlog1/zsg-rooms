@@ -74,6 +74,15 @@ public class ZsgRooms implements ModInitializer {
 		}
 	}
 
+	public static void resetPlayerRun(String roomName, String playerName) {
+		InGame game = ACTIVE_GAMES.get(roomName);
+		if (game != null) {
+			String name = cleanPlayerName(playerName);
+			game.setPlayerProgress(name, 0, "Restarting");
+			shareChat(roomName, name + " reset their run on the current seed");
+		}
+	}
+
 	public static boolean trackAdvancement(String roomName, String playerName, String value) {
 		InGame game = ACTIVE_GAMES.get(roomName);
 		if (game == null) {
@@ -152,6 +161,8 @@ public class ZsgRooms implements ModInitializer {
 				trackProgress(roomName, cleanPlayerName(playerName), Integer.parseInt(value));
 			} catch (NumberFormatException ignored) {
 			}
+		} else if ("reset_run".equals(action)) {
+			resetPlayerRun(roomName, cleanPlayerName(playerName));
 		} else if ("advancement".equals(action)) {
 			trackAdvancement(roomName, cleanPlayerName(playerName), value);
 		} else if ("match_result".equals(action)) {

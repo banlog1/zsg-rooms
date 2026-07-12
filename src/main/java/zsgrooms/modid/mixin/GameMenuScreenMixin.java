@@ -33,25 +33,27 @@ public abstract class GameMenuScreenMixin extends Screen {
         int totalWidth = Math.min(quitSlot == null ? 204 : quitSlot.getWidth(), availableWidth);
         int left = (this.width - totalWidth) / 2;
         int y = quitSlot == null ? Math.min(this.height - 24, this.height / 4 + 104) : quitSlot.y;
-        int gap = totalWidth < 180 ? 4 : 8;
-        int buttonWidth = (totalWidth - gap) / 2;
-        boolean narrow = buttonWidth < 86;
+        int gap = 4;
+        int buttonWidth = (totalWidth - gap * 2) / 3;
 
         if (ZsgInGameActions.isSoloRoom()) {
-            this.addButton(new ButtonWidget(left, y, buttonWidth, 20,
-                    new LiteralText(narrow ? "Room" : "Return to Room"), button -> {
+            this.addButton(new ButtonWidget(left, y, buttonWidth, 20, new LiteralText("Room"), button -> {
                 ZsgInGameActions.returnToRoom(this.client);
             }));
-            this.addButton(new ButtonWidget(left + buttonWidth + gap, y, buttonWidth, 20,
-                    new LiteralText(narrow ? "New Seed" : "Seed Change"), button -> {
+            this.addButton(new ButtonWidget(left + buttonWidth + gap, y, buttonWidth, 20, new LiteralText("Reset Run"), button -> {
+                ZsgInGameActions.resetCurrentRun(this.client);
+            }));
+            this.addButton(new ButtonWidget(left + (buttonWidth + gap) * 2, y, buttonWidth, 20, new LiteralText("New Seed"), button -> {
                 ZsgInGameActions.requestSeedChange(this.client);
             }));
         } else {
             this.addButton(new ButtonWidget(left, y, buttonWidth, 20, new LiteralText("Forfeit"), button -> {
                 ZsgInGameActions.forfeit(this.client);
             }));
-            this.addButton(new ButtonWidget(left + buttonWidth + gap, y, buttonWidth, 20,
-                    new LiteralText(narrow ? "New Seed" : "Seed Change"), button -> {
+            this.addButton(new ButtonWidget(left + buttonWidth + gap, y, buttonWidth, 20, new LiteralText("Reset Run"), button -> {
+                ZsgInGameActions.resetCurrentRun(this.client);
+            }));
+            this.addButton(new ButtonWidget(left + (buttonWidth + gap) * 2, y, buttonWidth, 20, new LiteralText("New Seed"), button -> {
                 ZsgInGameActions.requestSeedChange(this.client);
             }));
         }

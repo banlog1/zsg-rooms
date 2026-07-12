@@ -7,8 +7,10 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
 import zsgrooms.modid.Room;
+import zsgrooms.modid.InGame;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
+import zsgrooms.modid.ZsgSeedBridge;
 
 public class ZsgInGameActions {
     private static int returnTicks = -1;
@@ -24,9 +26,29 @@ public class ZsgInGameActions {
         }
         if (client != null && client.inGameHud != null) {
             client.inGameHud.setOverlayMessage(new LiteralText("Seed change requested"), false);
-            client.inGameHud.getChatHud().addMessage(roomMessage("Seed change requested. Waiting for every player.", Formatting.YELLOW));
+            showSeedChangeRequest(client, localPlayerName(client));
             client.openScreen(null);
             client.mouse.lockCursor();
+        }
+    }
+
+    public static void resetCurrentRun(MinecraftClient client) {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        if (client == null || game == null || !game.getIsInGame()) {
+            return;
+        }
+
+        String playerName = localPlayerName(client);
+        ZsgRoomsClient.sendRoomAction("reset_run", roomName, "");
+        ZsgRoomsClient.resetLocalAdvancementTracking();
+        showRunReset(client, playerName);
+        client.openScreen(null);
+        client.mouse.lockCursor();
+
+        if (!ZsgSeedBridge.launchSeedWithAtum(game.getSeed())) {
+            client.inGameHud.getChatHud().addMessage(roomMessage(
+                    "Could not reset the current seed.", Formatting.RED));
         }
     }
 
@@ -64,6 +86,22 @@ public class ZsgInGameActions {
         if (client != null && client.inGameHud != null) {
             client.inGameHud.getChatHud().addMessage(roomMessage(
                     "All players agreed. Preparing a new seed...", Formatting.GOLD));
+        }
+    }
+
+    public static void showSeedChangeRequest(MinecraftClient client, String player) {
+        if (client != null && client.inGameHud != null) {
+            String name = player == null || player.trim().isEmpty() ? "A player" : player.trim();
+            client.inGameHud.getChatHud().addMessage(roomMessage(
+                    name + " requested a seed change.", Formatting.YELLOW));
+        }
+    }
+
+    public static void showRunReset(MinecraftClient client, String player) {
+        if (client != null && client.inGameHud != null) {
+            String name = player == null || player.trim().isEmpty() ? "A player" : player.trim();
+            client.inGameHud.getChatHud().addMessage(roomMessage(
+                    name + " reset their run on the current seed.", Formatting.GOLD));
         }
     }
 

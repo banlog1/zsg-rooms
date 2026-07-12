@@ -49,6 +49,11 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
     }
 
+    public static void resetLocalAdvancementTracking() {
+        REPORTED_ADVANCEMENTS.clear();
+        advancementRaceKey = "";
+    }
+
     public static void sendRoomAction(String action, String roomName, String value) {
         MinecraftClient client = MinecraftClient.getInstance();
         String playerName = localPlayerName(client);
