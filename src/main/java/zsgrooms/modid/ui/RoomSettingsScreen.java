@@ -10,7 +10,7 @@ public class RoomSettingsScreen extends Screen {
     private final Screen parent;
 
     public RoomSettingsScreen(Screen parent) {
-        super(new LiteralText("Room HUD Settings"));
+        super(new LiteralText("Room Settings"));
         this.parent = parent;
     }
 
@@ -27,11 +27,16 @@ public class RoomSettingsScreen extends Screen {
         addPositionButton(right, y, optionWidth, RoomUiPreferences.HudPosition.TOP_RIGHT);
         addPositionButton(left, y + 28, optionWidth, RoomUiPreferences.HudPosition.BOTTOM_LEFT);
         addPositionButton(right, y + 28, optionWidth, RoomUiPreferences.HudPosition.BOTTOM_RIGHT);
-        this.addButton(new ButtonWidget(left, y + 62, panelWidth() - 32, 20, updateChecksText(), button -> {
+        this.addButton(new ButtonWidget(left, y + 62, panelWidth() - 32, 20, rpRepairText(), button -> {
+            RoomUiPreferences.setRuinedPortalChestRepairEnabled(
+                    !RoomUiPreferences.isRuinedPortalChestRepairEnabled());
+            button.setMessage(rpRepairText());
+        }));
+        this.addButton(new ButtonWidget(left, y + 90, panelWidth() - 32, 20, updateChecksText(), button -> {
             UpdatePreferences.setChecksEnabled(!UpdatePreferences.areChecksEnabled());
             button.setMessage(updateChecksText());
         }));
-        this.addButton(new ButtonWidget(left, y + 90, panelWidth() - 32, 20, new LiteralText("Back"), button -> {
+        this.addButton(new ButtonWidget(left, y + 118, panelWidth() - 32, 20, new LiteralText("Back"), button -> {
             this.client.openScreen(this.parent);
         }));
     }
@@ -51,10 +56,10 @@ public class RoomSettingsScreen extends Screen {
         fill(matrices, 0, 0, this.width, this.height, 0x66000000);
         int panelX = (this.width - panelWidth()) / 2;
         int panelY = panelY();
-        fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 174, 0xCC090909);
+        fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 202, 0xCC090909);
         fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 28, 0xAA1A120C);
-        drawCenteredString(matrices, this.textRenderer, "Room HUD Settings", this.width / 2, panelY + 10, 0xFFFFFF);
-        drawCenteredString(matrices, this.textRenderer, "In-game match panel position", this.width / 2, panelY + 32, 0xA8D8FF);
+        drawCenteredString(matrices, this.textRenderer, "Room Settings", this.width / 2, panelY + 10, 0xFFFFFF);
+        drawCenteredString(matrices, this.textRenderer, "HUD and race preferences", this.width / 2, panelY + 32, 0xA8D8FF);
         super.render(matrices, mouseX, mouseY, delta);
     }
 
@@ -68,10 +73,15 @@ public class RoomSettingsScreen extends Screen {
     }
 
     private int panelY() {
-        return Math.max(10, (this.height - 174) / 2);
+        return Math.max(10, (this.height - 202) / 2);
     }
 
     private LiteralText updateChecksText() {
         return new LiteralText("Update Checks: " + (UpdatePreferences.areChecksEnabled() ? "On" : "Off"));
+    }
+
+    private LiteralText rpRepairText() {
+        return new LiteralText("Repair RP Chests: "
+                + (RoomUiPreferences.isRuinedPortalChestRepairEnabled() ? "On" : "Off"));
     }
 }

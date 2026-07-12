@@ -2,6 +2,7 @@ package zsgrooms.modid;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +28,7 @@ public class ZsgRooms implements ModInitializer {
 		LOGGER.info("Registering ZSG room lifecycle hooks");
 
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
+		ServerTickEvents.END_SERVER_TICK.register(RuinedPortalChestRepair::tick);
 		ZsgRoomNetworking.registerServer();
 	}
 
@@ -39,6 +41,10 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName) {
+		createRoom(roomName, maxPlayers, finishGoal, seedType, hostName, false);
+	}
+
+	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName, boolean cheatsAllowed) {
 		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
 		Player host = new Player(cleanPlayerName(hostName), true, true);
 		Room room = new Room(roomName, seed, host, Math.max(2, maxPlayers));
@@ -48,6 +54,7 @@ public class ZsgRooms implements ModInitializer {
 		InGame game = new InGame(seed, roomName, InGame.SeedType.FIXED, false);
 		game.seedModification(seedType == null || seedType.trim().isEmpty() ? "generic" : seedType.trim(), 4);
 		game.setFinishGoal(finishGoal);
+		game.setCheatsAllowed(cheatsAllowed);
 		game.setPlayerProgress(host.getName(), 0, "Starting");
 		ACTIVE_GAMES.put(roomName, game);
 	}
@@ -362,6 +369,7 @@ public class ZsgRooms implements ModInitializer {
 		InGame game = new InGame(snapshot.seed, snapshot.roomName, InGame.SeedType.FIXED, snapshot.inGame);
 		game.targetStructure = ZsgSeedBridge.normalizeSeedType(snapshot.filter);
 		game.setFinishGoal(snapshot.finishGoal);
+		game.setCheatsAllowed(snapshot.cheatsAllowed);
 		game.replacePlayerProgress(snapshot.progress);
 		game.replacePlayerProgressLabels(snapshot.progressLabels);
 		ACTIVE_GAMES.put(snapshot.roomName, game);
@@ -523,7 +531,11 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	private void onServerStarted(MinecraftServer server) {
-		LOGGER.info("Server started, preparing ZSG room state");
+		Room room = getActiveRoom();
+		InGame game = room == null ? null : ACTIVE_GAMES.get(room.roomName);
+		boolean cheatsAllowed = game != null && game.areCheatsAllowed();
+		server.getPlayerManager().setCheatsAllowed(cheatsAllowed);
+		LOGGER.info("Server started for ZSG room; cheats allowed: {}", cheatsAllowed);
 	}
 
 }

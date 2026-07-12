@@ -25,7 +25,9 @@ public final class RoomUiPreferences {
     }
 
     private static final Path CONFIG_PATH = Paths.get("config", "zsg-rooms-ui.txt");
+    private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair.txt");
     private static HudPosition hudPosition = loadHudPosition();
+    private static boolean ruinedPortalChestRepairEnabled = loadRuinedPortalChestRepair();
 
     private RoomUiPreferences() {
     }
@@ -46,6 +48,19 @@ public final class RoomUiPreferences {
         }
     }
 
+    public static boolean isRuinedPortalChestRepairEnabled() {
+        return ruinedPortalChestRepairEnabled;
+    }
+
+    public static void setRuinedPortalChestRepairEnabled(boolean enabled) {
+        ruinedPortalChestRepairEnabled = enabled;
+        try {
+            Files.createDirectories(RP_REPAIR_CONFIG_PATH.getParent());
+            Files.write(RP_REPAIR_CONFIG_PATH, Boolean.toString(enabled).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) {
+        }
+    }
+
     private static HudPosition loadHudPosition() {
         try {
             if (Files.exists(CONFIG_PATH)) {
@@ -55,5 +70,16 @@ public final class RoomUiPreferences {
         } catch (IOException | IllegalArgumentException ignored) {
         }
         return HudPosition.TOP_RIGHT;
+    }
+
+    private static boolean loadRuinedPortalChestRepair() {
+        try {
+            if (Files.exists(RP_REPAIR_CONFIG_PATH)) {
+                return Boolean.parseBoolean(new String(
+                        Files.readAllBytes(RP_REPAIR_CONFIG_PATH), StandardCharsets.UTF_8).trim());
+            }
+        } catch (IOException ignored) {
+        }
+        return true;
     }
 }

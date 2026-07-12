@@ -68,6 +68,7 @@ public class GameLogicTest {
         InGame game = new InGame(room.getSeed(), room.roomName, InGame.SeedType.FIXED, false);
         game.targetStructure = "zsg";
         game.setFinishGoal(3);
+        game.setCheatsAllowed(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -84,6 +85,7 @@ public class GameLogicTest {
         assertEquals("zsg", decoded.filter);
         assertEquals(10, decoded.maxPlayers);
         assertEquals(3, decoded.finishGoal);
+        assertTrue(decoded.cheatsAllowed);
         assertEquals(2, decoded.players.size());
         assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", decoded.players.get(0).uuid);
         assertTrue(decoded.players.get(1).requestingSeedChange);
@@ -98,6 +100,7 @@ public class GameLogicTest {
         assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", appliedRoom.getPlayer("Host").getUuid());
         assertTrue(appliedRoom.getPlayer("Guest").getIsRequestingSeedChange());
         assertEquals(3, appliedGame.getFinishGoal());
+        assertTrue(appliedGame.areCheatsAllowed());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
     }
 

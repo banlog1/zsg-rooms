@@ -22,6 +22,7 @@ public class RoomSnapshot {
     public int maxPlayers = 8;
     public int finishGoal = 1;
     public boolean inGame;
+    public boolean cheatsAllowed;
     public List<PlayerState> players = new ArrayList<PlayerState>();
     public List<String> messages = new ArrayList<String>();
     public Map<String, Integer> progress = new LinkedHashMap<String, Integer>();
@@ -46,6 +47,7 @@ public class RoomSnapshot {
             snapshot.filter = game.targetStructure;
             snapshot.finishGoal = game.getFinishGoal();
             snapshot.inGame = game.getIsInGame();
+            snapshot.cheatsAllowed = game.areCheatsAllowed();
             snapshot.progress = game.getPlayerProgress();
             snapshot.progressLabels = game.getPlayerProgressLabels();
         }

@@ -19,6 +19,7 @@ public class InGame {
     public String targetStructure;
     public int requiredIronCount;
     public int finishGoal;
+    private boolean cheatsAllowed;
 
     private boolean loadingScreenVisible;
     private final Map<String, Integer> playerProgress;
@@ -35,6 +36,7 @@ public class InGame {
         this.targetStructure = "generic";
         this.requiredIronCount = 4;
         this.finishGoal = 1;
+        this.cheatsAllowed = false;
         this.loadingScreenVisible = false;
         this.playerProgress = new LinkedHashMap<String, Integer>();
         this.playerProgressLabels = new LinkedHashMap<String, String>();
@@ -150,6 +152,14 @@ public class InGame {
 
     public int getFinishGoal() {
         return this.finishGoal;
+    }
+
+    public boolean areCheatsAllowed() {
+        return cheatsAllowed;
+    }
+
+    public void setCheatsAllowed(boolean cheatsAllowed) {
+        this.cheatsAllowed = cheatsAllowed;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

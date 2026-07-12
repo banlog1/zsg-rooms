@@ -7,6 +7,8 @@
 		"AtumResetGuardMixin",
 		"ClientAdvancementManagerMixin",
 		"GameMenuScreenMixin",
+		"RuinedPortalChestMixin",
+		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
 		"TitleScreenMixin"
 	],

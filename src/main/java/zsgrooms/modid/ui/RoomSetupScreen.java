@@ -41,6 +41,8 @@ public class RoomSetupScreen extends Screen {
     private TextFieldWidget finishGoalField;
     private TextFieldWidget manualSeedField;
     private ButtonWidget seedTypeButton;
+    private ButtonWidget allowCheatsButton;
+    private boolean allowCheats;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -52,6 +54,7 @@ public class RoomSetupScreen extends Screen {
         this.helpVisible = false;
         this.selectedSeedTypeIndex = 0;
         this.statusText = "";
+        this.allowCheats = false;
     }
 
     @Override
@@ -109,6 +112,16 @@ public class RoomSetupScreen extends Screen {
         this.addButton(this.manualSeedField);
         updateManualSeedState();
 
+        this.allowCheatsButton = new ButtonWidget(fieldX, y + rowGap * 6, fieldWidth, 20,
+                allowCheatsText(), button -> {
+            if (this.createMode) {
+                this.allowCheats = !this.allowCheats;
+                button.setMessage(allowCheatsText());
+            }
+        });
+        this.allowCheatsButton.active = this.createMode;
+        this.addButton(this.allowCheatsButton);
+
         int actionY = actionY();
         int helpWidth = 28;
         int actionGap = 6;
@@ -126,7 +139,7 @@ public class RoomSetupScreen extends Screen {
             String relayUrl = this.serverAddressField.getText().trim();
 
             if (this.createMode) {
-                ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName);
+                ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName, this.allowCheats);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -216,6 +229,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Series Goal", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Filter", labelX, y + rowGap * 4 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "Cheats", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
 
         if (!isCompact() && !"manual".equals(currentSeedType()) && (this.statusText == null || this.statusText.isEmpty())) {
             String hint = "Both players use the same workers.dev relay URL";
@@ -263,6 +277,13 @@ public class RoomSetupScreen extends Screen {
         return new LiteralText(ZsgSeedBridge.seedTypeLabel(currentSeedType()));
     }
 
+    private LiteralText allowCheatsText() {
+        if (!this.createMode) {
+            return new LiteralText("Allow Cheats: Set by Host");
+        }
+        return new LiteralText("Allow Cheats: " + (this.allowCheats ? "On" : "Off"));
+    }
+
     private String currentSeedType() {
         return SEED_TYPES[this.selectedSeedTypeIndex];
     }
@@ -292,7 +313,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private boolean isCompact() {
-        return this.width < 460 || this.height < 290;
+        return this.width < 460 || this.height < 330;
     }
 
     private int panelWidth() {
@@ -300,7 +321,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int panelHeight() {
-        return isCompact() ? Math.min(262, this.height - 12) : 276;
+        return isCompact() ? Math.min(287, this.height - 12) : 306;
     }
 
     private int panelX() {
