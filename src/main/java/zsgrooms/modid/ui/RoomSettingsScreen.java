@@ -81,7 +81,7 @@ public class RoomSettingsScreen extends Screen {
     }
 
     private LiteralText rpRepairText() {
-        return new LiteralText("Repair RP Chests: "
+        return new LiteralText("Repair RP Corruption: "
                 + (RoomUiPreferences.isRuinedPortalChestRepairEnabled() ? "On" : "Off"));
     }
 }

@@ -20,6 +20,8 @@ public final class RuinedPortalChestRepair {
     private static final Identifier RUINED_PORTAL_LOOT = new Identifier("minecraft", "chests/ruined_portal");
     private static final int WATCH_TICKS = 2400;
     private static final Map<ChestKey, PendingChest> PENDING = new ConcurrentHashMap<ChestKey, PendingChest>();
+    private static final Map<ChestKey, PendingPortalBlock> PENDING_PORTAL_BLOCKS =
+            new ConcurrentHashMap<ChestKey, PendingPortalBlock>();
 
     private RuinedPortalChestRepair() {
     }
@@ -42,6 +44,20 @@ public final class RuinedPortalChestRepair {
         capture((ServerWorld) worldAccess.getWorld(), pos, state, blockEntity.toTag(new CompoundTag()));
     }
 
+    public static void captureGeneratedObsidian(ServerWorldAccess worldAccess, BlockPos pos) {
+        if (!isEnabledForCurrentRoom() || worldAccess == null
+                || !(worldAccess.getWorld() instanceof ServerWorld) || pos == null) {
+            return;
+        }
+        BlockState state = worldAccess.getBlockState(pos);
+        if (!state.isOf(Blocks.OBSIDIAN) && !state.isOf(Blocks.CRYING_OBSIDIAN)) {
+            return;
+        }
+        ServerWorld world = (ServerWorld) worldAccess.getWorld();
+        pos = pos.toImmutable();
+        PENDING_PORTAL_BLOCKS.put(new ChestKey(world, pos), new PendingPortalBlock(world, pos, state));
+    }
+
     private static void capture(ServerWorld world, BlockPos pos, BlockState state, CompoundTag tag) {
         if (!isEnabledForCurrentRoom() || world == null || pos == null || state == null || tag == null
                 || !RUINED_PORTAL_LOOT.toString().equals(tag.getString("LootTable"))) {
@@ -56,8 +72,11 @@ public final class RuinedPortalChestRepair {
     public static void tick(MinecraftServer server) {
         if (!isEnabledForCurrentRoom()) {
             PENDING.clear();
+            PENDING_PORTAL_BLOCKS.clear();
             return;
         }
+
+        repairGeneratedPortalBlocks(server);
 
         Iterator<Map.Entry<ChestKey, PendingChest>> iterator = PENDING.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -92,6 +111,28 @@ public final class RuinedPortalChestRepair {
 
             repair(pending);
             PENDING.remove(entry.getKey(), pending);
+        }
+    }
+
+    private static void repairGeneratedPortalBlocks(MinecraftServer server) {
+        Iterator<Map.Entry<ChestKey, PendingPortalBlock>> iterator = PENDING_PORTAL_BLOCKS.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<ChestKey, PendingPortalBlock> entry = iterator.next();
+            PendingPortalBlock pending = entry.getValue();
+            if (pending.world.getServer() != server) {
+                PENDING_PORTAL_BLOCKS.remove(entry.getKey(), pending);
+                continue;
+            }
+            if (!pending.world.isChunkLoaded(pending.pos)) {
+                continue;
+            }
+            BlockState current = pending.world.getBlockState(pending.pos);
+            if (!current.equals(pending.state)) {
+                pending.world.setBlockState(pending.pos, pending.state, 3);
+                ZsgRooms.LOGGER.info("Restored corrupted ruined portal block at {} to {}",
+                        pending.pos, pending.state.getBlock().getTranslationKey());
+            }
+            PENDING_PORTAL_BLOCKS.remove(entry.getKey(), pending);
         }
     }
 
@@ -153,6 +194,18 @@ public final class RuinedPortalChestRepair {
             this.pos = pos;
             this.state = state;
             this.lootSeed = lootSeed;
+        }
+    }
+
+    private static final class PendingPortalBlock {
+        private final ServerWorld world;
+        private final BlockPos pos;
+        private final BlockState state;
+
+        private PendingPortalBlock(ServerWorld world, BlockPos pos, BlockState state) {
+            this.world = world;
+            this.pos = pos;
+            this.state = state;
         }
     }
 }

@@ -42,5 +42,12 @@ public abstract class RuinedPortalStructurePieceMixin {
         for (Structure.StructureBlockInfo chest : this.structure.getInfosForBlock(this.pos, this.placementData, Blocks.CHEST)) {
             RuinedPortalChestRepair.captureGenerated(world, chest.pos, chest.state);
         }
+        for (Structure.StructureBlockInfo obsidian : this.structure.getInfosForBlock(this.pos, this.placementData, Blocks.OBSIDIAN)) {
+            RuinedPortalChestRepair.captureGeneratedObsidian(world, obsidian.pos);
+        }
+        for (Structure.StructureBlockInfo cryingObsidian :
+                this.structure.getInfosForBlock(this.pos, this.placementData, Blocks.CRYING_OBSIDIAN)) {
+            RuinedPortalChestRepair.captureGeneratedObsidian(world, cryingObsidian.pos);
+        }
     }
 }
