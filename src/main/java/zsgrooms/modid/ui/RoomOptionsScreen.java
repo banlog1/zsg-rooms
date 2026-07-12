@@ -33,6 +33,7 @@ public class RoomOptionsScreen extends Screen {
     private TextFieldWidget manualSeedField;
     private ButtonWidget seedTypeButton;
     private int selectedSeedTypeIndex;
+    private String initialManualSeed = "";
 
     public RoomOptionsScreen(Screen parent, String roomName) {
         super(new LiteralText("Room Options"));
@@ -43,6 +44,9 @@ public class RoomOptionsScreen extends Screen {
         Room room = ZsgRooms.getRoom(roomName);
         if (room != null) {
             String current = ZsgSeedBridge.resolveStructure(room.getSeed());
+            if ("manual".equals(current)) {
+                this.initialManualSeed = ZsgSeedBridge.extractMinecraftSeed(room.getSeed());
+            }
             for (int i = 0; i < SEED_TYPES.length; i++) {
                 if (SEED_TYPES[i].equals(current)) {
                     this.selectedSeedTypeIndex = i;
@@ -54,7 +58,7 @@ public class RoomOptionsScreen extends Screen {
 
     @Override
     protected void init() {
-        String manualSeed = this.manualSeedField == null ? "" : this.manualSeedField.getText();
+        String manualSeed = this.manualSeedField == null ? this.initialManualSeed : this.manualSeedField.getText();
         int panelX = panelX();
         int contentX = panelX + 16;
         int contentWidth = panelWidth() - 32;
@@ -75,7 +79,12 @@ public class RoomOptionsScreen extends Screen {
 
         int buttonWidth = (contentWidth - 8) / 2;
         this.addButton(new ButtonWidget(contentX, y + 66, buttonWidth, 20, new LiteralText("Apply"), button -> {
-            ZsgRoomsClient.sendRoomAction("filter", this.roomName, selectedSeedTypeValue());
+            String seedType = selectedSeedTypeValue();
+            if (!ZsgSeedBridge.isValidManualSeedSpecification(seedType)) {
+                button.setMessage(new LiteralText("Enter Seed"));
+                return;
+            }
+            ZsgRoomsClient.sendRoomAction("filter", this.roomName, seedType);
             this.client.openScreen(this.parent);
         }));
 

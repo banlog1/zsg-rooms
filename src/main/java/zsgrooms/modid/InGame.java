@@ -141,7 +141,7 @@ public class InGame {
             baseSeed = "zsg-room";
         }
         String normalizedStructure = ZsgSeedBridge.normalizeSeedType(structureType);
-        this.targetStructure = normalizedStructure;
+        this.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(structureType);
         this.requiredIronCount = Math.max(1, minimumIron);
         this.seed = ZsgSeedBridge.buildSeedForStructure(baseSeed, normalizedStructure, this.requiredIronCount);
     }

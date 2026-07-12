@@ -307,7 +307,7 @@ public class ZsgRooms implements ModInitializer {
 		}
 		room.setSeed(seed);
 		game.setSeed(seed);
-		game.targetStructure = ZsgSeedBridge.normalizeSeedType(filter);
+		game.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(filter);
 		resetRaceProgress(room, game);
 		resetSeedChangeRequests(room);
 	}
@@ -319,7 +319,7 @@ public class ZsgRooms implements ModInitializer {
 			return false;
 		}
 
-		prepareRoomSeed(roomName, seed, ZsgSeedBridge.resolveStructure(seed));
+		prepareRoomSeed(roomName, seed, ZsgSeedBridge.seedSpecificationFromSeed(seed));
 		boolean launched = ZsgSeedBridge.launchSeedWithAtum(seed);
 		if (launched) {
 			game.startGame();
@@ -367,7 +367,7 @@ public class ZsgRooms implements ModInitializer {
 		ACTIVE_ROOMS.put(snapshot.roomName, room);
 
 		InGame game = new InGame(snapshot.seed, snapshot.roomName, InGame.SeedType.FIXED, snapshot.inGame);
-		game.targetStructure = ZsgSeedBridge.normalizeSeedType(snapshot.filter);
+		game.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(snapshot.filter);
 		game.setFinishGoal(snapshot.finishGoal);
 		game.setCheatsAllowed(snapshot.cheatsAllowed);
 		game.replacePlayerProgress(snapshot.progress);
@@ -486,7 +486,7 @@ public class ZsgRooms implements ModInitializer {
 			ACTIVE_GAMES.put(roomName, game);
 		}
 		game.setSeed(seed);
-		game.targetStructure = ZsgSeedBridge.resolveStructure(seed);
+		game.targetStructure = ZsgSeedBridge.seedSpecificationFromSeed(seed);
 		activeRoomName = roomName;
 	}
 

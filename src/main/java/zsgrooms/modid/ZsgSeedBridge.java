@@ -124,6 +124,20 @@ public class ZsgSeedBridge {
         return normalized;
     }
 
+    public static String normalizeSeedSpecification(String seedType) {
+        String normalized = normalizeSeedType(seedType);
+        if (!"manual".equals(normalized)) {
+            return normalized;
+        }
+        String manualSeed = extractManualSeed(seedType);
+        return manualSeed == null || manualSeed.isEmpty() ? "manual" : "manual:" + manualSeed;
+    }
+
+    public static boolean isValidManualSeedSpecification(String seedType) {
+        return !"manual".equals(normalizeSeedType(seedType))
+                || (extractManualSeed(seedType) != null && !extractManualSeed(seedType).isEmpty());
+    }
+
     public static String seedTypeLabel(String seedType) {
         String normalized = normalizeSeedType(seedType);
         if (FSG_FILTER_LABELS.containsKey(normalized)) {
@@ -186,10 +200,28 @@ public class ZsgSeedBridge {
         return 4;
     }
 
+    public static String seedSpecificationFromSeed(String seed) {
+        String structure = normalizeSeedType(resolveStructure(seed));
+        if ("manual".equals(structure)) {
+            return normalizeSeedSpecification("manual:" + extractMinecraftSeed(seed));
+        }
+        return structure;
+    }
+
     public static String fetchSeedForRoom(String roomName, String structureType) {
         String seedType = normalizeSeedType(structureType);
         logToFile("=== ZSG-Rooms Seed Detection ===");
         logToFile("Room: " + roomName + ", Seed Type: " + seedTypeLabel(seedType));
+
+        String manualSeed = extractManualSeed(structureType);
+        if ("manual".equals(seedType)) {
+            if (manualSeed == null || manualSeed.isEmpty()) {
+                throw new IllegalArgumentException("Manual seed cannot be empty");
+            }
+            lastSeedSource = "manual";
+            logToFile("FOUND: Manual seed = " + manualSeed);
+            return buildSeedForStructure(manualSeed, seedType, 4);
+        }
         
         String systemSeed = System.getProperty("zsgrooms.seed");
         if (systemSeed != null && !systemSeed.trim().isEmpty()) {
@@ -206,13 +238,6 @@ public class ZsgSeedBridge {
             return buildSeedForStructure(envSeed, seedType, 4);
         }
         logToFile("SKIP: Environment variable not set");
-
-        String manualSeed = extractManualSeed(structureType);
-        if ("manual".equals(seedType) && manualSeed != null && !manualSeed.trim().isEmpty()) {
-            lastSeedSource = "manual";
-            logToFile("FOUND: Manual seed = " + manualSeed);
-            return buildSeedForStructure(manualSeed, seedType, 4);
-        }
 
         if ("random".equals(seedType)) {
             String randomSeed = String.valueOf(new Random().nextLong());
@@ -257,7 +282,13 @@ public class ZsgSeedBridge {
     public static CompletableFuture<String> requestExactSeedForRoom(String roomName, String structureType) {
         String seedType = normalizeSeedType(structureType);
         if (!isFsgFilterSeedType(seedType)) {
-            return CompletableFuture.completedFuture(fetchSeedForRoom(roomName, structureType));
+            CompletableFuture<String> seed = new CompletableFuture<String>();
+            try {
+                seed.complete(fetchSeedForRoom(roomName, structureType));
+            } catch (Exception exception) {
+                seed.completeExceptionally(exception);
+            }
+            return seed;
         }
 
         CompletableFuture<String> exactSeed = new CompletableFuture<String>();

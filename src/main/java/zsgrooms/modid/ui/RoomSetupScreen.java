@@ -134,6 +134,10 @@ public class RoomSetupScreen extends Screen {
             int maxPlayers = parseInt(this.maxPlayersField.getText(), 10);
             int finishGoal = parseInt(this.finishGoalField.getText(), 1);
             String seedType = selectedSeedTypeValue();
+            if (!ZsgSeedBridge.isValidManualSeedSpecification(seedType)) {
+                this.statusText = "Enter a manual Minecraft seed";
+                return;
+            }
             String playerName = ZsgRoomsClient.localPlayerName(this.client);
             String playerUuid = ZsgRoomsClient.localPlayerUuid(this.client);
             String relayUrl = this.serverAddressField.getText().trim();

@@ -5,11 +5,13 @@ import zsgrooms.modid.net.RoomProtocol;
 import zsgrooms.modid.net.RoomSnapshot;
 
 import java.util.Arrays;
+import java.util.concurrent.CompletionException;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GameLogicTest {
@@ -110,6 +112,39 @@ public class GameLogicTest {
 
         assertEquals("987654321", ZsgSeedBridge.extractMinecraftSeed(seed));
         assertEquals("manual", ZsgSeedBridge.resolveStructure(seed));
+    }
+
+    @Test
+    public void manualSeedSpecificationSurvivesRoomSnapshotsAndNewRequests() {
+        ZsgRooms.createRoom("manual-room", 2, 1, "manual:24680", "Host");
+        InGame game = ZsgRooms.getGame("manual-room");
+
+        assertEquals("manual:24680", game.targetStructure);
+        assertEquals("24680", ZsgSeedBridge.extractMinecraftSeed(game.getSeed()));
+
+        RoomSnapshot snapshot = RoomSnapshot.capture(ZsgRooms.getRoom("manual-room"), game);
+        assertEquals("manual:24680", snapshot.filter);
+        assertEquals("24680", ZsgSeedBridge.extractMinecraftSeed(
+                ZsgSeedBridge.requestExactSeedForRoom("manual-room", snapshot.filter).join()));
+    }
+
+    @Test
+    public void emptyManualSeedIsRejected() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ZsgSeedBridge.fetchSeedForRoom("manual-room", "manual:"));
+    }
+
+    @Test
+    public void launchedManualSeedReconstructsItsFullSpecification() {
+        String seed = ZsgSeedBridge.buildSeedForStructure("13579", "manual", 4);
+
+        assertEquals("manual:13579", ZsgSeedBridge.seedSpecificationFromSeed(seed));
+    }
+
+    @Test
+    public void invalidAsyncSeedRequestDoesNotThrowOnTheCallingThread() {
+        assertThrows(CompletionException.class,
+                () -> ZsgSeedBridge.requestExactSeedForRoom("manual-room", "manual").join());
     }
 
     @Test
