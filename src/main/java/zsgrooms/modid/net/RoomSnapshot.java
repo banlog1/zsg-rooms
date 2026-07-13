@@ -24,6 +24,7 @@ public class RoomSnapshot {
     public boolean inGame;
     public boolean cheatsAllowed;
     public boolean rngStandardized;
+    public boolean boostedBarters;
     public List<PlayerState> players = new ArrayList<PlayerState>();
     public List<String> messages = new ArrayList<String>();
     public Map<String, Integer> progress = new LinkedHashMap<String, Integer>();
@@ -50,6 +51,7 @@ public class RoomSnapshot {
             snapshot.inGame = game.getIsInGame();
             snapshot.cheatsAllowed = game.areCheatsAllowed();
             snapshot.rngStandardized = game.isRngStandardized();
+            snapshot.boostedBarters = game.areBartersBoosted();
             snapshot.progress = game.getPlayerProgress();
             snapshot.progressLabels = game.getPlayerProgressLabels();
         }

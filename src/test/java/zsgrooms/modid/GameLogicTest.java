@@ -73,6 +73,7 @@ public class GameLogicTest {
         game.setFinishGoal(3);
         game.setCheatsAllowed(true);
         game.setRngStandardized(true);
+        game.setBoostedBarters(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -91,6 +92,7 @@ public class GameLogicTest {
         assertEquals(3, decoded.finishGoal);
         assertTrue(decoded.cheatsAllowed);
         assertTrue(decoded.rngStandardized);
+        assertTrue(decoded.boostedBarters);
         assertEquals(2, decoded.players.size());
         assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", decoded.players.get(0).uuid);
         assertTrue(decoded.players.get(1).requestingSeedChange);
@@ -107,6 +109,7 @@ public class GameLogicTest {
         assertEquals(3, appliedGame.getFinishGoal());
         assertTrue(appliedGame.areCheatsAllowed());
         assertTrue(appliedGame.isRngStandardized());
+        assertTrue(appliedGame.areBartersBoosted());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
     }
 
@@ -120,6 +123,19 @@ public class GameLogicTest {
         assertEquals(first, repeated);
         assertNotEquals(first, nextDrop);
         assertNotEquals(first, differentMob);
+    }
+
+    @Test
+    public void rngAndBoostedBarterSettingsAreIndependent() {
+        RngStandardization.configure(true, false);
+        assertTrue(RngStandardization.isEnabled());
+        assertFalse(RngStandardization.areBartersBoosted());
+
+        RngStandardization.configure(false, true);
+        assertFalse(RngStandardization.isEnabled());
+        assertTrue(RngStandardization.areBartersBoosted());
+
+        RngStandardization.configure(false, false);
     }
 
     @Test

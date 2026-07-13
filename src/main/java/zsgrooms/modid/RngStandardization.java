@@ -12,19 +12,29 @@ import java.util.Random;
 public final class RngStandardization {
     private static final Map<String, Long> MOB_DROP_COUNTS = new HashMap<String, Long>();
     private static volatile boolean enabled;
+    private static volatile boolean boostedBarters;
     private static long barterCount;
 
     private RngStandardization() {
     }
 
     public static synchronized void configure(boolean standardize) {
+        configure(standardize, false);
+    }
+
+    public static synchronized void configure(boolean standardize, boolean boostBarters) {
         enabled = standardize;
+        boostedBarters = boostBarters;
         MOB_DROP_COUNTS.clear();
         barterCount = 0L;
     }
 
     public static boolean isEnabled() {
         return enabled;
+    }
+
+    public static boolean areBartersBoosted() {
+        return boostedBarters;
     }
 
     public static synchronized long nextMobDropSeed(MobEntity mob) {

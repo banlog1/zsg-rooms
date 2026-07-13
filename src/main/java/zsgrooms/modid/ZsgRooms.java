@@ -50,6 +50,11 @@ public class ZsgRooms implements ModInitializer {
 
 	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName,
 			boolean cheatsAllowed, boolean rngStandardized) {
+		createRoom(roomName, maxPlayers, finishGoal, seedType, hostName, cheatsAllowed, rngStandardized, false);
+	}
+
+	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName,
+			boolean cheatsAllowed, boolean rngStandardized, boolean boostedBarters) {
 		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
 		Player host = new Player(cleanPlayerName(hostName), true, true);
 		Room room = new Room(roomName, seed, host, Math.max(2, maxPlayers));
@@ -61,6 +66,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setFinishGoal(finishGoal);
 		game.setCheatsAllowed(cheatsAllowed);
 		game.setRngStandardized(rngStandardized);
+		game.setBoostedBarters(boostedBarters);
 		game.setPlayerProgress(host.getName(), 0, "Starting");
 		ACTIVE_GAMES.put(roomName, game);
 	}
@@ -385,6 +391,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setFinishGoal(snapshot.finishGoal);
 		game.setCheatsAllowed(snapshot.cheatsAllowed);
 		game.setRngStandardized(snapshot.rngStandardized);
+		game.setBoostedBarters(snapshot.boostedBarters);
 		game.replacePlayerProgress(snapshot.progress);
 		game.replacePlayerProgressLabels(snapshot.progressLabels);
 		ACTIVE_GAMES.put(snapshot.roomName, game);
@@ -551,9 +558,10 @@ public class ZsgRooms implements ModInitializer {
 		boolean cheatsAllowed = game != null && game.areCheatsAllowed();
 		server.getPlayerManager().setCheatsAllowed(cheatsAllowed);
 		boolean rngStandardized = game != null && game.isRngStandardized();
-		RngStandardization.configure(rngStandardized);
-		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}",
-				cheatsAllowed, rngStandardized);
+		boolean boostedBarters = game != null && game.areBartersBoosted();
+		RngStandardization.configure(rngStandardized, boostedBarters);
+		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}, boosted barters: {}",
+				cheatsAllowed, rngStandardized, boostedBarters);
 	}
 
 }

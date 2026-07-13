@@ -43,8 +43,10 @@ public class RoomSetupScreen extends Screen {
     private ButtonWidget seedTypeButton;
     private ButtonWidget allowCheatsButton;
     private ButtonWidget rngStandardizationButton;
+    private ButtonWidget boostedBartersButton;
     private boolean allowCheats;
     private boolean rngStandardization;
+    private boolean boostedBarters;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -58,6 +60,7 @@ public class RoomSetupScreen extends Screen {
         this.statusText = "";
         this.allowCheats = false;
         this.rngStandardization = false;
+        this.boostedBarters = false;
     }
 
     @Override
@@ -135,6 +138,16 @@ public class RoomSetupScreen extends Screen {
         this.rngStandardizationButton.active = this.createMode;
         this.addButton(this.rngStandardizationButton);
 
+        this.boostedBartersButton = new ButtonWidget(fieldX, y + rowGap * 8, fieldWidth, 20,
+                boostedBartersText(), button -> {
+            if (this.createMode) {
+                this.boostedBarters = !this.boostedBarters;
+                button.setMessage(boostedBartersText());
+            }
+        });
+        this.boostedBartersButton.active = this.createMode;
+        this.addButton(this.boostedBartersButton);
+
         int actionY = actionY();
         int helpWidth = 28;
         int actionGap = 6;
@@ -157,7 +170,7 @@ public class RoomSetupScreen extends Screen {
 
             if (this.createMode) {
                 ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName,
-                        this.allowCheats, this.rngStandardization);
+                        this.allowCheats, this.rngStandardization, this.boostedBarters);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -249,6 +262,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Cheats", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "RNG", labelX, y + rowGap * 7 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "Barters", labelX, y + rowGap * 8 + 6, 0xD0D0D0);
 
         if (!isCompact() && !"manual".equals(currentSeedType()) && (this.statusText == null || this.statusText.isEmpty())) {
             String hint = "Both players use the same workers.dev relay URL";
@@ -310,6 +324,13 @@ public class RoomSetupScreen extends Screen {
         return new LiteralText("RNG Standardization: " + (this.rngStandardization ? "On" : "Off"));
     }
 
+    private LiteralText boostedBartersText() {
+        if (!this.createMode) {
+            return new LiteralText("Boosted Barters: Set by Host");
+        }
+        return new LiteralText("Boosted Barters: " + (this.boostedBarters ? "On" : "Off"));
+    }
+
     private String currentSeedType() {
         return SEED_TYPES[this.selectedSeedTypeIndex];
     }
@@ -339,7 +360,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private boolean isCompact() {
-        return this.width < 460 || this.height < 330;
+        return this.width < 460 || this.height < 350;
     }
 
     private int panelWidth() {
@@ -347,7 +368,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int panelHeight() {
-        return isCompact() ? Math.min(310, this.height - 12) : Math.min(336, this.height - 12);
+        return isCompact() ? Math.min(340, this.height - 12) : Math.min(366, this.height - 12);
     }
 
     private int panelX() {
@@ -364,12 +385,15 @@ public class RoomSetupScreen extends Screen {
 
     private int rowGap() {
         if (!isCompact()) {
-            return 30;
+            return this.height < 370 ? 26 : 30;
         }
         if (this.height < 250) {
-            return 20;
+            return 18;
         }
-        return this.height < 280 ? 23 : 25;
+        if (this.height < 270) {
+            return 19;
+        }
+        return this.height < 300 ? 21 : 25;
     }
 
     private int formTop() {
