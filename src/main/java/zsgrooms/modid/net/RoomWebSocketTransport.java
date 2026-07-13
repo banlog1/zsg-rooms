@@ -310,6 +310,8 @@ public class RoomWebSocketTransport {
                 }
             } else if ("advancement".equals(type)) {
                 handleAdvancement(player, value);
+            } else if ("complete_run".equals(type)) {
+                finishAndBroadcast(player, ZsgRooms.completionReason(value));
             } else if ("forfeit".equals(type)) {
                 finishForfeit(player);
             } else if ("leave_room".equals(type)) {
@@ -356,6 +358,10 @@ public class RoomWebSocketTransport {
             }
             if ("advancement".equals(type)) {
                 handleAdvancement(player, value);
+                return;
+            }
+            if ("complete_run".equals(type)) {
+                finishAndBroadcast(player, ZsgRooms.completionReason(value));
                 return;
             }
             if ("forfeit".equals(type)) {
@@ -416,8 +422,10 @@ public class RoomWebSocketTransport {
 
         private void finishAndBroadcast(String winner, String reason) {
             String safeWinner = winner == null || winner.trim().isEmpty() ? "No winner" : winner.trim();
+            if (!ZsgRooms.finishMatch(this.roomName, safeWinner, reason)) {
+                return;
+            }
             String value = safeWinner + "\t" + reason;
-            ZsgRooms.applyRoomAction("match_result", this.roomName, this.playerName, value);
             send("match_result", this.playerName, value);
             ZsgInGameActions.showMatchResult(MinecraftClient.getInstance(), safeWinner, reason);
             sendSnapshot();

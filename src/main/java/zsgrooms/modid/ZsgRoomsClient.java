@@ -18,6 +18,8 @@ import java.util.Set;
 public class ZsgRoomsClient implements ClientModInitializer {
     private static final Set<String> REPORTED_ADVANCEMENTS = new HashSet<String>();
     private static String advancementRaceKey = "";
+    private static String completedRaceKey = "";
+    private static boolean wasInGame;
 
     @Override
     public void onInitializeClient() {
@@ -29,7 +31,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
             context.getTaskQueue().execute(() -> ZsgRooms.applyRoomAction(action, roomName, playerName, value));
         });
         HudRenderCallback.EVENT.register(MatchHud::render);
-        ClientTickEvents.END_CLIENT_TICK.register(ZsgInGameActions::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(ZsgRoomsClient::tickClient);
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> UpdateManager.installOnExit());
     }
 
@@ -49,9 +51,37 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
     }
 
+    public static void onEndExitPortalEntered() {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        if (game == null || !game.getIsInGame()) {
+            return;
+        }
+        String raceKey = roomName + "|" + game.getSeed();
+        if (raceKey.equals(completedRaceKey)) {
+            return;
+        }
+        completedRaceKey = raceKey;
+        String time = SpeedRunIgtBridge.completedInGameTime();
+        String result = time.isEmpty() ? "Beat the seed" : "Beat the seed in " + time + " IGT";
+        sendRoomAction("complete_run", roomName, result);
+    }
+
     public static void resetLocalAdvancementTracking() {
         REPORTED_ADVANCEMENTS.clear();
         advancementRaceKey = "";
+        completedRaceKey = "";
+    }
+
+    private static void tickClient(MinecraftClient client) {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        boolean inGame = game != null && game.getIsInGame();
+        if (inGame && !wasInGame) {
+            resetLocalAdvancementTracking();
+        }
+        wasInGame = inGame;
+        ZsgInGameActions.tick(client);
     }
 
     public static void sendRoomAction(String action, String roomName, String value) {

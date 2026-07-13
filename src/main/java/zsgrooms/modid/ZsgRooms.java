@@ -92,7 +92,7 @@ public class ZsgRooms implements ModInitializer {
 
 	public static boolean trackAdvancement(String roomName, String playerName, String value) {
 		InGame game = ACTIVE_GAMES.get(roomName);
-		if (game == null) {
+		if (game == null || !game.getIsInGame()) {
 			return false;
 		}
 		String[] parts = value == null ? new String[0] : value.split("\\t", 2);
@@ -108,7 +108,7 @@ public class ZsgRooms implements ModInitializer {
 				game.setPlayerProgress(name, stage, advancementProgressLabel(advancementId, title));
 			}
 		}
-		return "minecraft:end/kill_dragon".equals(advancementId);
+		return false;
 	}
 
 	public static void shareChat(String roomName, String message) {
@@ -172,6 +172,8 @@ public class ZsgRooms implements ModInitializer {
 			resetPlayerRun(roomName, cleanPlayerName(playerName));
 		} else if ("advancement".equals(action)) {
 			trackAdvancement(roomName, cleanPlayerName(playerName), value);
+		} else if ("complete_run".equals(action)) {
+			finishMatch(roomName, cleanPlayerName(playerName), completionReason(value));
 		} else if ("match_result".equals(action)) {
 			String[] result = value == null ? new String[0] : value.split("\\t", 2);
 			finishMatch(roomName, result.length > 0 ? result[0] : "Match ended",
@@ -190,12 +192,18 @@ public class ZsgRooms implements ModInitializer {
 		}
 	}
 
-	public static void finishMatch(String roomName, String winner, String reason) {
+	public static boolean finishMatch(String roomName, String winner, String reason) {
 		InGame game = ACTIVE_GAMES.get(roomName);
-		if (game != null && game.getIsInGame()) {
-			game.endGame();
+		if (game == null || !game.getIsInGame()) {
+			return false;
 		}
+		game.endGame();
 		shareChat(roomName, "Match winner: " + cleanPlayerName(winner) + " - " + reason);
+		return true;
+	}
+
+	public static String completionReason(String value) {
+		return value == null || value.trim().isEmpty() ? "Beat the seed" : value.trim();
 	}
 
 	public static void changeRoomFilter(String roomName, String seedType) {
@@ -526,7 +534,7 @@ public class ZsgRooms implements ModInitializer {
 		if ("minecraft:nether/find_bastion".equals(id)) return "Entered Bastion";
 		if ("minecraft:story/follow_ender_eye".equals(id)) return "Found Stronghold";
 		if ("minecraft:end/root".equals(id)) return "Entered End";
-		if ("minecraft:end/kill_dragon".equals(id)) return "Finished";
+		if ("minecraft:end/kill_dragon".equals(id)) return "Dragon Defeated";
 		return fallback == null || fallback.trim().isEmpty() ? "In progress" : fallback;
 	}
 

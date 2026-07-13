@@ -123,6 +123,12 @@ public class RoomSocketTransport {
                 ZsgInGameActions.showSeedChangeRequest(MinecraftClient.getInstance(), message.get("player"));
             } else if ("seed_ready".equals(type)) {
                 ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
+            } else if ("match_result".equals(type)) {
+                String value = message.get("value");
+                String[] result = value == null ? new String[0] : value.split("\t", 2);
+                ZsgInGameActions.showMatchResult(MinecraftClient.getInstance(),
+                        result.length > 0 ? result[0] : "No winner",
+                        result.length > 1 ? result[1] : "Match finished");
             } else if ("reset_run".equals(type)
                     && !zsgrooms.modid.ZsgRoomsClient.localPlayerName(MinecraftClient.getInstance()).equals(message.get("player"))) {
                 ZsgInGameActions.showRunReset(MinecraftClient.getInstance(), message.get("player"));
@@ -252,6 +258,10 @@ public class RoomSocketTransport {
                 }
                 return;
             }
+            if ("complete_run".equals(type)) {
+                finishAndBroadcast(player, ZsgRooms.completionReason(value));
+                return;
+            }
             if (!"chat".equals(type)
                     && !"profile".equals(type)
                     && !"share_seed".equals(type)
@@ -293,6 +303,8 @@ public class RoomSocketTransport {
                     announceSeedChangeAgreement();
                     requestAndLaunchExactSeed();
                 }
+            } else if ("complete_run".equals(type)) {
+                finishAndBroadcast(player, ZsgRooms.completionReason(value));
             } else {
                 ZsgRooms.applyRoomAction(type, room, player, value);
                 broadcast(type, room, player, value);
@@ -346,6 +358,17 @@ public class RoomSocketTransport {
             ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
             broadcast("seed_change_ready", this.roomName, this.hostName,
                     "All players agreed. Preparing a new seed...");
+        }
+
+        private void finishAndBroadcast(String winner, String reason) {
+            String safeWinner = winner == null || winner.trim().isEmpty() ? "No winner" : winner.trim();
+            if (!ZsgRooms.finishMatch(this.roomName, safeWinner, reason)) {
+                return;
+            }
+            String value = safeWinner + "\t" + reason;
+            broadcast("match_result", this.roomName, this.hostName, value);
+            ZsgInGameActions.showMatchResult(MinecraftClient.getInstance(), safeWinner, reason);
+            broadcastSnapshot();
         }
 
         private boolean isNewSeedChangeRequest(String player) {

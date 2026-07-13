@@ -171,6 +171,7 @@ public class GameLogicTest {
     @Test
     public void raceHudTracksBastionStrongholdAndEndMilestones() {
         ZsgRooms.createRoom("milestone-test-room", 2, 1, "zsg", "Runner");
+        ZsgRooms.getGame("milestone-test-room").startGame();
 
         ZsgRooms.trackAdvancement("milestone-test-room", "Runner",
                 "minecraft:nether/find_bastion\tThose Were the Days");
@@ -186,6 +187,30 @@ public class GameLogicTest {
                 "minecraft:end/root\tThe End?");
         assertEquals(7, ZsgRooms.getGame("milestone-test-room").getPlayerProgress().get("Runner"));
         assertEquals("Entered End", ZsgRooms.getGame("milestone-test-room").getPlayerProgressLabels().get("Runner"));
+
+        assertFalse(ZsgRooms.trackAdvancement("milestone-test-room", "Runner",
+                "minecraft:end/kill_dragon\tFree the End"));
+        assertEquals(8, ZsgRooms.getGame("milestone-test-room").getPlayerProgress().get("Runner"));
+        assertEquals("Dragon Defeated", ZsgRooms.getGame("milestone-test-room").getPlayerProgressLabels().get("Runner"));
+
+        ZsgRooms.getGame("milestone-test-room").endGame();
+        assertFalse(ZsgRooms.trackAdvancement("milestone-test-room", "Runner",
+                "minecraft:end/kill_dragon\tFree the End"));
+    }
+
+    @Test
+    public void speedRunIgtTimesUseTimerFormatting() {
+        assertEquals("12:34.567", SpeedRunIgtBridge.formatMilliseconds(754567L));
+        assertEquals("1:02:03.004", SpeedRunIgtBridge.formatMilliseconds(3723004L));
+    }
+
+    @Test
+    public void matchCompletionCanOnlyChooseOneWinner() {
+        ZsgRooms.createRoom("finish-once-room", 2, 1, "manual:123", "Runner");
+        ZsgRooms.getGame("finish-once-room").startGame();
+
+        assertTrue(ZsgRooms.finishMatch("finish-once-room", "Runner", "Beat the seed in 01:23.456 IGT"));
+        assertFalse(ZsgRooms.finishMatch("finish-once-room", "Other", "Beat the seed"));
     }
 
     @Test

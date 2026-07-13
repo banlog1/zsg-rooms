@@ -3,6 +3,7 @@ package zsgrooms.modid.ui;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.SaveLevelScreen;
 import net.minecraft.client.gui.screen.TitleScreen;
+import net.minecraft.client.gui.screen.CreditsScreen;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
@@ -13,6 +14,9 @@ import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
 
 public class ZsgInGameActions {
+    private static final String EXIT_PORTAL_RESULT = "Beat the seed";
+    private static final String EXIT_PORTAL_TIME_PREFIX = EXIT_PORTAL_RESULT + " in ";
+    private static final String EXIT_PORTAL_TIME_SUFFIX = " IGT";
     private static int returnTicks = -1;
     private ZsgInGameActions() {
     }
@@ -63,12 +67,44 @@ public class ZsgInGameActions {
 
     public static void showMatchResult(MinecraftClient client, String winner, String reason) {
         if (client != null && client.inGameHud != null) {
+            if (client.currentScreen instanceof CreditsScreen) {
+                client.openScreen(null);
+            }
             String localName = localPlayerName(client);
-            String title = localName.equals(winner) ? "Victory!" : "Match Over";
-            client.inGameHud.setTitles(new LiteralText(title), new LiteralText("Winner: " + winner), 5, 60, 10);
-            client.inGameHud.setOverlayMessage(new LiteralText(reason), false);
-            returnTicks = 70;
+            boolean localVictory = localName.equals(winner);
+            String title = localVictory ? "Victory!" : winner + " Wins!";
+            String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
+            MutableText titleText = new LiteralText(title).formatted(
+                    localVictory ? Formatting.GOLD : Formatting.RED);
+            MutableText subtitleText = new LiteralText(matchResultSubtitle(result)).formatted(
+                    isExitPortalResult(result) ? Formatting.GREEN : Formatting.YELLOW);
+            MutableText winnerText = new LiteralText("Winner: ").formatted(Formatting.GRAY)
+                    .append(new LiteralText(winner).formatted(Formatting.GOLD));
+            client.inGameHud.setTitles(null, null, 5, 80, 15);
+            client.inGameHud.setTitles(titleText, null, -1, -1, -1);
+            client.inGameHud.setTitles(null, subtitleText, -1, -1, -1);
+            client.inGameHud.setOverlayMessage(winnerText, false);
+            returnTicks = 90;
         }
+    }
+
+    static String matchResultSubtitle(String result) {
+        if (result.startsWith(EXIT_PORTAL_TIME_PREFIX) && result.endsWith(EXIT_PORTAL_TIME_SUFFIX)) {
+            int timeEnd = result.length() - EXIT_PORTAL_TIME_SUFFIX.length();
+            String time = result.substring(EXIT_PORTAL_TIME_PREFIX.length(), timeEnd).trim();
+            if (!time.isEmpty()) {
+                return "Final IGT: " + time;
+            }
+        }
+        if (EXIT_PORTAL_RESULT.equals(result)) {
+            return "Seed completed";
+        }
+        return result;
+    }
+
+    private static boolean isExitPortalResult(String result) {
+        return EXIT_PORTAL_RESULT.equals(result)
+                || result.startsWith(EXIT_PORTAL_TIME_PREFIX) && result.endsWith(EXIT_PORTAL_TIME_SUFFIX);
     }
 
     public static void showRemoteAdvancement(MinecraftClient client, String player, String value) {
