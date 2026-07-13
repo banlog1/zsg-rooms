@@ -8,6 +8,7 @@ const GUEST_ACTIONS = new Set([
   "progress",
   "reset_run",
   "advancement",
+  "world_ready",
   "leave_room"
 ]);
 

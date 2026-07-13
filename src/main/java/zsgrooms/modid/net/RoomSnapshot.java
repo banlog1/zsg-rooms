@@ -25,6 +25,8 @@ public class RoomSnapshot {
     public boolean cheatsAllowed;
     public boolean rngStandardized;
     public boolean boostedBarters;
+    public boolean synchronizedStartReleased;
+    public List<String> readyPlayers = new ArrayList<String>();
     public List<PlayerState> players = new ArrayList<PlayerState>();
     public List<String> messages = new ArrayList<String>();
     public Map<String, Integer> progress = new LinkedHashMap<String, Integer>();
@@ -52,6 +54,8 @@ public class RoomSnapshot {
             snapshot.cheatsAllowed = game.areCheatsAllowed();
             snapshot.rngStandardized = game.isRngStandardized();
             snapshot.boostedBarters = game.areBartersBoosted();
+            snapshot.synchronizedStartReleased = game.isSynchronizedStartReleased();
+            snapshot.readyPlayers = game.getReadyPlayers();
             snapshot.progress = game.getPlayerProgress();
             snapshot.progressLabels = game.getPlayerProgressLabels();
         }
@@ -79,6 +83,9 @@ public class RoomSnapshot {
             }
             if (snapshot.progressLabels == null) {
                 snapshot.progressLabels = new LinkedHashMap<String, String>();
+            }
+            if (snapshot.readyPlayers == null) {
+                snapshot.readyPlayers = new ArrayList<String>();
             }
             return snapshot;
         } catch (JsonSyntaxException exception) {

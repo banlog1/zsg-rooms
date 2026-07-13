@@ -1,9 +1,12 @@
 package zsgrooms.modid;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class InGame {
     public enum SeedType {
@@ -22,8 +25,10 @@ public class InGame {
     private boolean cheatsAllowed;
     private boolean rngStandardized;
     private boolean boostedBarters;
+    private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
+    private final Set<String> readyPlayers;
     private final Map<String, Integer> playerProgress;
     private final Map<String, String> playerProgressLabels;
     private final Map<String, Long> playerTimers;
@@ -41,7 +46,9 @@ public class InGame {
         this.cheatsAllowed = false;
         this.rngStandardized = false;
         this.boostedBarters = false;
+        this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
+        this.readyPlayers = new LinkedHashSet<String>();
         this.playerProgress = new LinkedHashMap<String, Integer>();
         this.playerProgressLabels = new LinkedHashMap<String, String>();
         this.playerTimers = new LinkedHashMap<String, Long>();
@@ -87,6 +94,8 @@ public class InGame {
     public void startGame() {
         this.isInGame = true;
         this.loadingScreenVisible = false;
+        this.synchronizedStartReleased = false;
+        this.readyPlayers.clear();
         if (this.seed == null || this.seed.trim().isEmpty()) {
             this.seed = "zsg-room-" + System.currentTimeMillis();
         }
@@ -96,7 +105,55 @@ public class InGame {
     public void endGame() {
         this.isInGame = false;
         this.loadingScreenVisible = false;
+        this.synchronizedStartReleased = false;
+        this.readyPlayers.clear();
         this.sharedChatMessages.add("Game ended for " + roomName);
+    }
+
+    public synchronized boolean markPlayerReady(String playerName) {
+        if (playerName == null || playerName.trim().isEmpty() || synchronizedStartReleased) {
+            return false;
+        }
+        return readyPlayers.add(playerName.trim());
+    }
+
+    public synchronized void removeReadyPlayer(String playerName) {
+        if (playerName != null) {
+            readyPlayers.remove(playerName.trim());
+        }
+    }
+
+    public synchronized boolean areAllPlayersReady(Collection<String> playerNames) {
+        return isInGame && !synchronizedStartReleased && playerNames != null
+                && !playerNames.isEmpty() && readyPlayers.containsAll(playerNames);
+    }
+
+    public synchronized boolean releaseSynchronizedStart() {
+        if (!isInGame || synchronizedStartReleased) {
+            return false;
+        }
+        synchronizedStartReleased = true;
+        return true;
+    }
+
+    public synchronized boolean isSynchronizedStartReleased() {
+        return synchronizedStartReleased;
+    }
+
+    public synchronized int getReadyPlayerCount() {
+        return readyPlayers.size();
+    }
+
+    public synchronized List<String> getReadyPlayers() {
+        return new ArrayList<String>(readyPlayers);
+    }
+
+    public synchronized void restoreSynchronizedStart(Collection<String> players, boolean released) {
+        readyPlayers.clear();
+        if (players != null) {
+            readyPlayers.addAll(players);
+        }
+        synchronizedStartReleased = released;
     }
 
     public void StartLoadingScreen() {

@@ -77,6 +77,9 @@ public class GameLogicTest {
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
+        game.startGame();
+        game.markPlayerReady("Host");
+        game.releaseSynchronizedStart();
 
         RoomSnapshot original = RoomSnapshot.capture(room, game);
         String wireMessage = RoomProtocol.encode("snapshot", room.roomName, host.getName(), original.toJson());
@@ -93,6 +96,8 @@ public class GameLogicTest {
         assertTrue(decoded.cheatsAllowed);
         assertTrue(decoded.rngStandardized);
         assertTrue(decoded.boostedBarters);
+        assertTrue(decoded.synchronizedStartReleased);
+        assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
         assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", decoded.players.get(0).uuid);
         assertTrue(decoded.players.get(1).requestingSeedChange);
@@ -110,7 +115,40 @@ public class GameLogicTest {
         assertTrue(appliedGame.areCheatsAllowed());
         assertTrue(appliedGame.isRngStandardized());
         assertTrue(appliedGame.areBartersBoosted());
+        assertTrue(appliedGame.isSynchronizedStartReleased());
+        assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
+    }
+
+    @Test
+    public void synchronizedStartWaitsForEveryPlayerOnTheExactSeed() {
+        ZsgRooms.createRoom("start-barrier-room", 4, 1, "manual:12345", "Host");
+        ZsgRooms.applyRoomAction("join_room", "start-barrier-room", "Guest", "");
+        InGame game = ZsgRooms.getGame("start-barrier-room");
+        game.startGame();
+        String seed = game.getSeed();
+
+        assertFalse(ZsgRooms.markPlayerWorldReady("start-barrier-room", "Host", "wrong-seed"));
+        assertTrue(ZsgRooms.markPlayerWorldReady("start-barrier-room", "Host", seed));
+        assertFalse(ZsgRooms.areAllPlayersWorldReady("start-barrier-room"));
+        assertTrue(ZsgRooms.markPlayerWorldReady("start-barrier-room", "Guest", seed));
+        assertTrue(ZsgRooms.areAllPlayersWorldReady("start-barrier-room"));
+        assertTrue(ZsgRooms.releaseSynchronizedStart("start-barrier-room", seed));
+        assertTrue(game.isSynchronizedStartReleased());
+        assertFalse(ZsgRooms.releaseSynchronizedStart("start-barrier-room", seed));
+    }
+
+    @Test
+    public void synchronizedStartRechecksPlayersWhoLeaveWhileLoading() {
+        ZsgRooms.createRoom("start-leave-room", 4, 1, "manual:67890", "Host");
+        ZsgRooms.applyRoomAction("join_room", "start-leave-room", "Guest", "");
+        InGame game = ZsgRooms.getGame("start-leave-room");
+        game.startGame();
+
+        assertTrue(ZsgRooms.markPlayerWorldReady("start-leave-room", "Host", game.getSeed()));
+        assertFalse(ZsgRooms.areAllPlayersWorldReady("start-leave-room"));
+        ZsgRooms.removeRoomPlayer("start-leave-room", "Guest");
+        assertTrue(ZsgRooms.areAllPlayersWorldReady("start-leave-room"));
     }
 
     @Test

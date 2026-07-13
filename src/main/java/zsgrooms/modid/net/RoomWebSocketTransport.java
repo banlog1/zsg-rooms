@@ -316,6 +316,8 @@ public class RoomWebSocketTransport {
                 finishForfeit(player);
             } else if ("leave_room".equals(type)) {
                 handlePlayerLeave(player);
+            } else if ("world_ready".equals(type)) {
+                handleWorldReady(player, value);
             } else {
                 ZsgRooms.applyRoomAction(type, this.roomName, player, value);
                 send(type, player, value);
@@ -372,6 +374,10 @@ public class RoomWebSocketTransport {
                 handlePlayerLeave(player);
                 return;
             }
+            if ("world_ready".equals(type)) {
+                handleWorldReady(player, value);
+                return;
+            }
             if (!"chat".equals(type)
                     && !"profile".equals(type)
                     && !"share_seed".equals(type)
@@ -416,8 +422,29 @@ public class RoomWebSocketTransport {
             if (decidesMatch) {
                 finishAndBroadcast(winner, player + " left the match");
             } else {
+                releaseStartIfReady();
                 sendSnapshot();
             }
+        }
+
+        private void handleWorldReady(String player, String seed) {
+            if (!ZsgRooms.markPlayerWorldReady(this.roomName, player, seed)) {
+                return;
+            }
+            sendSnapshot();
+            releaseStartIfReady();
+        }
+
+        private void releaseStartIfReady() {
+            InGame game = ZsgRooms.getGame(this.roomName);
+            if (game == null || !ZsgRooms.areAllPlayersWorldReady(this.roomName)
+                    || !ZsgRooms.releaseSynchronizedStart(this.roomName, game.getSeed())) {
+                return;
+            }
+            send("race_start", this.playerName, game.getSeed());
+            ZsgRoomsClient.releaseSynchronizedStart(this.roomName, game.getSeed());
+            status = "All players loaded - race started";
+            sendSnapshot();
         }
 
         private void finishAndBroadcast(String winner, String reason) {
@@ -481,8 +508,9 @@ public class RoomWebSocketTransport {
                     ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
                     send("seed_ready", this.playerName, "New seed ready. Starting now!");
                     send("launch", this.playerName, seed);
+                    ZsgRoomsClient.beginSynchronizedStart(this.roomName, seed);
                     ZsgRooms.launchRoomWithSeed(this.roomName, seed);
-                    status = "Race launched with a synchronized seed";
+                    status = "Waiting for every player to load";
                     sendSnapshot();
                 });
             });
@@ -509,7 +537,13 @@ public class RoomWebSocketTransport {
             } else {
                 runOnClientThread(() -> {
                     String value = decoded.get("value");
+                    if ("launch".equals(type)) {
+                        ZsgRoomsClient.beginSynchronizedStart(decoded.get("room"), value);
+                    }
                     ZsgRooms.applyRoomAction(type, decoded.get("room"), decoded.get("player"), value);
+                    if ("race_start".equals(type)) {
+                        ZsgRoomsClient.releaseSynchronizedStart(decoded.get("room"), value);
+                    }
                     if ("advancement".equals(type)) {
                         ZsgInGameActions.showRemoteAdvancement(MinecraftClient.getInstance(), decoded.get("player"), value);
                     }

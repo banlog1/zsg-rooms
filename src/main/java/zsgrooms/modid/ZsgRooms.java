@@ -166,6 +166,13 @@ public class ZsgRooms implements ModInitializer {
 			startRoomGame(roomName);
 		} else if ("launch".equals(action)) {
 			launchRoomWithSeed(roomName, value);
+		} else if ("world_ready".equals(action)) {
+			if (markPlayerWorldReady(roomName, playerName, value)
+					&& areAllPlayersWorldReady(roomName)) {
+				releaseSynchronizedStart(roomName, value);
+			}
+		} else if ("race_start".equals(action)) {
+			releaseSynchronizedStart(roomName, value);
 		} else if ("share_seed".equals(action)) {
 			InGame game = ACTIVE_GAMES.get(roomName);
 			if (game != null) {
@@ -307,6 +314,7 @@ public class ZsgRooms implements ModInitializer {
 		if (launched) {
 			activeRoomName = roomName;
 			game.startGame();
+			game.releaseSynchronizedStart();
 			room.setSeed(game.getSeed());
 			resetSeedChangeRequests(room);
 			game.addSharedChatMessage("Race started for " + roomName);
@@ -343,13 +351,44 @@ public class ZsgRooms implements ModInitializer {
 		boolean launched = ZsgSeedBridge.launchSeedWithAtum(seed);
 		if (launched) {
 			game.startGame();
-			room.addRoomMessage("Race started for " + roomName);
-			game.addSharedChatMessage("Race started for " + roomName);
+			room.addRoomMessage("Loading synchronized seed for " + roomName);
+			game.addSharedChatMessage("Loading synchronized seed for " + roomName);
 			LOGGER.info("[ZSG-Rooms] Exact synchronized seed launched for room: " + roomName + " seed: " + ZsgSeedBridge.extractMinecraftSeed(seed));
 		} else {
 			shareChat(roomName, "Could not launch the synchronized seed");
 		}
 		return launched;
+	}
+
+	public static boolean markPlayerWorldReady(String roomName, String playerName, String seed) {
+		Room room = ACTIVE_ROOMS.get(roomName);
+		InGame game = ACTIVE_GAMES.get(roomName);
+		String name = cleanPlayerName(playerName);
+		if (room == null || game == null || !game.getIsInGame() || room.getPlayer(name) == null
+				|| seed == null || !seed.equals(game.getSeed())) {
+			return false;
+		}
+		boolean added = game.markPlayerReady(name);
+		if (added) {
+			shareChat(roomName, name + " finished loading (" + game.getReadyPlayerCount()
+					+ "/" + room.getPlayerCount() + ")");
+		}
+		return added;
+	}
+
+	public static boolean areAllPlayersWorldReady(String roomName) {
+		Room room = ACTIVE_ROOMS.get(roomName);
+		InGame game = ACTIVE_GAMES.get(roomName);
+		return room != null && game != null && game.areAllPlayersReady(room.getPlayerNames());
+	}
+
+	public static boolean releaseSynchronizedStart(String roomName, String seed) {
+		InGame game = ACTIVE_GAMES.get(roomName);
+		if (game == null || seed == null || !seed.equals(game.getSeed()) || !game.releaseSynchronizedStart()) {
+			return false;
+		}
+		shareChat(roomName, "All players loaded. The race has started!");
+		return true;
 	}
 
 	public static String createRoomSnapshot(String roomName) {
@@ -392,6 +431,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setCheatsAllowed(snapshot.cheatsAllowed);
 		game.setRngStandardized(snapshot.rngStandardized);
 		game.setBoostedBarters(snapshot.boostedBarters);
+		game.restoreSynchronizedStart(snapshot.readyPlayers, snapshot.synchronizedStartReleased);
 		game.replacePlayerProgress(snapshot.progress);
 		game.replacePlayerProgressLabels(snapshot.progressLabels);
 		ACTIVE_GAMES.put(snapshot.roomName, game);
@@ -407,6 +447,10 @@ public class ZsgRooms implements ModInitializer {
 		Player player = room.getPlayer(cleanPlayerName(playerName));
 		if (player != null && player != room.host) {
 			room.removePlayer(player);
+			InGame game = ACTIVE_GAMES.get(roomName);
+			if (game != null) {
+				game.removeReadyPlayer(player.getName());
+			}
 		}
 	}
 
