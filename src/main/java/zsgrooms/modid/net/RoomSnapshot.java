@@ -25,6 +25,7 @@ public class RoomSnapshot {
     public boolean cheatsAllowed;
     public boolean rngStandardized;
     public boolean boostedBarters;
+    public boolean minimumBastionIron;
     public boolean synchronizedStartReleased;
     public List<String> readyPlayers = new ArrayList<String>();
     public List<PlayerState> players = new ArrayList<PlayerState>();
@@ -54,6 +55,7 @@ public class RoomSnapshot {
             snapshot.cheatsAllowed = game.areCheatsAllowed();
             snapshot.rngStandardized = game.isRngStandardized();
             snapshot.boostedBarters = game.areBartersBoosted();
+            snapshot.minimumBastionIron = game.hasMinimumBastionIron();
             snapshot.synchronizedStartReleased = game.isSynchronizedStartReleased();
             snapshot.readyPlayers = game.getReadyPlayers();
             snapshot.progress = game.getPlayerProgress();

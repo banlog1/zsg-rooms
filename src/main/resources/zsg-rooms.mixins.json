@@ -5,6 +5,7 @@
 	"mixins": [
 		"ExampleMixin",
 		"AtumResetGuardMixin",
+		"BastionChestLootMixin",
 		"ClientAdvancementManagerMixin",
 		"EntityRandomAccessor",
 		"GameCompletionMixin",

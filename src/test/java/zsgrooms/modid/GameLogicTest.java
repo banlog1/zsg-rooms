@@ -1,6 +1,10 @@
 package zsgrooms.modid;
 
 import org.junit.jupiter.api.Test;
+import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.util.Identifier;
 import zsgrooms.modid.net.RoomProtocol;
 import zsgrooms.modid.net.RoomSnapshot;
 
@@ -74,6 +78,7 @@ public class GameLogicTest {
         game.setCheatsAllowed(true);
         game.setRngStandardized(true);
         game.setBoostedBarters(true);
+        game.setMinimumBastionIron(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -96,6 +101,7 @@ public class GameLogicTest {
         assertTrue(decoded.cheatsAllowed);
         assertTrue(decoded.rngStandardized);
         assertTrue(decoded.boostedBarters);
+        assertTrue(decoded.minimumBastionIron);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
@@ -115,9 +121,45 @@ public class GameLogicTest {
         assertTrue(appliedGame.areCheatsAllowed());
         assertTrue(appliedGame.isRngStandardized());
         assertTrue(appliedGame.areBartersBoosted());
+        assertTrue(appliedGame.hasMinimumBastionIron());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
+    }
+
+    @Test
+    public void bastionIronTopUpAddsOnlyTheExactMissingUnits() {
+        assertEquals(27, BastionIronGuarantee.missingIronUnits(0));
+        assertEquals(9, BastionIronGuarantee.missingIronUnits(18));
+        assertEquals(1, BastionIronGuarantee.missingIronUnits(26));
+        assertEquals(0, BastionIronGuarantee.missingIronUnits(27));
+        assertEquals(0, BastionIronGuarantee.missingIronUnits(40));
+    }
+
+    @Test
+    public void bastionIronTopUpCountsExistingIngotsAndNuggets() {
+        Identifier bastionLoot = new Identifier("minecraft", "chests/bastion_other");
+
+        SimpleInventory ingotChest = new SimpleInventory(27);
+        ingotChest.setStack(0, new ItemStack(Items.IRON_INGOT, 5));
+        BastionIronGuarantee.configure(true);
+        BastionIronGuarantee.topUpFirstChest(ingotChest, bastionLoot);
+        assertEquals(5, ingotChest.getStack(0).getCount());
+        assertEquals(45, BastionIronGuarantee.countIronUnits(ingotChest));
+
+        SimpleInventory nuggetChest = new SimpleInventory(27);
+        nuggetChest.setStack(0, new ItemStack(Items.IRON_NUGGET, 5));
+        BastionIronGuarantee.configure(true);
+        BastionIronGuarantee.topUpFirstChest(nuggetChest, bastionLoot, 12345L);
+        assertEquals(5, nuggetChest.getStack(0).getCount());
+        assertEquals(27, BastionIronGuarantee.countIronUnits(nuggetChest));
+        assertEquals(4, occupiedSlots(nuggetChest));
+
+        SimpleInventory emptyChest = new SimpleInventory(27);
+        BastionIronGuarantee.configure(true);
+        BastionIronGuarantee.topUpFirstChest(emptyChest, bastionLoot, 12345L);
+        assertEquals(27, BastionIronGuarantee.countIronUnits(emptyChest));
+        assertEquals(1, occupiedSlots(emptyChest));
     }
 
     @Test
@@ -297,5 +339,15 @@ public class GameLogicTest {
         assertEquals(6, ZsgRooms.getGame("reset-test-room").getPlayerProgress().get("Host"));
         assertEquals(0, ZsgRooms.getGame("reset-test-room").getPlayerProgress().get("Guest"));
         assertEquals("Restarting", ZsgRooms.getGame("reset-test-room").getPlayerProgressLabels().get("Guest"));
+    }
+
+    private static int occupiedSlots(SimpleInventory inventory) {
+        int occupied = 0;
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            if (!inventory.getStack(slot).isEmpty()) {
+                occupied++;
+            }
+        }
+        return occupied;
     }
 }

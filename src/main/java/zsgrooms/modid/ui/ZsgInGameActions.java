@@ -11,6 +11,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.world.World;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.InGame;
+import zsgrooms.modid.BastionIronGuarantee;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
@@ -54,6 +55,7 @@ public class ZsgInGameActions {
         client.openScreen(null);
         client.mouse.lockCursor();
 
+        BastionIronGuarantee.configure(game.hasMinimumBastionIron());
         if (!ZsgSeedBridge.launchSeedWithAtum(game.getSeed())) {
             client.inGameHud.getChatHud().addMessage(roomMessage(
                     "Could not reset the current seed.", Formatting.RED));

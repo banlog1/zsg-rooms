@@ -25,6 +25,7 @@ public class InGame {
     private boolean cheatsAllowed;
     private boolean rngStandardized;
     private boolean boostedBarters;
+    private boolean minimumBastionIron;
     private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
@@ -46,6 +47,7 @@ public class InGame {
         this.cheatsAllowed = false;
         this.rngStandardized = false;
         this.boostedBarters = false;
+        this.minimumBastionIron = false;
         this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
         this.readyPlayers = new LinkedHashSet<String>();
@@ -237,6 +239,14 @@ public class InGame {
 
     public void setBoostedBarters(boolean boostedBarters) {
         this.boostedBarters = boostedBarters;
+    }
+
+    public boolean hasMinimumBastionIron() {
+        return minimumBastionIron;
+    }
+
+    public void setMinimumBastionIron(boolean minimumBastionIron) {
+        this.minimumBastionIron = minimumBastionIron;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

@@ -55,6 +55,12 @@ public class ZsgRooms implements ModInitializer {
 
 	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName,
 			boolean cheatsAllowed, boolean rngStandardized, boolean boostedBarters) {
+		createRoom(roomName, maxPlayers, finishGoal, seedType, hostName, cheatsAllowed, rngStandardized,
+				boostedBarters, false);
+	}
+
+	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName,
+			boolean cheatsAllowed, boolean rngStandardized, boolean boostedBarters, boolean minimumBastionIron) {
 		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
 		Player host = new Player(cleanPlayerName(hostName), true, true);
 		Room room = new Room(roomName, seed, host, Math.max(2, maxPlayers));
@@ -67,6 +73,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setCheatsAllowed(cheatsAllowed);
 		game.setRngStandardized(rngStandardized);
 		game.setBoostedBarters(boostedBarters);
+		game.setMinimumBastionIron(minimumBastionIron);
 		game.setPlayerProgress(host.getName(), 0, "Starting");
 		ACTIVE_GAMES.put(roomName, game);
 	}
@@ -431,6 +438,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setCheatsAllowed(snapshot.cheatsAllowed);
 		game.setRngStandardized(snapshot.rngStandardized);
 		game.setBoostedBarters(snapshot.boostedBarters);
+		game.setMinimumBastionIron(snapshot.minimumBastionIron);
 		game.restoreSynchronizedStart(snapshot.readyPlayers, snapshot.synchronizedStartReleased);
 		game.replacePlayerProgress(snapshot.progress);
 		game.replacePlayerProgressLabels(snapshot.progressLabels);
@@ -603,9 +611,11 @@ public class ZsgRooms implements ModInitializer {
 		server.getPlayerManager().setCheatsAllowed(cheatsAllowed);
 		boolean rngStandardized = game != null && game.isRngStandardized();
 		boolean boostedBarters = game != null && game.areBartersBoosted();
+		boolean minimumBastionIron = game != null && game.hasMinimumBastionIron();
 		RngStandardization.configure(rngStandardized, boostedBarters);
-		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}, boosted barters: {}",
-				cheatsAllowed, rngStandardized, boostedBarters);
+		BastionIronGuarantee.configure(minimumBastionIron);
+		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}, boosted barters: {}, minimum bastion iron: {}",
+				cheatsAllowed, rngStandardized, boostedBarters, minimumBastionIron);
 	}
 
 }

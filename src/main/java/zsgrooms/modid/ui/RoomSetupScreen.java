@@ -44,9 +44,11 @@ public class RoomSetupScreen extends Screen {
     private ButtonWidget allowCheatsButton;
     private ButtonWidget rngStandardizationButton;
     private ButtonWidget boostedBartersButton;
+    private ButtonWidget minimumBastionIronButton;
     private boolean allowCheats;
     private boolean rngStandardization;
     private boolean boostedBarters;
+    private boolean minimumBastionIron;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -61,6 +63,7 @@ public class RoomSetupScreen extends Screen {
         this.allowCheats = false;
         this.rngStandardization = false;
         this.boostedBarters = false;
+        this.minimumBastionIron = false;
     }
 
     @Override
@@ -138,7 +141,9 @@ public class RoomSetupScreen extends Screen {
         this.rngStandardizationButton.active = this.createMode;
         this.addButton(this.rngStandardizationButton);
 
-        this.boostedBartersButton = new ButtonWidget(fieldX, y + rowGap * 8, fieldWidth, 20,
+        int lootGap = 4;
+        int lootButtonWidth = (fieldWidth - lootGap) / 2;
+        this.boostedBartersButton = new ButtonWidget(fieldX, y + rowGap * 8, lootButtonWidth, 20,
                 boostedBartersText(), button -> {
             if (this.createMode) {
                 this.boostedBarters = !this.boostedBarters;
@@ -147,6 +152,17 @@ public class RoomSetupScreen extends Screen {
         });
         this.boostedBartersButton.active = this.createMode;
         this.addButton(this.boostedBartersButton);
+
+        this.minimumBastionIronButton = new ButtonWidget(fieldX + lootButtonWidth + lootGap,
+                y + rowGap * 8, fieldWidth - lootButtonWidth - lootGap, 20,
+                minimumBastionIronText(), button -> {
+            if (this.createMode) {
+                this.minimumBastionIron = !this.minimumBastionIron;
+                button.setMessage(minimumBastionIronText());
+            }
+        });
+        this.minimumBastionIronButton.active = this.createMode;
+        this.addButton(this.minimumBastionIronButton);
 
         int actionY = actionY();
         int helpWidth = 28;
@@ -170,7 +186,7 @@ public class RoomSetupScreen extends Screen {
 
             if (this.createMode) {
                 ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName,
-                        this.allowCheats, this.rngStandardization, this.boostedBarters);
+                        this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -262,7 +278,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Cheats", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "RNG", labelX, y + rowGap * 7 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "Barters", labelX, y + rowGap * 8 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "Loot", labelX, y + rowGap * 8 + 6, 0xD0D0D0);
 
         if (!isCompact() && !"manual".equals(currentSeedType()) && (this.statusText == null || this.statusText.isEmpty())) {
             String hint = "Both players use the same workers.dev relay URL";
@@ -326,9 +342,16 @@ public class RoomSetupScreen extends Screen {
 
     private LiteralText boostedBartersText() {
         if (!this.createMode) {
-            return new LiteralText("Boosted Barters: Set by Host");
+            return new LiteralText("Barters: Host");
         }
-        return new LiteralText("Boosted Barters: " + (this.boostedBarters ? "On" : "Off"));
+        return new LiteralText("Barters: " + (this.boostedBarters ? "On" : "Off"));
+    }
+
+    private LiteralText minimumBastionIronText() {
+        if (!this.createMode) {
+            return new LiteralText("Bastion: Host");
+        }
+        return new LiteralText("Bastion: " + (this.minimumBastionIron ? "On" : "Off"));
     }
 
     private String currentSeedType() {
