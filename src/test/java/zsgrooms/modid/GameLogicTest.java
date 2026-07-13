@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -71,6 +72,7 @@ public class GameLogicTest {
         game.targetStructure = "zsg";
         game.setFinishGoal(3);
         game.setCheatsAllowed(true);
+        game.setRngStandardized(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -88,6 +90,7 @@ public class GameLogicTest {
         assertEquals(10, decoded.maxPlayers);
         assertEquals(3, decoded.finishGoal);
         assertTrue(decoded.cheatsAllowed);
+        assertTrue(decoded.rngStandardized);
         assertEquals(2, decoded.players.size());
         assertEquals("8667ba71-b85a-4004-af54-457a9734eed7", decoded.players.get(0).uuid);
         assertTrue(decoded.players.get(1).requestingSeedChange);
@@ -103,7 +106,20 @@ public class GameLogicTest {
         assertTrue(appliedRoom.getPlayer("Guest").getIsRequestingSeedChange());
         assertEquals(3, appliedGame.getFinishGoal());
         assertTrue(appliedGame.areCheatsAllowed());
+        assertTrue(appliedGame.isRngStandardized());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
+    }
+
+    @Test
+    public void standardizedRngSeedsMatchForTheSameRoomEvent() {
+        long first = RngStandardization.eventSeed(12345L, "mob_drop", "minecraft:blaze", 0L);
+        long repeated = RngStandardization.eventSeed(12345L, "mob_drop", "minecraft:blaze", 0L);
+        long nextDrop = RngStandardization.eventSeed(12345L, "mob_drop", "minecraft:blaze", 1L);
+        long differentMob = RngStandardization.eventSeed(12345L, "mob_drop", "minecraft:enderman", 0L);
+
+        assertEquals(first, repeated);
+        assertNotEquals(first, nextDrop);
+        assertNotEquals(first, differentMob);
     }
 
     @Test

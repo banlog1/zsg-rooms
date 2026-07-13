@@ -6,11 +6,15 @@
 		"ExampleMixin",
 		"AtumResetGuardMixin",
 		"ClientAdvancementManagerMixin",
+		"EntityRandomAccessor",
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",
+		"LivingEntityDropMixin",
+		"PiglinBrainMixin",
 		"RuinedPortalChestMixin",
 		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
+		"ServerPlayerSpawnMixin",
 		"TitleScreenMixin"
 	],
 	"injectors": {

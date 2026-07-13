@@ -42,7 +42,9 @@ public class RoomSetupScreen extends Screen {
     private TextFieldWidget manualSeedField;
     private ButtonWidget seedTypeButton;
     private ButtonWidget allowCheatsButton;
+    private ButtonWidget rngStandardizationButton;
     private boolean allowCheats;
+    private boolean rngStandardization;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -55,6 +57,7 @@ public class RoomSetupScreen extends Screen {
         this.selectedSeedTypeIndex = 0;
         this.statusText = "";
         this.allowCheats = false;
+        this.rngStandardization = false;
     }
 
     @Override
@@ -122,6 +125,16 @@ public class RoomSetupScreen extends Screen {
         this.allowCheatsButton.active = this.createMode;
         this.addButton(this.allowCheatsButton);
 
+        this.rngStandardizationButton = new ButtonWidget(fieldX, y + rowGap * 7, fieldWidth, 20,
+                rngStandardizationText(), button -> {
+            if (this.createMode) {
+                this.rngStandardization = !this.rngStandardization;
+                button.setMessage(rngStandardizationText());
+            }
+        });
+        this.rngStandardizationButton.active = this.createMode;
+        this.addButton(this.rngStandardizationButton);
+
         int actionY = actionY();
         int helpWidth = 28;
         int actionGap = 6;
@@ -143,7 +156,8 @@ public class RoomSetupScreen extends Screen {
             String relayUrl = this.serverAddressField.getText().trim();
 
             if (this.createMode) {
-                ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName, this.allowCheats);
+                ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName,
+                        this.allowCheats, this.rngStandardization);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -234,6 +248,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Filter", labelX, y + rowGap * 4 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Cheats", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "RNG", labelX, y + rowGap * 7 + 6, 0xD0D0D0);
 
         if (!isCompact() && !"manual".equals(currentSeedType()) && (this.statusText == null || this.statusText.isEmpty())) {
             String hint = "Both players use the same workers.dev relay URL";
@@ -288,6 +303,13 @@ public class RoomSetupScreen extends Screen {
         return new LiteralText("Allow Cheats: " + (this.allowCheats ? "On" : "Off"));
     }
 
+    private LiteralText rngStandardizationText() {
+        if (!this.createMode) {
+            return new LiteralText("RNG Standardization: Set by Host");
+        }
+        return new LiteralText("RNG Standardization: " + (this.rngStandardization ? "On" : "Off"));
+    }
+
     private String currentSeedType() {
         return SEED_TYPES[this.selectedSeedTypeIndex];
     }
@@ -325,7 +347,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int panelHeight() {
-        return isCompact() ? Math.min(287, this.height - 12) : 306;
+        return isCompact() ? Math.min(310, this.height - 12) : Math.min(336, this.height - 12);
     }
 
     private int panelX() {
@@ -341,7 +363,13 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int rowGap() {
-        return isCompact() ? 25 : 30;
+        if (!isCompact()) {
+            return 30;
+        }
+        if (this.height < 250) {
+            return 20;
+        }
+        return this.height < 280 ? 23 : 25;
     }
 
     private int formTop() {

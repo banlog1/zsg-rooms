@@ -1,12 +1,14 @@
 package zsgrooms.modid.ui;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.DownloadingTerrainScreen;
 import net.minecraft.client.gui.screen.SaveLevelScreen;
 import net.minecraft.client.gui.screen.TitleScreen;
 import net.minecraft.client.gui.screen.CreditsScreen;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
+import net.minecraft.world.World;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.InGame;
 import zsgrooms.modid.ZsgRooms;
@@ -18,6 +20,8 @@ public class ZsgInGameActions {
     private static final String EXIT_PORTAL_TIME_PREFIX = EXIT_PORTAL_RESULT + " in ";
     private static final String EXIT_PORTAL_TIME_SUFFIX = " IGT";
     private static int returnTicks = -1;
+    private static String pendingWinner;
+    private static String pendingReason;
     private ZsgInGameActions() {
     }
 
@@ -66,26 +70,22 @@ public class ZsgInGameActions {
     }
 
     public static void showMatchResult(MinecraftClient client, String winner, String reason) {
-        if (client != null && client.inGameHud != null) {
-            if (client.currentScreen instanceof CreditsScreen) {
-                client.openScreen(null);
-            }
-            String localName = localPlayerName(client);
-            boolean localVictory = localName.equals(winner);
-            String title = localVictory ? "Victory!" : winner + " Wins!";
-            String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
-            MutableText titleText = new LiteralText(title).formatted(
-                    localVictory ? Formatting.GOLD : Formatting.RED);
-            MutableText subtitleText = new LiteralText(matchResultSubtitle(result)).formatted(
-                    isExitPortalResult(result) ? Formatting.GREEN : Formatting.YELLOW);
-            MutableText winnerText = new LiteralText("Winner: ").formatted(Formatting.GRAY)
-                    .append(new LiteralText(winner).formatted(Formatting.GOLD));
-            client.inGameHud.setTitles(null, null, 5, 80, 15);
-            client.inGameHud.setTitles(titleText, null, -1, -1, -1);
-            client.inGameHud.setTitles(null, subtitleText, -1, -1, -1);
-            client.inGameHud.setOverlayMessage(winnerText, false);
-            returnTicks = 90;
+        if (client == null || client.inGameHud == null) {
+            return;
         }
+
+        String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
+        if (localPlayerName(client).equals(winner) && isExitPortalResult(result)
+                && !isReadyForOverworldResult(client)) {
+            pendingWinner = winner;
+            pendingReason = result;
+            if (client.currentScreen instanceof CreditsScreen) {
+                client.currentScreen.onClose();
+            }
+            return;
+        }
+
+        displayMatchResult(client, winner, result);
     }
 
     static String matchResultSubtitle(String result) {
@@ -149,6 +149,13 @@ public class ZsgInGameActions {
     }
 
     public static void tick(MinecraftClient client) {
+        if (pendingWinner != null && isReadyForOverworldResult(client)) {
+            String winner = pendingWinner;
+            String reason = pendingReason;
+            pendingWinner = null;
+            pendingReason = null;
+            displayMatchResult(client, winner, reason);
+        }
         if (returnTicks < 0) {
             return;
         }
@@ -157,6 +164,32 @@ public class ZsgInGameActions {
             returnTicks = -1;
             returnToRoom(client);
         }
+    }
+
+    private static void displayMatchResult(MinecraftClient client, String winner, String result) {
+        String localName = localPlayerName(client);
+        boolean localVictory = localName.equals(winner);
+        String title = localVictory ? "Victory!" : winner + " Wins!";
+        MutableText titleText = new LiteralText(title).formatted(
+                localVictory ? Formatting.GOLD : Formatting.RED);
+        MutableText subtitleText = new LiteralText(matchResultSubtitle(result)).formatted(
+                isExitPortalResult(result) ? Formatting.GREEN : Formatting.YELLOW);
+        MutableText winnerText = new LiteralText("Winner: ").formatted(Formatting.GRAY)
+                .append(new LiteralText(winner).formatted(Formatting.GOLD));
+        client.inGameHud.setTitles(null, null, 5, 80, 15);
+        client.inGameHud.setTitles(titleText, null, -1, -1, -1);
+        client.inGameHud.setTitles(null, subtitleText, -1, -1, -1);
+        client.inGameHud.setOverlayMessage(winnerText, false);
+        returnTicks = 90;
+    }
+
+    private static boolean isReadyForOverworldResult(MinecraftClient client) {
+        return client != null
+                && client.world != null
+                && client.player != null
+                && World.OVERWORLD.equals(client.world.getRegistryKey())
+                && !(client.currentScreen instanceof CreditsScreen)
+                && !(client.currentScreen instanceof DownloadingTerrainScreen);
     }
 
     public static void returnToRoom(MinecraftClient client) {

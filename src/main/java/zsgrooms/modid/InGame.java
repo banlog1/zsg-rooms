@@ -20,6 +20,7 @@ public class InGame {
     public int requiredIronCount;
     public int finishGoal;
     private boolean cheatsAllowed;
+    private boolean rngStandardized;
 
     private boolean loadingScreenVisible;
     private final Map<String, Integer> playerProgress;
@@ -37,6 +38,7 @@ public class InGame {
         this.requiredIronCount = 4;
         this.finishGoal = 1;
         this.cheatsAllowed = false;
+        this.rngStandardized = false;
         this.loadingScreenVisible = false;
         this.playerProgress = new LinkedHashMap<String, Integer>();
         this.playerProgressLabels = new LinkedHashMap<String, String>();
@@ -160,6 +162,14 @@ public class InGame {
 
     public void setCheatsAllowed(boolean cheatsAllowed) {
         this.cheatsAllowed = cheatsAllowed;
+    }
+
+    public boolean isRngStandardized() {
+        return rngStandardized;
+    }
+
+    public void setRngStandardized(boolean rngStandardized) {
+        this.rngStandardized = rngStandardized;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

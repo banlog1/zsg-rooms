@@ -45,6 +45,11 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName, boolean cheatsAllowed) {
+		createRoom(roomName, maxPlayers, finishGoal, seedType, hostName, cheatsAllowed, false);
+	}
+
+	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName,
+			boolean cheatsAllowed, boolean rngStandardized) {
 		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
 		Player host = new Player(cleanPlayerName(hostName), true, true);
 		Room room = new Room(roomName, seed, host, Math.max(2, maxPlayers));
@@ -55,6 +60,7 @@ public class ZsgRooms implements ModInitializer {
 		game.seedModification(seedType == null || seedType.trim().isEmpty() ? "generic" : seedType.trim(), 4);
 		game.setFinishGoal(finishGoal);
 		game.setCheatsAllowed(cheatsAllowed);
+		game.setRngStandardized(rngStandardized);
 		game.setPlayerProgress(host.getName(), 0, "Starting");
 		ACTIVE_GAMES.put(roomName, game);
 	}
@@ -378,6 +384,7 @@ public class ZsgRooms implements ModInitializer {
 		game.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(snapshot.filter);
 		game.setFinishGoal(snapshot.finishGoal);
 		game.setCheatsAllowed(snapshot.cheatsAllowed);
+		game.setRngStandardized(snapshot.rngStandardized);
 		game.replacePlayerProgress(snapshot.progress);
 		game.replacePlayerProgressLabels(snapshot.progressLabels);
 		ACTIVE_GAMES.put(snapshot.roomName, game);
@@ -543,7 +550,10 @@ public class ZsgRooms implements ModInitializer {
 		InGame game = room == null ? null : ACTIVE_GAMES.get(room.roomName);
 		boolean cheatsAllowed = game != null && game.areCheatsAllowed();
 		server.getPlayerManager().setCheatsAllowed(cheatsAllowed);
-		LOGGER.info("Server started for ZSG room; cheats allowed: {}", cheatsAllowed);
+		boolean rngStandardized = game != null && game.isRngStandardized();
+		RngStandardization.configure(rngStandardized);
+		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}",
+				cheatsAllowed, rngStandardized);
 	}
 
 }
