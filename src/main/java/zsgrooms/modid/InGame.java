@@ -26,6 +26,7 @@ public class InGame {
     private boolean rngStandardized;
     private boolean boostedBarters;
     private boolean minimumBastionIron;
+    private boolean removeBastionZombifiedPiglins;
     private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
@@ -48,6 +49,7 @@ public class InGame {
         this.rngStandardized = false;
         this.boostedBarters = false;
         this.minimumBastionIron = false;
+        this.removeBastionZombifiedPiglins = false;
         this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
         this.readyPlayers = new LinkedHashSet<String>();
@@ -247,6 +249,14 @@ public class InGame {
 
     public void setMinimumBastionIron(boolean minimumBastionIron) {
         this.minimumBastionIron = minimumBastionIron;
+    }
+
+    public boolean removesBastionZombifiedPiglins() {
+        return removeBastionZombifiedPiglins;
+    }
+
+    public void setRemoveBastionZombifiedPiglins(boolean removeBastionZombifiedPiglins) {
+        this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

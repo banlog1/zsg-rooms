@@ -17,7 +17,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
+import java.util.ArrayDeque;
 import java.util.Base64;
+import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -81,8 +83,11 @@ public class RoomWebSocketTransport {
     }
 
     public static synchronized boolean sendAction(String type, String roomName, String playerName, String value) {
-        if (connection == null || !connection.isOpen() || !connection.roomName.equals(roomName)) {
+        if (connection == null || !connection.roomName.equals(roomName)) {
             return false;
+        }
+        if (!connection.isOpen()) {
+            return connection.queueAction(type, playerName, value);
         }
         if (connection.host) {
             connection.handleHostAction(type, playerName, value);
@@ -97,7 +102,7 @@ public class RoomWebSocketTransport {
     }
 
     public static synchronized boolean hasRelayRoom(String roomName) {
-        return connection != null && connection.roomName.equals(roomName);
+        return connection != null && connection.roomName.equals(roomName) && connection.acceptsActions();
     }
 
     public static synchronized boolean isHosting() {
@@ -222,62 +227,129 @@ public class RoomWebSocketTransport {
         return current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
     }
 
+    static long reconnectDelayMillis(int attempt) {
+        long[] delays = new long[]{1000L, 2000L, 4000L, 8000L, 15000L};
+        return delays[Math.min(Math.max(0, attempt), delays.length - 1)];
+    }
+
     private static class RelayConnection implements SimpleWebSocketClient.Listener {
+        private static final long RECONNECT_WINDOW_MILLIS = 60000L;
+
+        private final URI uri;
+        private final String authorization;
         private final String roomName;
         private final String playerName;
         private final boolean host;
-        private final CountDownLatch welcomeLatch;
-        private final SimpleWebSocketClient socket;
+        private final Deque<PendingAction> pendingActions;
+        private volatile CountDownLatch welcomeLatch;
+        private volatile SimpleWebSocketClient socket;
         private volatile boolean welcomed;
         private volatile boolean closing;
         private volatile boolean preparingSeed;
+        private volatile boolean reconnectEnabled;
+        private volatile Thread reconnectThread;
         private volatile String joinError;
 
         private RelayConnection(String endpoint, String roomName, String playerName, boolean host) throws URISyntaxException {
+            this.uri = roomUri(endpoint, roomName, playerName, host);
+            this.authorization = host ? "Bearer " + hostToken() : "";
             this.roomName = roomName;
             this.playerName = playerName;
             this.host = host;
-            this.welcomeLatch = new CountDownLatch(1);
+            this.pendingActions = new ArrayDeque<PendingAction>();
             this.welcomed = false;
             this.closing = false;
             this.preparingSeed = false;
+            this.reconnectEnabled = false;
             this.joinError = "Relay did not accept the room connection";
-            String authorization = host ? "Bearer " + hostToken() : "";
-            this.socket = new SimpleWebSocketClient(roomUri(endpoint, roomName, playerName, host), authorization, this);
         }
 
         private boolean open() throws IOException {
-            this.socket.connect(8000);
+            boolean opened = connectOnce();
+            this.reconnectEnabled = opened;
+            return opened;
+        }
+
+        private boolean connectOnce() throws IOException {
+            CountDownLatch latch = new CountDownLatch(1);
+            SimpleWebSocketClient candidate = new SimpleWebSocketClient(this.uri, this.authorization, this);
+            synchronized (this) {
+                if (this.closing) {
+                    return false;
+                }
+                this.welcomeLatch = latch;
+                this.welcomed = false;
+                this.joinError = "Relay did not accept the room connection";
+                this.socket = candidate;
+            }
+
             try {
-                if (!this.welcomeLatch.await(8, TimeUnit.SECONDS)) {
+                candidate.connect(8000);
+            } catch (IOException exception) {
+                candidate.close();
+                throw exception;
+            }
+            try {
+                if (!latch.await(8, TimeUnit.SECONDS)) {
                     this.joinError = "Relay room handshake timed out";
+                    candidate.close();
                     return false;
                 }
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 this.joinError = "Relay connection was interrupted";
+                candidate.close();
                 return false;
             }
-            return this.welcomed && this.socket.isOpen();
+            boolean connected = candidate == this.socket && this.welcomed && candidate.isOpen();
+            if (!connected) {
+                candidate.close();
+            }
+            return connected;
         }
 
         private boolean isOpen() {
-            return this.welcomed && this.socket.isOpen();
+            SimpleWebSocketClient current = this.socket;
+            return this.welcomed && current != null && current.isOpen();
         }
 
         private String getJoinError() {
             return this.joinError;
         }
 
-        private void send(String type, String player, String value) {
-            sendRaw(RoomProtocol.encode(type, this.roomName, player, value));
+        private boolean acceptsActions() {
+            return !this.closing && (isOpen() || this.reconnectEnabled);
         }
 
-        private void sendRaw(String message) {
+        private synchronized boolean queueAction(String type, String player, String value) {
+            if (!this.reconnectEnabled || this.closing) {
+                return false;
+            }
+            while (this.pendingActions.size() >= 128) {
+                this.pendingActions.removeFirst();
+            }
+            this.pendingActions.addLast(new PendingAction(type, player, value));
+            return true;
+        }
+
+        private boolean send(String type, String player, String value) {
+            return sendRaw(RoomProtocol.encode(type, this.roomName, player, value));
+        }
+
+        private boolean sendRaw(String message) {
+            SimpleWebSocketClient current = this.socket;
+            if (current == null) {
+                status = "Room relay is reconnecting";
+                return false;
+            }
             try {
-                this.socket.sendText(message);
+                current.sendText(message);
+                return true;
             } catch (IOException exception) {
                 status = "Room relay send failed: " + usefulMessage(exception);
+                ZsgRooms.LOGGER.warn("Relay send failed for room {}: {}", this.roomName, usefulMessage(exception));
+                current.close();
+                return false;
             }
         }
 
@@ -330,10 +402,12 @@ public class RoomWebSocketTransport {
         private void handleGuestAction(String type, String player, String value) {
             if ("join_room".equals(type)) {
                 Room room = ZsgRooms.getRoom(this.roomName);
-                if (room == null || room.isFull() || room.getPlayer(player) != null) {
-                    send("error", player, room != null && room.getPlayer(player) != null
-                            ? "That player name is already connected"
-                            : "The room is full or unavailable");
+                if (room != null && room.getPlayer(player) != null) {
+                    sendSnapshot();
+                    return;
+                }
+                if (room == null || room.isFull()) {
+                    send("error", player, "The room is full or unavailable");
                     send("kick", player, "Room join was rejected");
                     return;
                 }
@@ -517,18 +591,31 @@ public class RoomWebSocketTransport {
         }
 
         @Override
-        public void onText(String message) {
+        public void onText(SimpleWebSocketClient source, String message) {
+            if (source != this.socket) {
+                return;
+            }
             Map<String, String> decoded = RoomProtocol.decode(message);
             String type = decoded.get("type");
             if ("welcome".equals(type)) {
                 this.welcomed = true;
-                this.welcomeLatch.countDown();
+                CountDownLatch latch = this.welcomeLatch;
+                if (latch != null) {
+                    latch.countDown();
+                }
                 return;
             }
             if ("error".equals(type)) {
                 this.joinError = decoded.get("value");
                 status = this.joinError;
-                this.welcomeLatch.countDown();
+                CountDownLatch latch = this.welcomeLatch;
+                if (latch != null) {
+                    latch.countDown();
+                }
+                return;
+            }
+            if ("relay_status".equals(type)) {
+                status = decoded.get("value");
                 return;
             }
 
@@ -572,17 +659,129 @@ public class RoomWebSocketTransport {
         }
 
         @Override
-        public void onClosed(String reason) {
+        public void onClosed(SimpleWebSocketClient source, String reason) {
+            if (source != this.socket) {
+                return;
+            }
             this.preparingSeed = false;
-            this.welcomeLatch.countDown();
-            if (!this.closing) {
-                status = reason == null || reason.trim().isEmpty() ? "Room relay disconnected" : reason;
+            this.welcomed = false;
+            CountDownLatch latch = this.welcomeLatch;
+            if (latch != null) {
+                latch.countDown();
+            }
+            if (this.closing) {
+                return;
+            }
+
+            String closeReason = reason == null || reason.trim().isEmpty() ? "Room relay disconnected" : reason;
+            status = closeReason;
+            ZsgRooms.LOGGER.warn("Relay connection lost for room {}: {}", this.roomName, closeReason);
+            if (this.reconnectEnabled) {
+                startReconnect();
+            }
+        }
+
+        private synchronized void startReconnect() {
+            if (this.closing || (this.reconnectThread != null && this.reconnectThread.isAlive())) {
+                return;
+            }
+            this.reconnectThread = new Thread(this::reconnectLoop, "ZSG Room Relay Reconnect");
+            this.reconnectThread.setDaemon(true);
+            this.reconnectThread.start();
+        }
+
+        private void reconnectLoop() {
+            long deadline = System.currentTimeMillis() + RECONNECT_WINDOW_MILLIS;
+            int attempt = 0;
+            try {
+                while (!this.closing && System.currentTimeMillis() < deadline) {
+                    long delay = Math.min(reconnectDelayMillis(attempt), deadline - System.currentTimeMillis());
+                    if (delay <= 0L) {
+                        break;
+                    }
+                    status = "Relay disconnected - reconnecting in " + Math.max(1L, delay / 1000L) + "s";
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    if (this.closing) {
+                        return;
+                    }
+
+                    try {
+                        if (connectOnce()) {
+                            status = this.host ? "Relay reconnected - hosting room" : "Relay reconnected";
+                            ZsgRooms.LOGGER.info("Relay reconnected for room {} after {} attempt(s)",
+                                    this.roomName, attempt + 1);
+                            if (this.host) {
+                                sendSnapshot();
+                            }
+                            flushPendingActions();
+                            return;
+                        }
+                    } catch (IOException exception) {
+                        this.joinError = usefulMessage(exception);
+                        ZsgRooms.LOGGER.warn("Relay reconnect attempt {} failed for room {}: {}",
+                                attempt + 1, this.roomName, this.joinError);
+                    }
+                    attempt += 1;
+                }
+                status = "Could not reconnect to relay within 60 seconds";
+                this.reconnectEnabled = false;
+                ZsgRooms.LOGGER.error("Relay reconnect grace period expired for room {}", this.roomName);
+            } finally {
+                synchronized (this) {
+                    this.reconnectThread = null;
+                }
+            }
+        }
+
+        private void flushPendingActions() {
+            while (isOpen()) {
+                PendingAction action;
+                synchronized (this) {
+                    action = this.pendingActions.pollFirst();
+                }
+                if (action == null) {
+                    return;
+                }
+
+                if (this.host) {
+                    handleHostAction(action.type, action.player, action.value);
+                } else if (!send(action.type, action.player, action.value)) {
+                    synchronized (this) {
+                        this.pendingActions.addFirst(action);
+                    }
+                    return;
+                }
             }
         }
 
         private void close() {
             this.closing = true;
-            this.socket.close();
+            this.reconnectEnabled = false;
+            Thread reconnect = this.reconnectThread;
+            if (reconnect != null) {
+                reconnect.interrupt();
+            }
+            SimpleWebSocketClient current = this.socket;
+            if (current != null) {
+                current.close();
+            }
+        }
+
+        private static class PendingAction {
+            private final String type;
+            private final String player;
+            private final String value;
+
+            private PendingAction(String type, String player, String value) {
+                this.type = type;
+                this.player = player;
+                this.value = value;
+            }
         }
     }
 }

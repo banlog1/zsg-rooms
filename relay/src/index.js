@@ -1,4 +1,6 @@
 const MAX_MESSAGE_BYTES = 256 * 1024;
+const DISCONNECT_GRACE_MS = 60 * 1000;
+const DISCONNECT_STATE_KEY = "disconnectDeadlines";
 const GUEST_ACTIONS = new Set([
   "chat",
   "profile",
@@ -50,6 +52,11 @@ export class RoomSession {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
+    const disconnects = await this.getDisconnects();
+    const hostOnline = this.openSockets("host").length > 0;
+    const hostInGrace = disconnects.host > Date.now();
+    const guestInGrace = (disconnects.guests[player] || 0) > Date.now();
+
     if (role === "host") {
       const authorization = request.headers.get("Authorization") || "";
       const token = authorization.startsWith("Bearer ") ? authorization.substring(7) : "";
@@ -60,27 +67,28 @@ export class RoomSession {
       if (storedToken && storedToken !== token) {
         return new Response("Room code is already owned", { status: 409 });
       }
-      if (this.ctx.getWebSockets("host").length > 0) {
+      if (hostOnline) {
         return new Response("Host is already connected", { status: 409 });
       }
       if (!storedToken) {
         await this.ctx.storage.put({ hostToken: token, hostName: player, roomCode });
       }
     } else {
-      if (this.ctx.getWebSockets("host").length === 0) {
+      if (!hostOnline && !(hostInGrace && guestInGrace)) {
         return new Response("Room host is offline", { status: 404 });
       }
       if (this.findGuest(player)) {
         return new Response("That player is already connected", { status: 409 });
       }
       const maxPlayers = (await this.ctx.storage.get("maxPlayers")) || 8;
-      if (this.ctx.getWebSockets("guest").length + 1 >= maxPlayers) {
+      if (this.openSockets("guest").length + 1 >= maxPlayers) {
         return new Response("Room is full", { status: 409 });
       }
     }
 
     this.ctx.acceptWebSocket(server, [role]);
     server.serializeAttachment({ role, player, roomCode });
+    await this.clearDisconnect(role, player);
     server.send(encodeMessage("welcome", roomCode, "relay", role));
 
     if (role === "host") {
@@ -88,8 +96,19 @@ export class RoomSession {
       if (snapshot) {
         server.send(encodeMessage("snapshot", roomCode, player, snapshot));
       }
+      if (hostInGrace) {
+        this.broadcastGuests(encodeMessage(
+          "relay_status",
+          roomCode,
+          "relay",
+          "Host reconnected"
+        ));
+      }
+      await this.flushExpiredGuestLeaves(roomCode);
     } else {
-      this.sendToHost(encodeMessage("join_room", roomCode, player, ""));
+      if (this.openSockets("host").length > 0) {
+        this.sendToHost(encodeMessage("join_room", roomCode, player, ""));
+      }
     }
 
     return new Response(null, { status: 101, webSocket: client });
@@ -186,35 +205,61 @@ export class RoomSession {
       return;
     }
     if (attachment.role === "host") {
-      const guests = this.ctx.getWebSockets("guest");
-      let matchWasRunning = false;
-      try {
-        const snapshot = JSON.parse((await this.ctx.storage.get("snapshot")) || "{}");
-        matchWasRunning = snapshot.inGame === true;
-      } catch {
-        matchWasRunning = false;
+      if (this.openSockets("host").length > 0) {
+        return;
       }
-      if (matchWasRunning && guests.length === 1) {
-        const winner = guests[0].deserializeAttachment()?.player || "Remaining player";
-        guests[0].send(encodeMessage(
-          "match_result",
-          attachment.roomCode,
-          attachment.player,
-          `${winner}\t${attachment.player} left the match`
-        ));
+      if (code === 1000) {
+        await this.finalizeHostDisconnect(attachment);
+        return;
       }
-      for (const guest of guests) {
-        guest.close(1012, "Room host disconnected");
-      }
-      await this.ctx.storage.deleteAll();
-    } else {
-      this.sendToHost(encodeMessage(
-        "leave_room",
+      await this.markDisconnected("host", attachment.player);
+      this.broadcastGuests(encodeMessage(
+        "relay_status",
         attachment.roomCode,
-        attachment.player,
-        ""
+        "relay",
+        "Host connection interrupted - waiting up to 60 seconds"
       ));
+    } else {
+      if (this.findGuest(attachment.player)) {
+        return;
+      }
+      if (code === 1000) {
+        this.notifyGuestLeft(attachment);
+        return;
+      }
+      await this.markDisconnected("guest", attachment.player);
     }
+  }
+
+  async alarm() {
+    const disconnects = await this.getDisconnects();
+    const now = Date.now();
+
+    if (disconnects.host > 0 && disconnects.host <= now) {
+      if (this.openSockets("host").length === 0) {
+        const roomCode = (await this.ctx.storage.get("roomCode")) || "";
+        const hostName = (await this.ctx.storage.get("hostName")) || "Host";
+        await this.finalizeHostDisconnect({ roomCode, player: hostName });
+        return;
+      }
+      disconnects.host = 0;
+    }
+
+    for (const [player, deadline] of Object.entries(disconnects.guests)) {
+      if (deadline <= now) {
+        if (!this.findGuest(player)) {
+          const roomCode = (await this.ctx.storage.get("roomCode")) || "";
+          if (this.openSockets("host").length > 0) {
+            this.notifyGuestLeft({ roomCode, player });
+          } else if (!disconnects.expiredGuests.includes(player)) {
+            disconnects.expiredGuests.push(player);
+          }
+        }
+        delete disconnects.guests[player];
+      }
+    }
+
+    await this.saveDisconnects(disconnects);
   }
 
   webSocketError(ws) {
@@ -226,14 +271,14 @@ export class RoomSession {
   }
 
   sendToHost(message) {
-    const hosts = this.ctx.getWebSockets("host");
+    const hosts = this.openSockets("host");
     if (hosts.length > 0) {
       hosts[0].send(message);
     }
   }
 
   broadcastGuests(message) {
-    for (const guest of this.ctx.getWebSockets("guest")) {
+    for (const guest of this.openSockets("guest")) {
       guest.send(message);
     }
   }
@@ -242,13 +287,105 @@ export class RoomSession {
     if (!player) {
       return null;
     }
-    for (const guest of this.ctx.getWebSockets("guest")) {
+    for (const guest of this.openSockets("guest")) {
       const attachment = guest.deserializeAttachment();
       if (attachment?.player === player) {
         return guest;
       }
     }
     return null;
+  }
+
+  openSockets(tag) {
+    return this.ctx.getWebSockets(tag).filter(ws => ws.readyState === 1);
+  }
+
+  async getDisconnects() {
+    const saved = await this.ctx.storage.get(DISCONNECT_STATE_KEY);
+    return {
+      host: Number(saved?.host) || 0,
+      guests: saved?.guests && typeof saved.guests === "object" ? { ...saved.guests } : {},
+      expiredGuests: Array.isArray(saved?.expiredGuests) ? [...saved.expiredGuests] : []
+    };
+  }
+
+  async markDisconnected(role, player) {
+    const disconnects = await this.getDisconnects();
+    const deadline = Date.now() + DISCONNECT_GRACE_MS;
+    if (role === "host") {
+      disconnects.host = deadline;
+    } else {
+      disconnects.guests[player] = deadline;
+    }
+    await this.saveDisconnects(disconnects);
+  }
+
+  async clearDisconnect(role, player) {
+    const disconnects = await this.getDisconnects();
+    if (role === "host") {
+      disconnects.host = 0;
+    } else {
+      delete disconnects.guests[player];
+    }
+    await this.saveDisconnects(disconnects);
+  }
+
+  async saveDisconnects(disconnects) {
+    const deadlines = [disconnects.host, ...Object.values(disconnects.guests)]
+      .filter(deadline => Number(deadline) > 0);
+    if (deadlines.length === 0) {
+      if (disconnects.expiredGuests.length > 0) {
+        await this.ctx.storage.put(DISCONNECT_STATE_KEY, disconnects);
+      } else {
+        await this.ctx.storage.delete(DISCONNECT_STATE_KEY);
+      }
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+    await this.ctx.storage.put(DISCONNECT_STATE_KEY, disconnects);
+    await this.ctx.storage.setAlarm(Math.min(...deadlines));
+  }
+
+  notifyGuestLeft(attachment) {
+    this.sendToHost(encodeMessage(
+      "leave_room",
+      attachment.roomCode,
+      attachment.player,
+      ""
+    ));
+  }
+
+  async flushExpiredGuestLeaves(roomCode) {
+    const disconnects = await this.getDisconnects();
+    for (const player of disconnects.expiredGuests) {
+      this.notifyGuestLeft({ roomCode, player });
+    }
+    disconnects.expiredGuests = [];
+    await this.saveDisconnects(disconnects);
+  }
+
+  async finalizeHostDisconnect(attachment) {
+    const guests = this.openSockets("guest");
+    let matchWasRunning = false;
+    try {
+      const snapshot = JSON.parse((await this.ctx.storage.get("snapshot")) || "{}");
+      matchWasRunning = snapshot.inGame === true;
+    } catch {
+      matchWasRunning = false;
+    }
+    if (matchWasRunning && guests.length === 1) {
+      const winner = guests[0].deserializeAttachment()?.player || "Remaining player";
+      guests[0].send(encodeMessage(
+        "match_result",
+        attachment.roomCode,
+        attachment.player,
+        `${winner}\t${attachment.player} left the match`
+      ));
+    }
+    for (const guest of guests) {
+      guest.close(1012, "Room host did not reconnect");
+    }
+    await this.ctx.storage.deleteAll();
   }
 }
 

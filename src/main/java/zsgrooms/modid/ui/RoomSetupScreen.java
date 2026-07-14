@@ -41,14 +41,12 @@ public class RoomSetupScreen extends Screen {
     private TextFieldWidget finishGoalField;
     private TextFieldWidget manualSeedField;
     private ButtonWidget seedTypeButton;
-    private ButtonWidget allowCheatsButton;
-    private ButtonWidget rngStandardizationButton;
-    private ButtonWidget boostedBartersButton;
-    private ButtonWidget minimumBastionIronButton;
+    private ButtonWidget gameRulesButton;
     private boolean allowCheats;
     private boolean rngStandardization;
     private boolean boostedBarters;
     private boolean minimumBastionIron;
+    private boolean removeBastionZombifiedPiglins;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -64,6 +62,7 @@ public class RoomSetupScreen extends Screen {
         this.rngStandardization = false;
         this.boostedBarters = false;
         this.minimumBastionIron = false;
+        this.removeBastionZombifiedPiglins = false;
     }
 
     @Override
@@ -121,48 +120,13 @@ public class RoomSetupScreen extends Screen {
         this.addButton(this.manualSeedField);
         updateManualSeedState();
 
-        this.allowCheatsButton = new ButtonWidget(fieldX, y + rowGap * 6, fieldWidth, 20,
-                allowCheatsText(), button -> {
-            if (this.createMode) {
-                this.allowCheats = !this.allowCheats;
-                button.setMessage(allowCheatsText());
-            }
+        this.gameRulesButton = new ButtonWidget(fieldX, y + rowGap * 6, fieldWidth, 20,
+                new LiteralText(this.createMode ? "Game Rules..." : "Game Rules: Set by Host"), button -> {
+            this.client.openScreen(new RoomGameRulesScreen(this, this.allowCheats, this.rngStandardization,
+                    this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins));
         });
-        this.allowCheatsButton.active = this.createMode;
-        this.addButton(this.allowCheatsButton);
-
-        this.rngStandardizationButton = new ButtonWidget(fieldX, y + rowGap * 7, fieldWidth, 20,
-                rngStandardizationText(), button -> {
-            if (this.createMode) {
-                this.rngStandardization = !this.rngStandardization;
-                button.setMessage(rngStandardizationText());
-            }
-        });
-        this.rngStandardizationButton.active = this.createMode;
-        this.addButton(this.rngStandardizationButton);
-
-        int lootGap = 4;
-        int lootButtonWidth = (fieldWidth - lootGap) / 2;
-        this.boostedBartersButton = new ButtonWidget(fieldX, y + rowGap * 8, lootButtonWidth, 20,
-                boostedBartersText(), button -> {
-            if (this.createMode) {
-                this.boostedBarters = !this.boostedBarters;
-                button.setMessage(boostedBartersText());
-            }
-        });
-        this.boostedBartersButton.active = this.createMode;
-        this.addButton(this.boostedBartersButton);
-
-        this.minimumBastionIronButton = new ButtonWidget(fieldX + lootButtonWidth + lootGap,
-                y + rowGap * 8, fieldWidth - lootButtonWidth - lootGap, 20,
-                minimumBastionIronText(), button -> {
-            if (this.createMode) {
-                this.minimumBastionIron = !this.minimumBastionIron;
-                button.setMessage(minimumBastionIronText());
-            }
-        });
-        this.minimumBastionIronButton.active = this.createMode;
-        this.addButton(this.minimumBastionIronButton);
+        this.gameRulesButton.active = this.createMode;
+        this.addButton(this.gameRulesButton);
 
         int actionY = actionY();
         int helpWidth = 28;
@@ -186,7 +150,8 @@ public class RoomSetupScreen extends Screen {
 
             if (this.createMode) {
                 ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName,
-                        this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron);
+                        this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron,
+                        this.removeBastionZombifiedPiglins);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -276,9 +241,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Series Goal", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Filter", labelX, y + rowGap * 4 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "Cheats", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "RNG", labelX, y + rowGap * 7 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "Loot", labelX, y + rowGap * 8 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "Rules", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
 
         if (!isCompact() && !"manual".equals(currentSeedType()) && (this.statusText == null || this.statusText.isEmpty())) {
             String hint = "Both players use the same workers.dev relay URL";
@@ -326,32 +289,13 @@ public class RoomSetupScreen extends Screen {
         return new LiteralText(ZsgSeedBridge.seedTypeLabel(currentSeedType()));
     }
 
-    private LiteralText allowCheatsText() {
-        if (!this.createMode) {
-            return new LiteralText("Allow Cheats: Set by Host");
-        }
-        return new LiteralText("Allow Cheats: " + (this.allowCheats ? "On" : "Off"));
-    }
-
-    private LiteralText rngStandardizationText() {
-        if (!this.createMode) {
-            return new LiteralText("RNG Standardization: Set by Host");
-        }
-        return new LiteralText("RNG Standardization: " + (this.rngStandardization ? "On" : "Off"));
-    }
-
-    private LiteralText boostedBartersText() {
-        if (!this.createMode) {
-            return new LiteralText("Barters: Host");
-        }
-        return new LiteralText("Barters: " + (this.boostedBarters ? "On" : "Off"));
-    }
-
-    private LiteralText minimumBastionIronText() {
-        if (!this.createMode) {
-            return new LiteralText("Bastion: Host");
-        }
-        return new LiteralText("Bastion: " + (this.minimumBastionIron ? "On" : "Off"));
+    void setGameRules(boolean allowCheats, boolean rngStandardization, boolean boostedBarters,
+            boolean minimumBastionIron, boolean removeBastionZombifiedPiglins) {
+        this.allowCheats = allowCheats;
+        this.rngStandardization = rngStandardization;
+        this.boostedBarters = boostedBarters;
+        this.minimumBastionIron = minimumBastionIron;
+        this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
     }
 
     private String currentSeedType() {
@@ -391,7 +335,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private int panelHeight() {
-        return isCompact() ? Math.min(340, this.height - 12) : Math.min(366, this.height - 12);
+        return isCompact() ? Math.min(286, this.height - 12) : Math.min(316, this.height - 12);
     }
 
     private int panelX() {

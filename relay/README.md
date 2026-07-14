@@ -16,3 +16,7 @@ forwarding, Playit, or a public IP address.
 Durable Objects require the SQLite backend configured in `wrangler.jsonc`.
 The service is designed to stay within the Cloudflare Workers Free limits for
 small private race rooms.
+
+The relay keeps abnormal host and guest disconnects in a 60-second grace
+period. Reconnecting clients reclaim the same room identity; deliberate clean
+disconnects still leave immediately.

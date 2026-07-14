@@ -79,6 +79,7 @@ public class GameLogicTest {
         game.setRngStandardized(true);
         game.setBoostedBarters(true);
         game.setMinimumBastionIron(true);
+        game.setRemoveBastionZombifiedPiglins(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -102,6 +103,7 @@ public class GameLogicTest {
         assertTrue(decoded.rngStandardized);
         assertTrue(decoded.boostedBarters);
         assertTrue(decoded.minimumBastionIron);
+        assertTrue(decoded.removeBastionZombifiedPiglins);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
@@ -122,6 +124,7 @@ public class GameLogicTest {
         assertTrue(appliedGame.isRngStandardized());
         assertTrue(appliedGame.areBartersBoosted());
         assertTrue(appliedGame.hasMinimumBastionIron());
+        assertTrue(appliedGame.removesBastionZombifiedPiglins());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
@@ -134,6 +137,14 @@ public class GameLogicTest {
         assertEquals(1, BastionIronGuarantee.missingIronUnits(26));
         assertEquals(0, BastionIronGuarantee.missingIronUnits(27));
         assertEquals(0, BastionIronGuarantee.missingIronUnits(40));
+    }
+
+    @Test
+    public void zombifiedPiglinRemovalNeedsEveryRoomRuleCondition() {
+        assertTrue(BastionZombifiedPiglinControl.shouldRemove(true, true, true));
+        assertFalse(BastionZombifiedPiglinControl.shouldRemove(false, true, true));
+        assertFalse(BastionZombifiedPiglinControl.shouldRemove(true, false, true));
+        assertFalse(BastionZombifiedPiglinControl.shouldRemove(true, true, false));
     }
 
     @Test

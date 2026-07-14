@@ -35,13 +35,13 @@ public class SimpleWebSocketClientTest {
                 "Bearer test-token",
                 new SimpleWebSocketClient.Listener() {
                     @Override
-                    public void onText(String message) {
+                    public void onText(SimpleWebSocketClient source, String message) {
                         serverMessage.set(message);
                         messageReceived.countDown();
                     }
 
                     @Override
-                    public void onClosed(String reason) {
+                    public void onClosed(SimpleWebSocketClient source, String reason) {
                     }
                 }
         );

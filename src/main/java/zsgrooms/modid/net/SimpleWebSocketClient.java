@@ -23,13 +23,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SimpleWebSocketClient {
     public interface Listener {
-        void onText(String message);
+        void onText(SimpleWebSocketClient source, String message);
 
-        void onClosed(String reason);
+        void onClosed(SimpleWebSocketClient source, String reason);
     }
 
     private static final String ACCEPT_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
     private static final int MAX_MESSAGE_BYTES = 1024 * 1024;
+    private static final long HEARTBEAT_INTERVAL_MILLIS = 10000L;
+    private static final long HEARTBEAT_TIMEOUT_MILLIS = 30000L;
 
     private final URI uri;
     private final String authorization;
@@ -40,6 +42,7 @@ public class SimpleWebSocketClient {
     private InputStream input;
     private OutputStream output;
     private volatile boolean running;
+    private volatile long lastPongNanos;
     private Thread heartbeatThread;
 
     public SimpleWebSocketClient(URI uri, String authorization, Listener listener) {
@@ -65,6 +68,7 @@ public class SimpleWebSocketClient {
         Socket tcpSocket = new Socket();
         tcpSocket.connect(new InetSocketAddress(host, port), timeoutMillis);
         tcpSocket.setTcpNoDelay(true);
+        tcpSocket.setKeepAlive(true);
         tcpSocket.setSoTimeout(timeoutMillis);
 
         if (secure) {
@@ -84,6 +88,7 @@ public class SimpleWebSocketClient {
         performUpgrade(host, port, secure);
         this.socket.setSoTimeout(0);
         this.running = true;
+        this.lastPongNanos = System.nanoTime();
 
         Thread reader = new Thread(this::readLoop, "ZSG Room WebSocket");
         reader.setDaemon(true);
@@ -222,10 +227,11 @@ public class SimpleWebSocketClient {
                     continue;
                 }
                 if (frame.opcode == 0xA) {
+                    this.lastPongNanos = System.nanoTime();
                     continue;
                 }
                 if (frame.opcode == 0x1 && frame.finished) {
-                    this.listener.onText(new String(frame.payload, StandardCharsets.UTF_8));
+                    this.listener.onText(this, new String(frame.payload, StandardCharsets.UTF_8));
                 } else if (frame.opcode == 0x1) {
                     fragmented = new ByteArrayOutputStream();
                     fragmented.write(frame.payload);
@@ -237,7 +243,7 @@ public class SimpleWebSocketClient {
                     }
                     if (frame.finished) {
                         if (fragmentedOpcode == 0x1) {
-                            this.listener.onText(new String(fragmented.toByteArray(), StandardCharsets.UTF_8));
+                            this.listener.onText(this, new String(fragmented.toByteArray(), StandardCharsets.UTF_8));
                         }
                         fragmented = null;
                         fragmentedOpcode = 0;
@@ -257,8 +263,12 @@ public class SimpleWebSocketClient {
         this.heartbeatThread = new Thread(() -> {
             while (this.running) {
                 try {
-                    Thread.sleep(15000L);
+                    Thread.sleep(HEARTBEAT_INTERVAL_MILLIS);
                     if (this.running) {
+                        long elapsedMillis = (System.nanoTime() - this.lastPongNanos) / 1000000L;
+                        if (elapsedMillis >= HEARTBEAT_TIMEOUT_MILLIS) {
+                            throw new IOException("Relay heartbeat timed out");
+                        }
                         synchronized (this) {
                             writeFrame(0x9, new byte[]{'z', 's', 'g'});
                         }
@@ -376,7 +386,7 @@ public class SimpleWebSocketClient {
 
     private void notifyClosed(String reason) {
         if (this.closeNotified.compareAndSet(false, true)) {
-            this.listener.onClosed(reason);
+            this.listener.onClosed(this, reason);
         }
     }
 
