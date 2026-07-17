@@ -7,6 +7,7 @@ const GUEST_ACTIONS = new Set([
   "share_seed",
   "seed_change",
   "forfeit",
+  "complete_run",
   "progress",
   "reset_run",
   "advancement",

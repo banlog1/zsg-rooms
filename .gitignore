@@ -55,3 +55,7 @@ tmp/
 credentials.json
 secrets.json
 config/
+
+# optional local development mods
+
+libs/SpeedRunIGT-*.jar

@@ -10,6 +10,7 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.util.Formatting;
 import zsgrooms.modid.net.RoomSocketTransport;
 import zsgrooms.modid.net.RoomWebSocketTransport;
+import zsgrooms.modid.history.RunHistoryTracker;
 import zsgrooms.modid.ui.MatchHud;
 import zsgrooms.modid.ui.SynchronizedStartScreen;
 import zsgrooms.modid.ui.ZsgInGameActions;
@@ -19,6 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class ZsgRoomsClient implements ClientModInitializer {
+    static final int MAX_ROOM_CHAT_LENGTH = 120;
     private static final Set<String> REPORTED_ADVANCEMENTS = new HashSet<String>();
     private static String advancementRaceKey = "";
     private static String completedRaceKey = "";
@@ -41,6 +43,9 @@ public class ZsgRoomsClient implements ClientModInitializer {
                     beginSynchronizedStart(roomName, value);
                 }
                 ZsgRooms.applyRoomAction(action, roomName, playerName, value);
+                if ("chat".equals(action)) {
+                    onRoomChatReceived(roomName, playerName, value);
+                }
                 if ("race_start".equals(action)) {
                     releaseSynchronizedStart(roomName, value);
                 }
@@ -63,6 +68,8 @@ public class ZsgRoomsClient implements ClientModInitializer {
             advancementRaceKey = raceKey;
         }
         if (REPORTED_ADVANCEMENTS.add(advancementId)) {
+            RunHistoryTracker.recordAdvancement(game, advancementId,
+                    SpeedRunIgtBridge.currentInGameTimeMilliseconds());
             sendRoomAction("advancement", roomName, advancementId + "\t" + title);
         }
     }
@@ -78,7 +85,9 @@ public class ZsgRoomsClient implements ClientModInitializer {
             return;
         }
         completedRaceKey = raceKey;
-        String time = SpeedRunIgtBridge.completedInGameTime();
+        long completedIgt = SpeedRunIgtBridge.currentInGameTimeMilliseconds();
+        String time = completedIgt > 0L ? SpeedRunIgtBridge.formatMilliseconds(completedIgt) : "";
+        RunHistoryTracker.completeRun(game, completedIgt);
         String result = time.isEmpty() ? "Beat the seed" : "Beat the seed in " + time + " IGT";
         sendRoomAction("complete_run", roomName, result);
     }
@@ -87,6 +96,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         REPORTED_ADVANCEMENTS.clear();
         advancementRaceKey = "";
         completedRaceKey = "";
+        RunHistoryTracker.resetCurrentRun();
     }
 
     private static void tickClient(MinecraftClient client) {
@@ -194,6 +204,57 @@ public class ZsgRoomsClient implements ClientModInitializer {
         } else {
             ZsgRooms.applyRoomAction(action, roomName, playerName, value);
         }
+    }
+
+    public static boolean sendActiveRoomChat(MinecraftClient client, String rawMessage) {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        if (game == null || !game.getIsInGame()) {
+            return false;
+        }
+
+        String message = normalizeRoomChatMessage(rawMessage);
+        if (message == null) {
+            return false;
+        }
+
+        String playerName = localPlayerName(client);
+        sendRoomAction("chat", roomName, message);
+        ZsgInGameActions.showRoomChat(client, playerName, message);
+        return true;
+    }
+
+    public static void onRoomChatReceived(String roomName, String playerName, String value) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        String activeRoom = ZsgRooms.getActiveRoomName();
+        InGame game = activeRoom == null ? null : ZsgRooms.getGame(activeRoom);
+        if (roomName == null || !roomName.equals(activeRoom) || game == null || !game.getIsInGame()
+                || localPlayerName(client).equals(playerName)) {
+            return;
+        }
+
+        String message = cleanRoomChatMessage(value);
+        if (message != null) {
+            ZsgInGameActions.showRoomChat(client, playerName, message);
+        }
+    }
+
+    static String normalizeRoomChatMessage(String rawMessage) {
+        String message = cleanRoomChatMessage(rawMessage);
+        return message == null || message.startsWith("/") ? null : message;
+    }
+
+    private static String cleanRoomChatMessage(String rawMessage) {
+        if (rawMessage == null) {
+            return null;
+        }
+        String message = rawMessage.trim();
+        if (message.isEmpty()) {
+            return null;
+        }
+        return message.length() <= MAX_ROOM_CHAT_LENGTH
+                ? message
+                : message.substring(0, MAX_ROOM_CHAT_LENGTH);
     }
 
     public static String localPlayerName(MinecraftClient client) {

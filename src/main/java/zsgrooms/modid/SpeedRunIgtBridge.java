@@ -7,14 +7,18 @@ public final class SpeedRunIgtBridge {
     }
 
     public static String completedInGameTime() {
+        long milliseconds = currentInGameTimeMilliseconds();
+        return milliseconds > 0L ? formatMilliseconds(milliseconds) : "";
+    }
+
+    public static long currentInGameTimeMilliseconds() {
         try {
             Class<?> timerClass = Class.forName("com.redlimerl.speedrunigt.timer.InGameTimer");
             Object timer = timerClass.getMethod("getInstance").invoke(null);
             Method getInGameTime = timerClass.getMethod("getInGameTime", boolean.class);
-            long milliseconds = ((Number) getInGameTime.invoke(timer, false)).longValue();
-            return milliseconds > 0 ? formatMilliseconds(milliseconds) : "";
+            return Math.max(0L, ((Number) getInGameTime.invoke(timer, false)).longValue());
         } catch (Exception ignored) {
-            return "";
+            return 0L;
         }
     }
 

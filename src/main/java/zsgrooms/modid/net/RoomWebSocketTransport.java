@@ -461,6 +461,9 @@ public class RoomWebSocketTransport {
             }
 
             ZsgRooms.applyRoomAction(type, this.roomName, player, value);
+            if ("chat".equals(type)) {
+                ZsgRoomsClient.onRoomChatReceived(this.roomName, player, value);
+            }
             if ("reset_run".equals(type)) {
                 ZsgInGameActions.showRunReset(MinecraftClient.getInstance(), player);
             }
@@ -628,6 +631,9 @@ public class RoomWebSocketTransport {
                         ZsgRoomsClient.beginSynchronizedStart(decoded.get("room"), value);
                     }
                     ZsgRooms.applyRoomAction(type, decoded.get("room"), decoded.get("player"), value);
+                    if ("chat".equals(type)) {
+                        ZsgRoomsClient.onRoomChatReceived(decoded.get("room"), decoded.get("player"), value);
+                    }
                     if ("race_start".equals(type)) {
                         ZsgRoomsClient.releaseSynchronizedStart(decoded.get("room"), value);
                     }

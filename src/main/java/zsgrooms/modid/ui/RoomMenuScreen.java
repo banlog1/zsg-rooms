@@ -3,11 +3,14 @@ package zsgrooms.modid.ui;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.text.LiteralText;
 
 public class RoomMenuScreen extends Screen {
     private final Screen parent;
     private ButtonWidget settingsButton;
+    private ButtonWidget historyButton;
 
     public RoomMenuScreen(Screen parent) {
         super(new LiteralText("ZSG Rooms"));
@@ -30,7 +33,12 @@ public class RoomMenuScreen extends Screen {
             this.client.openScreen(new RoomSetupScreen(this, false));
         }));
 
-        this.addButton(new ButtonWidget(centerX - buttonWidth / 2, startY + 56, buttonWidth - 28, 20, new LiteralText("Back"), button -> {
+        this.historyButton = new ButtonWidget(panelX + 16, startY + 56, 24, 20, new LiteralText(""), button -> {
+            this.client.openScreen(new RunHistoryScreen(this));
+        });
+        this.addButton(this.historyButton);
+
+        this.addButton(new ButtonWidget(panelX + 48, startY + 56, panelWidth - 96, 20, new LiteralText("Back"), button -> {
             this.client.openScreen(this.parent);
         }));
 
@@ -54,6 +62,12 @@ public class RoomMenuScreen extends Screen {
         drawCenteredString(matrices, this.textRenderer, "ZSG Rooms", this.width / 2, panelY + 14, 0xFFFFFF);
         drawCenteredString(matrices, this.textRenderer, "Private filtered seed races", this.width / 2, panelY + 30, 0xA8D8FF);
         super.render(matrices, mouseX, mouseY, delta);
+        if (this.historyButton != null) {
+            this.itemRenderer.renderInGui(new ItemStack(Items.CLOCK), panelX + 20, panelY + 110);
+        }
+        if (this.historyButton != null && this.historyButton.isHovered()) {
+            this.renderTooltip(matrices, new LiteralText("Recent Runs"), mouseX, mouseY);
+        }
         if (this.settingsButton != null && this.settingsButton.isHovered()) {
             this.renderTooltip(matrices, new LiteralText("HUD Settings"), mouseX, mouseY);
         }

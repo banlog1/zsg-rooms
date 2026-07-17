@@ -8,6 +8,7 @@
 		"BastionChestLootMixin",
 		"BastionZombifiedPiglinMixin",
 		"ClientAdvancementManagerMixin",
+		"ClientPlayerChatMixin",
 		"EntityRandomAccessor",
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",

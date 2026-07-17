@@ -90,6 +90,19 @@ try {
   const join = await host.next();
   requireMessage(join.type === "join_room" && join.player === "Guest", "Host did not receive guest join");
 
+  guest.send({
+    type: "complete_run",
+    player: "SpoofedWinner",
+    value: "Beat the seed in 01:23.456 IGT",
+  });
+  const completion = await host.next();
+  requireMessage(
+    completion.type === "complete_run"
+      && completion.player === "Guest"
+      && completion.value === "Beat the seed in 01:23.456 IGT",
+    `Host did not receive the authenticated guest completion: ${JSON.stringify(completion)}`,
+  );
+
   host.close(1011);
   host = undefined;
   const waiting = await guest.next();

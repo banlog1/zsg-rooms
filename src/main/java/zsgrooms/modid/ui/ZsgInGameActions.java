@@ -120,6 +120,17 @@ public class ZsgInGameActions {
         client.inGameHud.getChatHud().addMessage(message);
     }
 
+    public static void showRoomChat(MinecraftClient client, String player, String value) {
+        if (client == null || client.inGameHud == null || value == null || value.trim().isEmpty()) {
+            return;
+        }
+        String name = player == null || player.trim().isEmpty() ? "Player" : player.trim();
+        MutableText message = new LiteralText("[ZSG Room] ").formatted(Formatting.AQUA)
+                .append(new LiteralText("<" + name + "> ").formatted(Formatting.YELLOW))
+                .append(new LiteralText(value).formatted(Formatting.WHITE));
+        client.inGameHud.getChatHud().addMessage(message);
+    }
+
     public static void showSeedChangeAgreement(MinecraftClient client) {
         if (client != null && client.inGameHud != null) {
             client.inGameHud.getChatHud().addMessage(roomMessage(

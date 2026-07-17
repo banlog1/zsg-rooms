@@ -21,6 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GameLogicTest {
     @Test
+    public void activeRoomChatNormalizesMessagesAndLeavesCommandsAlone() {
+        assertEquals("hello room", ZsgRoomsClient.normalizeRoomChatMessage("  hello room  "));
+        assertEquals(120, ZsgRoomsClient.normalizeRoomChatMessage(repeat("x", 140)).length());
+        assertEquals(null, ZsgRoomsClient.normalizeRoomChatMessage("   "));
+        assertEquals(null, ZsgRoomsClient.normalizeRoomChatMessage(" /seed 123"));
+    }
+
+    @Test
     public void chestIronInjectionAddsEnoughIron() {
         InGame game = new InGame("seed", "room", InGame.SeedType.FIXED, true);
         List<String> chestItems = Arrays.asList("empty", "empty", "empty", "empty");
@@ -60,6 +68,14 @@ public class GameLogicTest {
 
         room.removePlayer(guest);
         assertTrue(room.getRoomMessages().size() >= 2);
+    }
+
+    private static String repeat(String value, int count) {
+        StringBuilder result = new StringBuilder(value.length() * count);
+        for (int i = 0; i < count; i++) {
+            result.append(value);
+        }
+        return result.toString();
     }
 
     @Test
