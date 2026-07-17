@@ -25,7 +25,8 @@ state, and player movement never pass through the room relay.
 - Ends a run when the winner enters the End exit portal and displays SpeedRunIGT
   time when that mod is installed.
 - Offers optional race rules for deterministic RNG, boosted barters, minimum
-  bastion iron, cheats, and removing zombified piglins inside bastions.
+  bastion iron, cheats, structure-proximity spawning, and removing zombified
+  piglins inside bastions.
 - Repairs known ruined-portal chest and obsidian corruption for RP seedbank
   runs when the local repair preference is enabled.
 - Adds a confirmed `Clear Speedrun Worlds` action for worlds whose name starts

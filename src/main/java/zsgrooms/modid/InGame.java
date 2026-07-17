@@ -27,6 +27,7 @@ public class InGame {
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
+    private boolean spawnNearFilterStructure;
     private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
@@ -50,6 +51,7 @@ public class InGame {
         this.boostedBarters = false;
         this.minimumBastionIron = false;
         this.removeBastionZombifiedPiglins = false;
+        this.spawnNearFilterStructure = false;
         this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
         this.readyPlayers = new LinkedHashSet<String>();
@@ -257,6 +259,14 @@ public class InGame {
 
     public void setRemoveBastionZombifiedPiglins(boolean removeBastionZombifiedPiglins) {
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
+    }
+
+    public boolean spawnsNearFilterStructure() {
+        return spawnNearFilterStructure;
+    }
+
+    public void setSpawnNearFilterStructure(boolean spawnNearFilterStructure) {
+        this.spawnNearFilterStructure = spawnNearFilterStructure;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

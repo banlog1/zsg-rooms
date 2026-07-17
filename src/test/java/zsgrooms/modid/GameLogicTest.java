@@ -96,6 +96,7 @@ public class GameLogicTest {
         game.setBoostedBarters(true);
         game.setMinimumBastionIron(true);
         game.setRemoveBastionZombifiedPiglins(true);
+        game.setSpawnNearFilterStructure(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -120,6 +121,7 @@ public class GameLogicTest {
         assertTrue(decoded.boostedBarters);
         assertTrue(decoded.minimumBastionIron);
         assertTrue(decoded.removeBastionZombifiedPiglins);
+        assertTrue(decoded.spawnNearFilterStructure);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
@@ -141,6 +143,7 @@ public class GameLogicTest {
         assertTrue(appliedGame.areBartersBoosted());
         assertTrue(appliedGame.hasMinimumBastionIron());
         assertTrue(appliedGame.removesBastionZombifiedPiglins());
+        assertTrue(appliedGame.spawnsNearFilterStructure());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
@@ -161,6 +164,32 @@ public class GameLogicTest {
         assertFalse(BastionZombifiedPiglinControl.shouldRemove(false, true, true));
         assertFalse(BastionZombifiedPiglinControl.shouldRemove(true, false, true));
         assertFalse(BastionZombifiedPiglinControl.shouldRemove(true, true, false));
+    }
+
+    @Test
+    public void proximitySpawnMapsEveryFilteredSeedTypeToItsRouteStructure() {
+        assertEquals("buried_treasure", StructureSpawnProximity.structureKeyForFilter("zsg"));
+        assertEquals("buried_treasure", StructureSpawnProximity.structureKeyForFilter("zsgop"));
+        assertEquals("village", StructureSpawnProximity.structureKeyForFilter("zsgvillage"));
+        assertEquals("village", StructureSpawnProximity.structureKeyForFilter("zsgvillageop"));
+        assertEquals("shipwreck", StructureSpawnProximity.structureKeyForFilter("zsgshipwreck"));
+        assertEquals("shipwreck", StructureSpawnProximity.structureKeyForFilter("zsgshipwreckop"));
+        assertEquals("desert_pyramid", StructureSpawnProximity.structureKeyForFilter("zsgtemple"));
+        assertEquals("desert_pyramid", StructureSpawnProximity.structureKeyForFilter("zsgtempleop"));
+        assertEquals("jungle_pyramid", StructureSpawnProximity.structureKeyForFilter("zsgjungletemple"));
+        assertEquals("jungle_pyramid", StructureSpawnProximity.structureKeyForFilter("zsgjungletempleop"));
+        assertEquals("ruined_portal", StructureSpawnProximity.structureKeyForFilter("rpseedbank"));
+        assertEquals(null, StructureSpawnProximity.structureKeyForFilter("manual:12345"));
+        assertEquals(null, StructureSpawnProximity.structureKeyForFilter("random"));
+    }
+
+    @Test
+    public void proximitySpawnDistanceIsDeterministicAndInsideTheConfiguredBand() {
+        int first = StructureSpawnProximity.targetDistance(123456789L, "rpseedbank");
+        int repeated = StructureSpawnProximity.targetDistance(123456789L, "rpseedbank");
+        assertEquals(first, repeated);
+        assertTrue(first >= StructureSpawnProximity.MIN_TARGET_DISTANCE);
+        assertTrue(first <= StructureSpawnProximity.MAX_TARGET_DISTANCE);
     }
 
     @Test

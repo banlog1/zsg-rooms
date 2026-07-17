@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import zsgrooms.modid.RngStandardization;
+import zsgrooms.modid.StructureSpawnProximity;
 
 @Mixin(ServerPlayerEntity.class)
 public abstract class ServerPlayerSpawnMixin {
@@ -22,7 +23,8 @@ public abstract class ServerPlayerSpawnMixin {
             GameProfile profile,
             ServerPlayerInteractionManager interactionManager,
             CallbackInfo ci) {
-        if (!RngStandardization.isEnabled() || !World.OVERWORLD.equals(world.getRegistryKey())) {
+        if ((!RngStandardization.isEnabled() && !StructureSpawnProximity.hasPreparedSpawn())
+                || !World.OVERWORLD.equals(world.getRegistryKey())) {
             return;
         }
         BlockPos spawn = world.getSpawnPos();

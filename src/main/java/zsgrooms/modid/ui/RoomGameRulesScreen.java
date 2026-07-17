@@ -12,9 +12,11 @@ public class RoomGameRulesScreen extends Screen {
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
+    private boolean spawnNearFilterStructure;
 
     public RoomGameRulesScreen(RoomSetupScreen parent, boolean allowCheats, boolean rngStandardization,
-            boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins) {
+            boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
+            boolean spawnNearFilterStructure) {
         super(new LiteralText("Room Game Rules"));
         this.parent = parent;
         this.allowCheats = allowCheats;
@@ -22,6 +24,7 @@ public class RoomGameRulesScreen extends Screen {
         this.boostedBarters = boostedBarters;
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
+        this.spawnNearFilterStructure = spawnNearFilterStructure;
     }
 
     @Override
@@ -53,6 +56,11 @@ public class RoomGameRulesScreen extends Screen {
             this.removeBastionZombifiedPiglins = !this.removeBastionZombifiedPiglins;
             button.setMessage(removeBastionZombifiedPiglinsText());
         }));
+        this.addButton(new ButtonWidget(buttonX, y + gap * 5, buttonWidth, 20,
+                spawnNearFilterStructureText(), button -> {
+            this.spawnNearFilterStructure = !this.spawnNearFilterStructure;
+            button.setMessage(spawnNearFilterStructureText());
+        }));
         this.addButton(new ButtonWidget(buttonX, actionY(), buttonWidth, 20, new LiteralText("Done"), button -> {
             saveAndClose();
         }));
@@ -78,7 +86,7 @@ public class RoomGameRulesScreen extends Screen {
 
     private void saveAndClose() {
         this.parent.setGameRules(this.allowCheats, this.rngStandardization, this.boostedBarters,
-                this.minimumBastionIron, this.removeBastionZombifiedPiglins);
+                this.minimumBastionIron, this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure);
         this.client.openScreen(this.parent);
     }
 
@@ -87,7 +95,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private int panelHeight() {
-        return Math.min(224, this.height - 12);
+        return Math.min(252, this.height - 12);
     }
 
     private int panelY() {
@@ -104,7 +112,7 @@ public class RoomGameRulesScreen extends Screen {
 
     private int rowGap() {
         int available = actionY() - listTop() - 20;
-        return Math.max(18, Math.min(28, available / 4));
+        return Math.max(18, Math.min(28, available / 5));
     }
 
     private LiteralText allowCheatsText() {
@@ -125,6 +133,10 @@ public class RoomGameRulesScreen extends Screen {
 
     private LiteralText removeBastionZombifiedPiglinsText() {
         return toggleText("Remove Zombified Piglins from Bastions", this.removeBastionZombifiedPiglins);
+    }
+
+    private LiteralText spawnNearFilterStructureText() {
+        return toggleText("Spawn Near Filter Structure", this.spawnNearFilterStructure);
     }
 
     private LiteralText toggleText(String label, boolean enabled) {

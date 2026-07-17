@@ -37,6 +37,11 @@ contains:
 | Manual | Enabled only for `Manual Seed`; accepts a Minecraft numeric or text seed. |
 | Game Rules | Host-only gameplay modifications copied into the room snapshot. |
 
+`Spawn Near Filter Structure` can move an unusually distant filtered route to
+a deterministic safe spawn 70-128 blocks from its target whenever the original
+distance exceeds 140 blocks. It only applies to FSG filters with a known route
+structure; manual, random, and room-code seeds are unchanged.
+
 The `Copy` button copies the room code. The relay hostname is saved to
 `config/zsg-rooms-relay.txt` after a successful connection.
 

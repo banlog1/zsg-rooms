@@ -47,6 +47,7 @@ public class RoomSetupScreen extends Screen {
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
+    private boolean spawnNearFilterStructure;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -63,6 +64,7 @@ public class RoomSetupScreen extends Screen {
         this.boostedBarters = false;
         this.minimumBastionIron = false;
         this.removeBastionZombifiedPiglins = false;
+        this.spawnNearFilterStructure = false;
     }
 
     @Override
@@ -123,7 +125,8 @@ public class RoomSetupScreen extends Screen {
         this.gameRulesButton = new ButtonWidget(fieldX, y + rowGap * 6, fieldWidth, 20,
                 new LiteralText(this.createMode ? "Game Rules..." : "Game Rules: Set by Host"), button -> {
             this.client.openScreen(new RoomGameRulesScreen(this, this.allowCheats, this.rngStandardization,
-                    this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins));
+                    this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins,
+                    this.spawnNearFilterStructure));
         });
         this.gameRulesButton.active = this.createMode;
         this.addButton(this.gameRulesButton);
@@ -151,7 +154,7 @@ public class RoomSetupScreen extends Screen {
             if (this.createMode) {
                 ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName,
                         this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron,
-                        this.removeBastionZombifiedPiglins);
+                        this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -290,12 +293,14 @@ public class RoomSetupScreen extends Screen {
     }
 
     void setGameRules(boolean allowCheats, boolean rngStandardization, boolean boostedBarters,
-            boolean minimumBastionIron, boolean removeBastionZombifiedPiglins) {
+            boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
+            boolean spawnNearFilterStructure) {
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
         this.boostedBarters = boostedBarters;
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
+        this.spawnNearFilterStructure = spawnNearFilterStructure;
     }
 
     private String currentSeedType() {

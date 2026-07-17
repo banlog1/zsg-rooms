@@ -32,6 +32,32 @@ results can diverge because the event indexes no longer match.
 
 Default: Off.
 
+## Spawn Near Filter Structure
+
+When the selected filter's route structure is more than 140 horizontal blocks
+from Minecraft's original world spawn, the mod moves the local world spawn to a
+safe surface 70-128 blocks from that structure. The distance and direction are
+derived from the shared world seed and filter, so equivalent clients choose the
+same position. If the structure is already close, cannot be located, or no dry
+two-block-high surface is found, the original spawn is kept.
+
+Filter targets are:
+
+| Filters | Target structure |
+| --- | --- |
+| ZSG Mapless, Mapless (OP) | Buried treasure |
+| ZSG Village, Village (OP) | Village |
+| ZSG Shipwreck, Shipwreck (OP) | Shipwreck |
+| ZSG Desert Temple, Desert Temple (OP) | Desert pyramid |
+| ZSG Jungle Temple, Jungle Temple (OP) | Jungle pyramid |
+| Ruined Portal Seedbank | Ruined portal |
+
+Random, room-code, and manual seeds do not have a route structure and are left
+unchanged. This rule relocates spawn before a player joins; it does not move or
+regenerate the structure itself.
+
+Default: Off.
+
 ## Increase Piglin Barter Rates
 
 Uses `data/zsg-rooms/loot_tables/gameplay/standardized_piglin_bartering.json`
