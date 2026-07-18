@@ -26,6 +26,12 @@ public class ZsgInGameActions {
     private ZsgInGameActions() {
     }
 
+    public static boolean activeRoomForbidsCheats() {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        return game != null && !game.areCheatsAllowed();
+    }
+
     public static void requestSeedChange(MinecraftClient client) {
         String roomName = ZsgRooms.getActiveRoomName();
         if (roomName != null) {

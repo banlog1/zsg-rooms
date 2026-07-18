@@ -5,14 +5,19 @@ import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
 import zsgrooms.modid.net.RoomProtocol;
 import zsgrooms.modid.net.RoomSnapshot;
+import zsgrooms.modid.ui.ZsgInGameActions;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.concurrent.CompletionException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -150,6 +155,15 @@ public class GameLogicTest {
     }
 
     @Test
+    public void activeRoomCheatRuleControlsLanCheatAvailability() {
+        ZsgRooms.createRoom("lan-cheat-rule-room", 2, 1, "manual:54321", "Host", false);
+        assertTrue(ZsgInGameActions.activeRoomForbidsCheats());
+
+        ZsgRooms.getGame("lan-cheat-rule-room").setCheatsAllowed(true);
+        assertFalse(ZsgInGameActions.activeRoomForbidsCheats());
+    }
+
+    @Test
     public void bastionIronTopUpAddsOnlyTheExactMissingUnits() {
         assertEquals(27, BastionIronGuarantee.missingIronUnits(0));
         assertEquals(9, BastionIronGuarantee.missingIronUnits(18));
@@ -190,6 +204,24 @@ public class GameLogicTest {
         assertEquals(first, repeated);
         assertTrue(first >= StructureSpawnProximity.MIN_TARGET_DISTANCE);
         assertTrue(first <= StructureSpawnProximity.MAX_TARGET_DISTANCE);
+    }
+
+    @Test
+    public void proximitySpawnChecksAUniqueDeterministicBoundedSetOfChunks() {
+        BlockPos target = new BlockPos(900, 64, -700);
+        BlockPos originalSpawn = new BlockPos(0, 64, 0);
+        long[] first = StructureSpawnProximity.candidateChunkKeys(
+                987654321L, "rpseedbank", target, originalSpawn);
+        long[] repeated = StructureSpawnProximity.candidateChunkKeys(
+                987654321L, "rpseedbank", target, originalSpawn);
+
+        assertArrayEquals(first, repeated);
+        assertTrue(first.length > 0);
+        assertTrue(first.length <= StructureSpawnProximity.MAX_TERRAIN_CHUNKS);
+        Set<Long> unique = new HashSet<Long>();
+        for (long key : first) {
+            assertTrue(unique.add(key));
+        }
     }
 
     @Test

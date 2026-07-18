@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import zsgrooms.modid.RuinedPortalChestRepair;
+import zsgrooms.modid.RuinedPortalGenerationTracker;
 
 import java.util.Random;
 
@@ -38,6 +39,10 @@ public abstract class RuinedPortalStructurePieceMixin {
             CallbackInfoReturnable<Boolean> cir) {
         if (!((Object) this instanceof RuinedPortalStructurePiece)) {
             return;
+        }
+        if (Boolean.TRUE.equals(cir.getReturnValue())) {
+            RuinedPortalGenerationTracker.markGenerated(
+                    world, ((RuinedPortalStructurePiece) (Object) this).getBoundingBox());
         }
         for (Structure.StructureBlockInfo chest : this.structure.getInfosForBlock(this.pos, this.placementData, Blocks.CHEST)) {
             RuinedPortalChestRepair.captureGenerated(world, chest.pos, chest.state);

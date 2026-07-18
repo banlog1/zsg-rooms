@@ -13,6 +13,7 @@
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",
 		"LivingEntityDropMixin",
+		"OpenToLanScreenMixin",
 		"PiglinBrainMixin",
 		"RuinedPortalChestMixin",
 		"RuinedPortalStructurePieceMixin",

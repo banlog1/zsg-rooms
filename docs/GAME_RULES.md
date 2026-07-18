@@ -41,6 +41,17 @@ derived from the shared world seed and filter, so equivalent clients choose the
 same position. If the structure is already close, cannot be located, or no dry
 two-block-high surface is found, the original spawn is kept.
 
+Ruined portal targets receive an additional generation check because Minecraft
+1.16.1 can report portal starts that never place a structure. Logical candidates
+are checked nearest-first and the spawn is moved only after a ruined portal piece
+actually generates. At most four false portal candidates are inspected.
+
+Safe terrain is searched in groups by chunk. The direction toward the original
+spawn is checked first, every eligible surface column in that chunk is scored,
+and additional deterministic directions are tried only when needed. At most
+eight unique terrain chunks are generated for this search. Successful positions
+are cached in memory so resetting the same seed can reuse the result.
+
 Filter targets are:
 
 | Filters | Target structure |
