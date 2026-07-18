@@ -83,7 +83,7 @@ public class ZsgRooms implements ModInitializer {
 			boolean cheatsAllowed, boolean rngStandardized, boolean boostedBarters, boolean minimumBastionIron,
 			boolean removeBastionZombifiedPiglins, boolean spawnNearFilterStructure,
 			boolean minimumNearbyAnimals) {
-		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
+		String seed = ZsgSeedBridge.pendingSeedForSpecification(seedType);
 		Player host = new Player(cleanPlayerName(hostName), true, true);
 		Room room = new Room(roomName, seed, host, Math.max(2, maxPlayers));
 		ACTIVE_ROOMS.put(roomName, room);
@@ -263,7 +263,7 @@ public class ZsgRooms implements ModInitializer {
 		if (room == null || game == null) {
 			return;
 		}
-		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
+		String seed = ZsgSeedBridge.pendingSeedForSpecification(seedType);
 		game.setSeed(seed);
 		game.seedModification(seedType, 4);
 		room.setSeed(game.getSeed());
@@ -331,7 +331,10 @@ public class ZsgRooms implements ModInitializer {
 		}
 
 		String seed = game.getSeed();
-		if (seed == null || seed.trim().isEmpty()) {
+		boolean pendingLocalSeed = seed != null
+				&& ZsgSeedBridge.extractMinecraftSeed(seed).startsWith("pending-")
+				&& !ZsgSeedBridge.isFsgFilterSeedType(game.targetStructure);
+		if (seed == null || seed.trim().isEmpty() || pendingLocalSeed) {
 			seed = ZsgSeedBridge.fetchSeedForRoom(roomName, game.targetStructure);
 			game.setSeed(seed);
 			room.setSeed(seed);
@@ -351,8 +354,7 @@ public class ZsgRooms implements ModInitializer {
 			resetSeedChangeRequests(room);
 			game.addSharedChatMessage("Race started for " + roomName);
 			room.addRoomMessage("Race started for " + roomName);
-            SeedDebugLog.info("[ZSG-Rooms] Race started in room: {} with seed: {}",
-                    roomName, ZsgSeedBridge.extractMinecraftSeed(game.getSeed()));
+            SeedDebugLog.info("[ZSG-Rooms] Race started in room: {}", roomName);
 		} else {
 			game.addSharedChatMessage("Could not launch Atum for " + roomName);
 			LOGGER.warn("[ZSG-Rooms] Failed to launch race in room: " + roomName);
@@ -380,18 +382,25 @@ public class ZsgRooms implements ModInitializer {
 			return false;
 		}
 
-		prepareRoomSeed(roomName, seed, ZsgSeedBridge.seedSpecificationFromSeed(seed));
-		boolean launched = ZsgSeedBridge.launchSeedWithAtum(seed);
-		if (launched) {
-			game.startGame();
-			room.addRoomMessage("Loading synchronized seed for " + roomName);
-			game.addSharedChatMessage("Loading synchronized seed for " + roomName);
-            SeedDebugLog.info("[ZSG-Rooms] Exact synchronized seed launched for room: {} seed: {}",
-                    roomName, ZsgSeedBridge.extractMinecraftSeed(seed));
-		} else {
+		if (!ZsgSeedBridge.launchSeedWithAtum(seed)) {
 			shareChat(roomName, "Could not launch the synchronized seed");
+			return false;
 		}
-		return launched;
+		return commitLaunchedRoomSeed(roomName, seed, ZsgSeedBridge.seedSpecificationFromSeed(seed));
+	}
+
+	public static boolean commitLaunchedRoomSeed(String roomName, String seed, String seedSpecification) {
+		Room room = ACTIVE_ROOMS.get(roomName);
+		InGame game = ACTIVE_GAMES.get(roomName);
+		if (room == null || game == null || seed == null || seed.trim().isEmpty()) {
+			return false;
+		}
+		prepareRoomSeed(roomName, seed, seedSpecification);
+		game.startGame();
+		room.addRoomMessage("Loading synchronized seed for " + roomName);
+		game.addSharedChatMessage("Loading synchronized seed for " + roomName);
+		SeedDebugLog.info("[ZSG-Rooms] Exact synchronized seed launched for room {}", roomName);
+		return true;
 	}
 
 	public static boolean markPlayerWorldReady(String roomName, String playerName, String seed) {
@@ -562,7 +571,7 @@ public class ZsgRooms implements ModInitializer {
 		}
 
 		String hostName = cleanPlayerName(playerName);
-		String seed = ZsgSeedBridge.fetchSeedForRoom(roomName, seedType);
+		String seed = ZsgSeedBridge.pendingSeedForSpecification(seedType);
 		Player host = new Player(hostName, true, true);
 		room = new Room(roomName, seed, host, 8);
 		ACTIVE_ROOMS.put(roomName, room);

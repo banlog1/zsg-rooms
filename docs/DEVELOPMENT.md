@@ -107,6 +107,24 @@ Deploying the Worker and releasing the mod are separate operations. Protocol
 changes that require both sides should be deployed in a backward-compatible
 order or coordinated as one release.
 
+## Host Seed Prefetching
+
+`HostSeedPrefetchManager` owns one host-only prepared or pending exact seed. It
+keys that state by room name and the exact normalized seed specification, so
+manual seed values and filter variants cannot share a result accidentally.
+
+Every selection change advances a generation token and detaches the old pending
+future. FSG work is allowed to finish when cancellation is unsafe, but its
+completion callback checks the token and selection before changing manager
+state. Relay and direct-socket launch paths also use a launch generation to
+prevent duplicate or retired callbacks from starting a world.
+
+The prepared value must remain outside `Room`, `InGame`, `RoomSnapshot`, relay
+messages, UI strings, chat, and logs. The host starts its local Atum operation,
+then commits the exact seed to synchronized state immediately before the
+`launch` broadcast. After a successful launch, `onSeedConsumed` starts preparing
+the following seed.
+
 ## Changing the Protocol
 
 The current protocol is version 1 at the snapshot level. When adding a field:

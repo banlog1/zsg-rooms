@@ -99,6 +99,11 @@ public class ZsgSeedBridge {
         return normalized + "|structure:" + structure + "|iron:" + ironCount;
     }
 
+    public static String pendingSeedForSpecification(String seedSpecification) {
+        String seedType = normalizeSeedType(seedSpecification);
+        return buildSeedForStructure("pending-" + seedType, seedType, 4);
+    }
+
     public static String normalizeSeedType(String seedType) {
         if (seedType == null || seedType.trim().isEmpty()) {
             return "zsg";
@@ -222,14 +227,14 @@ public class ZsgSeedBridge {
                 throw new IllegalArgumentException("Manual seed cannot be empty");
             }
             lastSeedSource = "manual";
-            logToFile("FOUND: Manual seed = " + manualSeed);
+            logToFile("FOUND: Manual seed configured");
             return buildSeedForStructure(manualSeed, seedType, 4);
         }
         
         String systemSeed = System.getProperty("zsgrooms.seed");
         if (systemSeed != null && !systemSeed.trim().isEmpty()) {
             lastSeedSource = "system-property";
-            logToFile("FOUND: System property (zsgrooms.seed) = " + systemSeed);
+            logToFile("FOUND: System property (zsgrooms.seed) configured");
             return buildSeedForStructure(systemSeed, seedType, 4);
         }
         logToFile("SKIP: System property not set");
@@ -237,7 +242,7 @@ public class ZsgSeedBridge {
         String envSeed = System.getenv("ZSG_SEED");
         if (envSeed != null && !envSeed.trim().isEmpty()) {
             lastSeedSource = "environment-variable";
-            logToFile("FOUND: Environment variable (ZSG_SEED) = " + envSeed);
+            logToFile("FOUND: Environment variable (ZSG_SEED) configured");
             return buildSeedForStructure(envSeed, seedType, 4);
         }
         logToFile("SKIP: Environment variable not set");
@@ -245,20 +250,20 @@ public class ZsgSeedBridge {
         if ("random".equals(seedType)) {
             String randomSeed = String.valueOf(new Random().nextLong());
             lastSeedSource = "local-random";
-            logToFile("FOUND: Local random seed = " + randomSeed);
+            logToFile("FOUND: Local random seed generated");
             return buildSeedForStructure(randomSeed, seedType, 4);
         }
 
         if ("room".equals(seedType)) {
             String roomSeed = roomName == null || roomName.trim().isEmpty() ? "zsg-room" : roomName.trim();
             lastSeedSource = "room-code";
-            logToFile("FOUND: Room code seed = " + roomSeed);
+            logToFile("FOUND: Room code seed generated");
             return buildSeedForStructure(roomSeed, seedType, 4);
         }
 
         if (isFsgFilterSeedType(seedType)) {
             lastSeedSource = "fsg-filter-pending";
-            logToFile("PENDING: FSG filter will be requested by Atum/FSG when the race starts: " + seedTypeLabel(seedType));
+            logToFile("PENDING: FSG filter seed will be prepared privately: " + seedTypeLabel(seedType));
             return buildSeedForStructure("pending-" + seedType, seedType, 4);
         }
 
@@ -271,7 +276,7 @@ public class ZsgSeedBridge {
         String fsgSeed = tryFsgSeed();
         if (fsgSeed != null && !fsgSeed.trim().isEmpty()) {
             lastSeedSource = isSpeedrunApiAvailable() ? "fsg-mod-speedrunapi" : "fsg-mod";
-            logToFile("FOUND: FSG-Mod seed = " + fsgSeed);
+            logToFile("FOUND: FSG-Mod seed received");
             return buildSeedForStructure(fsgSeed, seedType, 4);
         }
         logToFile("SKIP: FSG-Mod not detected");
@@ -303,7 +308,7 @@ public class ZsgSeedBridge {
         exactSeed.whenComplete((seed, error) -> timeout.cancel(false));
         try {
             configureFsgFilter(seedType);
-            beginRoomSeedRequest();
+            prepareRoomSeedRequestState();
             Class<?> seedManagerClass = Class.forName("me.duncanruns.fsgmod.SeedManager");
             Method runFilter = seedManagerClass.getMethod("runFilter");
             SEED_REQUESTS.execute(() -> {
@@ -311,17 +316,17 @@ public class ZsgSeedBridge {
                     String seed = requestFsgSeedWithRetries(runFilter);
                     lastSeedSource = isSpeedrunApiAvailable() ? "fsg-mod-speedrunapi" : "fsg-mod";
                     String prepared = buildSeedForStructure(seed.trim(), seedType, 4);
-                    logToFile("FOUND: Exact room seed from FSG = " + seed.trim());
+                    logToFile("FOUND: Exact room seed from FSG");
                     exactSeed.complete(prepared);
                 } catch (Exception error) {
                     Throwable cause = error.getCause() == null ? error : error.getCause();
-                    logToFile("FSG seed request failed: " + cause.getMessage());
+                    logToFile("FSG seed request failed: " + cause.getClass().getSimpleName());
                     exactSeed.completeExceptionally(cause);
                 }
             });
             logToFile("REQUESTED: Exact FSG seed for " + seedTypeLabel(seedType));
         } catch (Exception exception) {
-            logToFile("Could not request exact FSG seed: " + exception.getClass().getSimpleName() + " - " + exception.getMessage());
+            logToFile("Could not request exact FSG seed: " + exception.getClass().getSimpleName());
             exactSeed.completeExceptionally(exception);
         }
         return exactSeed;
@@ -441,14 +446,14 @@ public class ZsgSeedBridge {
                     RoomResetAuthorization.clear();
                     throw exception;
                 }
-                logToFile("Scheduled an in-world Atum reset with room seed: " + minecraftSeed);
+                logToFile("Scheduled an in-world Atum reset with a room seed");
             } else {
                 atumClass.getMethod("createNewWorld").invoke(null);
-                logToFile("Launched Atum world creation with room seed: " + minecraftSeed);
+                logToFile("Launched Atum world creation with a room seed");
             }
             return true;
         } catch (Exception e) {
-            logToFile("Failed to launch Atum world: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            logToFile("Failed to launch Atum world: " + e.getClass().getSimpleName());
             return false;
         }
     }
@@ -472,7 +477,23 @@ public class ZsgSeedBridge {
         Field shouldResetField = atumClass.getDeclaredField("shouldReset");
         shouldResetField.setAccessible(true);
         shouldResetField.setBoolean(null, false);
-        logToFile("Initialized Atum room state before the first FSG request");
+        logToFile("Initialized Atum room state for launch");
+    }
+
+    private static void prepareRoomSeedRequestState() throws Exception {
+        Class<?> atumClass = Class.forName("me.voidxwalker.autoreset.Atum");
+        Field runningField = atumClass.getDeclaredField("running");
+        runningField.setAccessible(true);
+        runningField.setBoolean(null, true);
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        // An in-world launch may have just set shouldReset. Prefetch must not cancel it.
+        if (client == null || client.world == null) {
+            Field shouldResetField = atumClass.getDeclaredField("shouldReset");
+            shouldResetField.setAccessible(true);
+            shouldResetField.setBoolean(null, false);
+        }
+        logToFile("Initialized Atum room state for private seed preparation");
     }
 
     private static void closeDebugOverlay() {

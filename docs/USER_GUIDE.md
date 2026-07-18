@@ -60,10 +60,11 @@ The `Copy` button copies the room code. The relay hostname is saved to
 | Room Code | Uses the room code as the Minecraft seed string. |
 | Manual Seed | Uses the exact value entered in the Manual field. |
 
-For an FSG filter, room creation initially stores a pending marker. The host
-does not request the exact seed until `Start Race` or until every player agrees
-to a seed change. FSG requests are retried up to three times and have an overall
-75-second timeout.
+For an FSG filter, room creation stores a pending marker and the host immediately
+starts privately preparing the next exact seed. The lobby can report
+`Preparing next seed...`, `Next seed ready`, or a retry status, but the value is
+not placed in room state or sent to the relay before launch. FSG requests are
+retried up to three times and have an overall 75-second timeout.
 
 ## Joining a Room
 
@@ -80,7 +81,8 @@ not repeatedly fetched as gameplay state.
 - `Room Chat`: type a message and press Enter. Hover the chat panel and use the
   mouse wheel to view older messages.
 - `Options`: host-only selection for the filter used by the next seed.
-- `Start Race`: host-only. Requests and launches one shared seed.
+- `Start Race`: host-only. Consumes the prepared seed, or waits for the
+  remainder of the matching preparation, and launches it once.
 - `Share Seed`: writes the current internal seed value to room chat.
 - `Leave Room`: sends a clean leave action and closes the local room state.
 - `Copy`: copies the room code shown in the upper-right area.
@@ -92,14 +94,22 @@ unlocks and advancements without display metadata are intentionally ignored.
 
 The start sequence is:
 
-1. The host requests one exact seed.
-2. The host stores it in the room snapshot and sends `launch` to every guest.
-3. Atum creates or resets each local singleplayer world with that seed.
-4. Each client waits until its new world and player are usable.
-5. The client opens the non-skippable `World Ready` screen and sends
+1. The host consumes its private prepared seed, reusing a matching request when
+   one is still running.
+2. The host starts its local Atum launch.
+3. Immediately before sending `launch`, the host commits the exact seed to the
+   synchronized room state and broadcasts it to every guest.
+4. The host begins privately preparing the following seed.
+5. Atum creates or resets each local singleplayer world with the launched seed.
+6. Each client waits until its new world and player are usable.
+7. The client opens the non-skippable `World Ready` screen and sends
    `world_ready`.
-6. When every current room member is ready, the host sends `race_start`.
-7. All waiting screens close and the HUD displays `GO!`.
+8. When every current room member is ready, the host sends `race_start`.
+9. All waiting screens close and the HUD displays `GO!`.
+
+Changing the selected filter invalidates the old private result. A late result
+from the previous filter is ignored and cannot launch or replace the newly
+selected seed.
 
 If a player leaves while everyone is loading, the host re-evaluates the current
 player list so the remaining players are not held forever.

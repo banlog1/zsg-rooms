@@ -196,7 +196,7 @@ public class InGame {
     }
 
     public void displayHud() {
-        SeedDebugLog.info("Room: {} | Seed: {} | Live: {}", roomName, seed, isInGame);
+        SeedDebugLog.info("Room: {} | Live: {}", roomName, isInGame);
     }
 
     public void display_hud() {

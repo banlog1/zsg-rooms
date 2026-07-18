@@ -120,6 +120,17 @@ public class ZsgRoomsClient implements ClientModInitializer {
         worldReadySent = false;
     }
 
+    public static void cancelSynchronizedStart(String roomName, String seed) {
+        if (!synchronizedRoomName.equals(roomName) || !synchronizedSeed.equals(seed)) {
+            return;
+        }
+        synchronizedRoomName = "";
+        synchronizedSeed = "";
+        worldBeforeLaunch = null;
+        awaitingSynchronizedStart = false;
+        worldReadySent = false;
+    }
+
     public static void releaseSynchronizedStart(String roomName, String seed) {
         if (!awaitingSynchronizedStart || !synchronizedRoomName.equals(roomName)
                 || !synchronizedSeed.equals(seed)) {

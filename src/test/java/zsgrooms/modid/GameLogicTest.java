@@ -369,17 +369,18 @@ public class GameLogicTest {
     }
 
     @Test
-    public void manualSeedSpecificationSurvivesRoomSnapshotsAndNewRequests() {
+    public void manualSeedSpecificationRemainsHostPrivateUntilLaunch() {
         ZsgRooms.createRoom("manual-room", 2, 1, "manual:24680", "Host");
         InGame game = ZsgRooms.getGame("manual-room");
 
         assertEquals("manual:24680", game.targetStructure);
-        assertEquals("24680", ZsgSeedBridge.extractMinecraftSeed(game.getSeed()));
+        assertEquals("pending-manual", ZsgSeedBridge.extractMinecraftSeed(game.getSeed()));
 
         RoomSnapshot snapshot = RoomSnapshot.capture(ZsgRooms.getRoom("manual-room"), game);
-        assertEquals("manual:24680", snapshot.filter);
+        assertEquals("manual", snapshot.filter);
+        assertFalse(snapshot.toJson().contains("24680"));
         assertEquals("24680", ZsgSeedBridge.extractMinecraftSeed(
-                ZsgSeedBridge.requestExactSeedForRoom("manual-room", snapshot.filter).join()));
+                ZsgSeedBridge.requestExactSeedForRoom("manual-room", game.targetStructure).join()));
     }
 
     @Test

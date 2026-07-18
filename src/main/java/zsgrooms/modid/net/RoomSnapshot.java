@@ -5,6 +5,7 @@ import com.google.gson.JsonSyntaxException;
 import zsgrooms.modid.InGame;
 import zsgrooms.modid.Player;
 import zsgrooms.modid.Room;
+import zsgrooms.modid.ZsgSeedBridge;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -52,7 +53,7 @@ public class RoomSnapshot {
             }
         }
         if (game != null) {
-            snapshot.filter = game.targetStructure;
+            snapshot.filter = ZsgSeedBridge.normalizeSeedType(game.targetStructure);
             snapshot.finishGoal = game.getFinishGoal();
             snapshot.inGame = game.getIsInGame();
             snapshot.cheatsAllowed = game.areCheatsAllowed();

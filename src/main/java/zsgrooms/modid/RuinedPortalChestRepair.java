@@ -66,7 +66,7 @@ public final class RuinedPortalChestRepair {
         pos = pos.toImmutable();
         long lootSeed = tag.getLong("LootTableSeed");
         PENDING.put(new ChestKey(world, pos), new PendingChest(world, pos, state, lootSeed));
-        SeedDebugLog.info("Watching ruined portal chest at {} with loot seed {}", pos, lootSeed);
+        SeedDebugLog.info("Watching ruined portal chest at {}", pos);
     }
 
     public static void tick(MinecraftServer server) {

@@ -11,8 +11,8 @@ state, and player movement never pass through the room relay.
 ## What It Does
 
 - Creates or joins Internet-accessible rooms with a short room code.
-- Requests one filtered seed through FSG Mod and launches it through Atum for
-  every player.
+- Privately prepares the host's next filtered seed through FSG Mod, then
+  launches that exact seed through Atum for every player.
 - Supports the ZSG Mapless, Village, Shipwreck, Desert Temple, Jungle Temple,
   and Ruined Portal Seedbank filters, including OP variants where available.
 - Also supports random, room-code-derived, and manually entered seeds.

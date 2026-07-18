@@ -105,7 +105,6 @@ public class Room {
             return;
         }
         System.out.println("Room Name: " + roomName);
-        System.out.println("Seed: " + getSeed());
         System.out.println("Host: " + host.getName());
         System.out.println("Players in Room:");
         for (Player player : players) {

@@ -10,6 +10,7 @@ import zsgrooms.modid.Room;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
+import zsgrooms.modid.net.HostSeedPrefetchManager;
 import zsgrooms.modid.net.RoomSocketTransport;
 import zsgrooms.modid.net.RoomWebSocketTransport;
 
@@ -254,7 +255,10 @@ public class RoomLobbyScreen extends Screen {
         int panelW = Math.min(380, this.width - 40);
         fill(matrices, panelX, y, panelX + panelW, y + 40, 0x66000000);
         drawCenteredString(matrices, this.textRenderer, trimToWidth(filter, panelW - 16), this.width / 2, y + 6, 0x88CCFF);
-        drawCenteredString(matrices, this.textRenderer, trimToWidth("Seed Source: " + ZsgSeedBridge.getLastSeedSource(), panelW - 16), this.width / 2, y + 21, 0x88FF88);
+        String seedStatus = RoomWebSocketTransport.isHosting() || RoomSocketTransport.isHosting()
+                ? HostSeedPrefetchManager.getInstance().getStatus()
+                : "Seed Source: " + ZsgSeedBridge.getLastSeedSource();
+        drawCenteredString(matrices, this.textRenderer, trimToWidth(seedStatus, panelW - 16), this.width / 2, y + 21, 0x88FF88);
     }
 
     private void drawChatAndStatus(MatrixStack matrices, Room room, int top) {

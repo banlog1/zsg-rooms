@@ -5,6 +5,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.LiteralText;
+import zsgrooms.modid.InGame;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
@@ -43,9 +44,14 @@ public class RoomOptionsScreen extends Screen {
 
         Room room = ZsgRooms.getRoom(roomName);
         if (room != null) {
-            String current = ZsgSeedBridge.resolveStructure(room.getSeed());
+            InGame game = ZsgRooms.getGame(roomName);
+            String specification = game == null ? ZsgSeedBridge.resolveStructure(room.getSeed()) : game.targetStructure;
+            String current = ZsgSeedBridge.normalizeSeedType(specification);
             if ("manual".equals(current)) {
-                this.initialManualSeed = ZsgSeedBridge.extractMinecraftSeed(room.getSeed());
+                String normalized = ZsgSeedBridge.normalizeSeedSpecification(specification);
+                this.initialManualSeed = normalized.startsWith("manual:")
+                        ? normalized.substring("manual:".length())
+                        : "";
             }
             for (int i = 0; i < SEED_TYPES.length; i++) {
                 if (SEED_TYPES[i].equals(current)) {
