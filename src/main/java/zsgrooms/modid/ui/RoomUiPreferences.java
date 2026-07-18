@@ -26,8 +26,10 @@ public final class RoomUiPreferences {
 
     private static final Path CONFIG_PATH = Paths.get("config", "zsg-rooms-ui.txt");
     private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair.txt");
+    private static final Path SEED_DEBUG_CONFIG_PATH = Paths.get("config", "zsg-rooms-seed-debug.txt");
     private static HudPosition hudPosition = loadHudPosition();
     private static boolean ruinedPortalChestRepairEnabled = loadRuinedPortalChestRepair();
+    private static boolean seedDebugLoggingEnabled = loadSeedDebugLogging();
 
     private RoomUiPreferences() {
     }
@@ -61,6 +63,19 @@ public final class RoomUiPreferences {
         }
     }
 
+    public static boolean isSeedDebugLoggingEnabled() {
+        return seedDebugLoggingEnabled;
+    }
+
+    public static void setSeedDebugLoggingEnabled(boolean enabled) {
+        seedDebugLoggingEnabled = enabled;
+        try {
+            Files.createDirectories(SEED_DEBUG_CONFIG_PATH.getParent());
+            Files.write(SEED_DEBUG_CONFIG_PATH, Boolean.toString(enabled).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) {
+        }
+    }
+
     private static HudPosition loadHudPosition() {
         try {
             if (Files.exists(CONFIG_PATH)) {
@@ -81,5 +96,16 @@ public final class RoomUiPreferences {
         } catch (IOException ignored) {
         }
         return true;
+    }
+
+    private static boolean loadSeedDebugLogging() {
+        try {
+            if (Files.exists(SEED_DEBUG_CONFIG_PATH)) {
+                return Boolean.parseBoolean(new String(
+                        Files.readAllBytes(SEED_DEBUG_CONFIG_PATH), StandardCharsets.UTF_8).trim());
+            }
+        } catch (IOException ignored) {
+        }
+        return false;
     }
 }

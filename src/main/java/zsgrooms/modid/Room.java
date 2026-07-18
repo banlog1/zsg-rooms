@@ -101,6 +101,9 @@ public class Room {
     }
 
     public void displayRoomInfo() {
+        if (!SeedDebugLog.isEnabled()) {
+            return;
+        }
         System.out.println("Room Name: " + roomName);
         System.out.println("Seed: " + getSeed());
         System.out.println("Host: " + host.getName());

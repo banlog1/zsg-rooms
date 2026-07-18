@@ -23,7 +23,7 @@ contains:
 
 - `Create Room`: host and own the authoritative room state.
 - `Join Room`: connect to an existing room.
-- Gear button: choose HUD position, ruined-portal repair, and update checks.
+- Gear button: choose HUD position, ruined-portal repair, update checks, and seed debug logging.
 
 ## Create Room Fields
 
@@ -187,9 +187,10 @@ Update checks are optional and can be disabled in Room Settings.
 | `config/zsg-rooms-relay.txt` | Last successful relay hostname. |
 | `config/zsg-rooms-ui.txt` | Match HUD corner. |
 | `config/zsg-rooms-rp-repair.txt` | Ruined-portal repair preference. |
+| `config/zsg-rooms-seed-debug.txt` | Verbose seed diagnostics preference. |
 | `config/zsg-rooms-update-url.txt` | Optional replacement GitHub latest-release API URL. |
 | `config/zsg-rooms/update/` | Pending verified update files. |
-| `zsg-rooms-seed-detection.log` | Seed bridge and FSG diagnostics for the current launch. |
+| `zsg-rooms-seed-detection.log` | Seed bridge and FSG diagnostics when Seed Debug Logging is enabled. |
 
 The relay can also be overridden with the `zsgrooms.relay` system property or
 `ZSG_ROOMS_RELAY` environment variable.
@@ -206,7 +207,8 @@ The relay can also be overridden with the `zsgrooms.relay` system property or
 ### FSG returns no seed
 
 - Confirm Atum, FSG Mod, and SpeedrunAPI are loaded.
-- Open `zsg-rooms-seed-detection.log` for the request attempts and exception.
+- Enable Seed Debug Logging in Room Settings, reproduce the request, then open
+  `zsg-rooms-seed-detection.log` for the request attempts and exception.
 - FSG empty results are retried three times; wait for the final lobby status.
 
 ### Players remain on World Ready

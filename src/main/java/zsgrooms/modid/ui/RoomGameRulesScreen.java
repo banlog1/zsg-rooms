@@ -7,16 +7,26 @@ import net.minecraft.text.LiteralText;
 
 public class RoomGameRulesScreen extends Screen {
     private final RoomSetupScreen parent;
+    private RoomRulePreset preset;
+    private ButtonWidget presetButton;
+    private ButtonWidget allowCheatsButton;
+    private ButtonWidget rngStandardizationButton;
+    private ButtonWidget boostedBartersButton;
+    private ButtonWidget minimumBastionIronButton;
+    private ButtonWidget removeBastionZombifiedPiglinsButton;
+    private ButtonWidget spawnNearFilterStructureButton;
+    private ButtonWidget minimumNearbyAnimalsButton;
     private boolean allowCheats;
     private boolean rngStandardization;
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
     private boolean spawnNearFilterStructure;
+    private boolean minimumNearbyAnimals;
 
     public RoomGameRulesScreen(RoomSetupScreen parent, boolean allowCheats, boolean rngStandardization,
             boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
-            boolean spawnNearFilterStructure) {
+            boolean spawnNearFilterStructure, boolean minimumNearbyAnimals, RoomRulePreset preset) {
         super(new LiteralText("Room Game Rules"));
         this.parent = parent;
         this.allowCheats = allowCheats;
@@ -25,6 +35,9 @@ public class RoomGameRulesScreen extends Screen {
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
         this.spawnNearFilterStructure = spawnNearFilterStructure;
+        this.minimumNearbyAnimals = minimumNearbyAnimals;
+        this.preset = preset == null ? RoomRulePreset.CUSTOM : preset;
+        applyPreset();
     }
 
     @Override
@@ -34,34 +47,60 @@ public class RoomGameRulesScreen extends Screen {
         int buttonWidth = panelWidth() - 32;
         int y = listTop();
         int gap = rowGap();
+        int buttonHeight = ruleButtonHeight();
 
-        this.addButton(new ButtonWidget(buttonX, y, buttonWidth, 20, allowCheatsText(), button -> {
+        this.presetButton = new ButtonWidget(buttonX, y, buttonWidth, buttonHeight, presetText(), button -> {
+            this.preset = this.preset.next();
+            applyPreset();
+            refreshButtonLabels();
+        });
+        this.addButton(this.presetButton);
+        this.allowCheatsButton = new ButtonWidget(buttonX, y + gap, buttonWidth, buttonHeight, allowCheatsText(), button -> {
+            markCustom();
             this.allowCheats = !this.allowCheats;
             button.setMessage(allowCheatsText());
-        }));
-        this.addButton(new ButtonWidget(buttonX, y + gap, buttonWidth, 20, rngStandardizationText(), button -> {
+        });
+        this.addButton(this.allowCheatsButton);
+        this.rngStandardizationButton = new ButtonWidget(buttonX, y + gap * 2, buttonWidth, buttonHeight, rngStandardizationText(), button -> {
+            markCustom();
             this.rngStandardization = !this.rngStandardization;
             button.setMessage(rngStandardizationText());
-        }));
-        this.addButton(new ButtonWidget(buttonX, y + gap * 2, buttonWidth, 20, boostedBartersText(), button -> {
+        });
+        this.addButton(this.rngStandardizationButton);
+        this.boostedBartersButton = new ButtonWidget(buttonX, y + gap * 3, buttonWidth, buttonHeight, boostedBartersText(), button -> {
+            markCustom();
             this.boostedBarters = !this.boostedBarters;
             button.setMessage(boostedBartersText());
-        }));
-        this.addButton(new ButtonWidget(buttonX, y + gap * 3, buttonWidth, 20, minimumBastionIronText(), button -> {
+        });
+        this.addButton(this.boostedBartersButton);
+        this.minimumBastionIronButton = new ButtonWidget(buttonX, y + gap * 4, buttonWidth, buttonHeight, minimumBastionIronText(), button -> {
+            markCustom();
             this.minimumBastionIron = !this.minimumBastionIron;
             button.setMessage(minimumBastionIronText());
-        }));
-        this.addButton(new ButtonWidget(buttonX, y + gap * 4, buttonWidth, 20,
+        });
+        this.addButton(this.minimumBastionIronButton);
+        this.removeBastionZombifiedPiglinsButton = new ButtonWidget(buttonX, y + gap * 5, buttonWidth, buttonHeight,
                 removeBastionZombifiedPiglinsText(), button -> {
+            markCustom();
             this.removeBastionZombifiedPiglins = !this.removeBastionZombifiedPiglins;
             button.setMessage(removeBastionZombifiedPiglinsText());
-        }));
-        this.addButton(new ButtonWidget(buttonX, y + gap * 5, buttonWidth, 20,
+        });
+        this.addButton(this.removeBastionZombifiedPiglinsButton);
+        this.spawnNearFilterStructureButton = new ButtonWidget(buttonX, y + gap * 6, buttonWidth, buttonHeight,
                 spawnNearFilterStructureText(), button -> {
+            markCustom();
             this.spawnNearFilterStructure = !this.spawnNearFilterStructure;
             button.setMessage(spawnNearFilterStructureText());
-        }));
-        this.addButton(new ButtonWidget(buttonX, actionY(), buttonWidth, 20, new LiteralText("Done"), button -> {
+        });
+        this.addButton(this.spawnNearFilterStructureButton);
+        this.minimumNearbyAnimalsButton = new ButtonWidget(buttonX, y + gap * 7, buttonWidth, buttonHeight,
+                minimumNearbyAnimalsText(), button -> {
+            markCustom();
+            this.minimumNearbyAnimals = !this.minimumNearbyAnimals;
+            button.setMessage(minimumNearbyAnimalsText());
+        });
+        this.addButton(this.minimumNearbyAnimalsButton);
+        this.addButton(new ButtonWidget(buttonX, actionY(), buttonWidth, buttonHeight, new LiteralText("Done"), button -> {
             saveAndClose();
         }));
     }
@@ -86,7 +125,8 @@ public class RoomGameRulesScreen extends Screen {
 
     private void saveAndClose() {
         this.parent.setGameRules(this.allowCheats, this.rngStandardization, this.boostedBarters,
-                this.minimumBastionIron, this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure);
+                this.minimumBastionIron, this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
+                this.minimumNearbyAnimals, this.preset);
         this.client.openScreen(this.parent);
     }
 
@@ -95,7 +135,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private int panelHeight() {
-        return Math.min(252, this.height - 12);
+        return Math.min(280, this.height - 12);
     }
 
     private int panelY() {
@@ -103,20 +143,64 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private int listTop() {
-        return panelY() + 38;
+        return panelY() + (isCompact() ? 30 : 38);
     }
 
     private int actionY() {
-        return panelY() + panelHeight() - 28;
+        return panelY() + panelHeight() - (this.height < 200 ? 17 : isCompact() ? 20 : 28);
     }
 
     private int rowGap() {
-        int available = actionY() - listTop() - 20;
-        return Math.max(18, Math.min(28, available / 5));
+        int buttonHeight = ruleButtonHeight();
+        int available = actionY() - listTop() - buttonHeight;
+        return Math.max(buttonHeight, Math.min(26, available / 7));
+    }
+
+    private int ruleButtonHeight() {
+        return this.height < 200 ? 14 : isCompact() ? 16 : 20;
+    }
+
+    private boolean isCompact() {
+        return this.height < 240;
     }
 
     private LiteralText allowCheatsText() {
         return toggleText("Allow Cheats", this.allowCheats);
+    }
+
+    private LiteralText presetText() {
+        return new LiteralText("Preset: " + this.preset.getLabel());
+    }
+
+    private void applyPreset() {
+        if (this.preset.isCustom()) {
+            return;
+        }
+        this.allowCheats = this.preset.allowsCheats();
+        this.rngStandardization = this.preset.standardizesRng();
+        this.boostedBarters = this.preset.boostsBarters();
+        this.minimumBastionIron = this.preset.guaranteesBastionIron();
+        this.removeBastionZombifiedPiglins = this.preset.removesBastionZombifiedPiglins();
+        this.spawnNearFilterStructure = this.preset.spawnsNearFilterStructure();
+        this.minimumNearbyAnimals = this.preset.guaranteesNearbyAnimals();
+    }
+
+    private void markCustom() {
+        this.preset = RoomRulePreset.CUSTOM;
+        if (this.presetButton != null) {
+            this.presetButton.setMessage(presetText());
+        }
+    }
+
+    private void refreshButtonLabels() {
+        this.presetButton.setMessage(presetText());
+        this.allowCheatsButton.setMessage(allowCheatsText());
+        this.rngStandardizationButton.setMessage(rngStandardizationText());
+        this.boostedBartersButton.setMessage(boostedBartersText());
+        this.minimumBastionIronButton.setMessage(minimumBastionIronText());
+        this.removeBastionZombifiedPiglinsButton.setMessage(removeBastionZombifiedPiglinsText());
+        this.spawnNearFilterStructureButton.setMessage(spawnNearFilterStructureText());
+        this.minimumNearbyAnimalsButton.setMessage(minimumNearbyAnimalsText());
     }
 
     private LiteralText rngStandardizationText() {
@@ -137,6 +221,10 @@ public class RoomGameRulesScreen extends Screen {
 
     private LiteralText spawnNearFilterStructureText() {
         return toggleText("Spawn Near Filter Structure", this.spawnNearFilterStructure);
+    }
+
+    private LiteralText minimumNearbyAnimalsText() {
+        return toggleText("Guarantee 3 Animals Near Structure", this.minimumNearbyAnimals);
     }
 
     private LiteralText toggleText(String label, boolean enabled) {

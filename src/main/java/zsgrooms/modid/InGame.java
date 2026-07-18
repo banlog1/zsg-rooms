@@ -28,6 +28,7 @@ public class InGame {
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
     private boolean spawnNearFilterStructure;
+    private boolean minimumNearbyAnimals;
     private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
@@ -52,6 +53,7 @@ public class InGame {
         this.minimumBastionIron = false;
         this.removeBastionZombifiedPiglins = false;
         this.spawnNearFilterStructure = false;
+        this.minimumNearbyAnimals = false;
         this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
         this.readyPlayers = new LinkedHashSet<String>();
@@ -185,13 +187,16 @@ public class InGame {
     }
 
     public void displayPlayerProgress() {
+        if (!SeedDebugLog.isEnabled()) {
+            return;
+        }
         for (Map.Entry<String, Integer> entry : playerProgress.entrySet()) {
             System.out.println(entry.getKey() + " -> " + entry.getValue());
         }
     }
 
     public void displayHud() {
-        System.out.println("Room: " + roomName + " | Seed: " + seed + " | Live: " + isInGame);
+        SeedDebugLog.info("Room: {} | Seed: {} | Live: {}", roomName, seed, isInGame);
     }
 
     public void display_hud() {
@@ -267,6 +272,14 @@ public class InGame {
 
     public void setSpawnNearFilterStructure(boolean spawnNearFilterStructure) {
         this.spawnNearFilterStructure = spawnNearFilterStructure;
+    }
+
+    public boolean hasMinimumNearbyAnimals() {
+        return minimumNearbyAnimals;
+    }
+
+    public void setMinimumNearbyAnimals(boolean minimumNearbyAnimals) {
+        this.minimumNearbyAnimals = minimumNearbyAnimals;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

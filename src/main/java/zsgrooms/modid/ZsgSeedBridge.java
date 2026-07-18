@@ -77,6 +77,9 @@ public class ZsgSeedBridge {
     }
 
     private static void logToFile(String message) {
+        if (!SeedDebugLog.isEnabled()) {
+            return;
+        }
         try (FileWriter fw = new FileWriter(LOG_FILE, true)) {
             fw.write(message + "\n");
             fw.flush();

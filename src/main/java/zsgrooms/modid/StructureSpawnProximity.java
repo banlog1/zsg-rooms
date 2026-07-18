@@ -43,6 +43,7 @@ public final class StructureSpawnProximity {
             };
 
     private static volatile boolean enabled;
+    private static volatile boolean minimumNearbyAnimalsEnabled;
     private static volatile boolean preparedSpawn;
     private static String filterId = "";
 
@@ -50,7 +51,13 @@ public final class StructureSpawnProximity {
     }
 
     public static synchronized void configure(boolean shouldEnable, String selectedFilter) {
+        configure(shouldEnable, false, selectedFilter);
+    }
+
+    public static synchronized void configure(
+            boolean shouldEnable, boolean shouldGuaranteeAnimals, String selectedFilter) {
         enabled = shouldEnable;
+        minimumNearbyAnimalsEnabled = shouldGuaranteeAnimals;
         preparedSpawn = false;
         filterId = ZsgSeedBridge.normalizeSeedType(selectedFilter);
     }
@@ -58,20 +65,20 @@ public final class StructureSpawnProximity {
     public static synchronized void prepare(ServerWorld world) {
         preparedSpawn = false;
         StructureFeature<?> structure = structureForFilter(filterId);
-        if (!enabled || world == null || structure == null) {
+        if ((!enabled && !minimumNearbyAnimalsEnabled) || world == null || structure == null) {
             return;
         }
 
         BlockPos originalSpawn = world.getSpawnPos();
         SpawnCacheKey cacheKey = new SpawnCacheKey(world.getSeed(), filterId);
         BlockPos cachedSpawn = SPAWN_CACHE.get(cacheKey);
-        if (cachedSpawn != null) {
+        if (cachedSpawn != null && !minimumNearbyAnimalsEnabled) {
             BlockPos refreshedSpawn = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
                     new BlockPos(cachedSpawn.getX(), 0, cachedSpawn.getZ()));
             if (isSafeSpawn(world, refreshedSpawn)) {
                 world.setSpawnPos(refreshedSpawn);
                 preparedSpawn = true;
-                ZsgRooms.LOGGER.info("Reused cached {} room spawn at {}", filterId, refreshedSpawn);
+                SeedDebugLog.info("Reused cached {} room spawn at {}", filterId, refreshedSpawn);
                 return;
             }
             SPAWN_CACHE.remove(cacheKey);
@@ -92,9 +99,29 @@ public final class StructureSpawnProximity {
         BlockPos target = located.pos;
         long locateMillis = elapsedMillis(locateStarted);
 
+        if (minimumNearbyAnimalsEnabled) {
+            StructureAnimalGuarantee.ensure(world, target, filterId);
+        }
+        if (!enabled) {
+            return;
+        }
+
+        if (cachedSpawn != null) {
+            BlockPos refreshedSpawn = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
+                    new BlockPos(cachedSpawn.getX(), 0, cachedSpawn.getZ()));
+            if (isSafeSpawn(world, refreshedSpawn)) {
+                world.setSpawnPos(refreshedSpawn);
+                preparedSpawn = true;
+                SeedDebugLog.info("Reused cached {} room spawn at {} after checking nearby animals",
+                        filterId, refreshedSpawn);
+                return;
+            }
+            SPAWN_CACHE.remove(cacheKey);
+        }
+
         long originalDistanceSquared = horizontalDistanceSquared(originalSpawn, target);
         if (originalDistanceSquared <= (long) RELOCATION_THRESHOLD * RELOCATION_THRESHOLD) {
-            ZsgRooms.LOGGER.info("Keeping original spawn; {} is already {} blocks away (located in {} ms{})",
+            SeedDebugLog.info("Keeping original spawn; {} is already {} blocks away (located in {} ms{})",
                     filterId, Math.round(Math.sqrt(originalDistanceSquared)), locateMillis, located.verificationLog());
             return;
         }
@@ -110,7 +137,7 @@ public final class StructureSpawnProximity {
         world.setSpawnPos(safeSpawn);
         SPAWN_CACHE.put(cacheKey, safeSpawn);
         preparedSpawn = true;
-        ZsgRooms.LOGGER.info("Moved room spawn from {} to {} ({} blocks from {}); locate: {} ms{}, "
+        SeedDebugLog.info("Moved room spawn from {} to {} ({} blocks from {}); locate: {} ms{}, "
                         + "terrain: {} ms across {} chunks",
                 originalSpawn, safeSpawn, Math.round(Math.sqrt(horizontalDistanceSquared(safeSpawn, target))),
                 filterId, locateMillis, located.verificationLog(),
@@ -162,12 +189,15 @@ public final class StructureSpawnProximity {
                     if (start == null || !start.hasChildren()) {
                         continue;
                     }
-                    if (generateAndVerifyRuinedPortal(world, start)) {
-                        return new LocatedTarget(start.getPos(), rejected, true);
+                    BlockPos chestPos = generateAndLocateRuinedPortalChest(world, start);
+                    if (chestPos != null) {
+                        SeedDebugLog.info("Verified Ruined Portal Seedbank Looting chest at {}", chestPos);
+                        return new LocatedTarget(chestPos, rejected, true);
                     }
 
                     rejected++;
-                    ZsgRooms.LOGGER.warn("Rejected non-generated ruined portal candidate at {}", start.getPos());
+                    SeedDebugLog.warn("Rejected ruined portal candidate without the seedbank Looting chest at {}",
+                            start.getPos());
                     if (rejected >= MAX_RUINED_PORTAL_CANDIDATES) {
                         ZsgRooms.LOGGER.warn("Stopped ruined portal verification after {} false candidates", rejected);
                         return null;
@@ -178,7 +208,7 @@ public final class StructureSpawnProximity {
         return null;
     }
 
-    private static boolean generateAndVerifyRuinedPortal(ServerWorld world, StructureStart<?> start) {
+    private static BlockPos generateAndLocateRuinedPortalChest(ServerWorld world, StructureStart<?> start) {
         BlockBox bounds = start.getBoundingBox();
         int minimumChunkX = bounds.minX >> 4;
         int maximumChunkX = bounds.maxX >> 4;
@@ -189,7 +219,10 @@ public final class StructureSpawnProximity {
                 world.getChunk(chunkX, chunkZ, ChunkStatus.FEATURES);
             }
         }
-        return RuinedPortalGenerationTracker.wasGenerated(world, bounds);
+        if (!RuinedPortalGenerationTracker.wasGenerated(world, bounds)) {
+            return null;
+        }
+        return RuinedPortalGenerationTracker.findGeneratedChest(world, bounds);
     }
 
     public static boolean hasPreparedSpawn() {
@@ -260,7 +293,7 @@ public final class StructureSpawnProximity {
             try {
                 safeSpawn = findSafeSpawnInChunk(world, target, candidate);
             } catch (RuntimeException exception) {
-                ZsgRooms.LOGGER.warn("Could not inspect terrain chunk {}, {} for {}: {}",
+                SeedDebugLog.warn("Could not inspect terrain chunk {}, {} for {}: {}",
                         candidate.chunkX, candidate.chunkZ, selectedFilter, exception.getMessage());
                 continue;
             }
@@ -341,7 +374,7 @@ public final class StructureSpawnProximity {
         return best;
     }
 
-    private static boolean isSafeSpawn(ServerWorld world, BlockPos feet) {
+    static boolean isSafeSpawn(ServerWorld world, BlockPos feet) {
         if (feet.getY() <= 4 || feet.getY() >= world.getDimensionHeight() - 2
                 || !world.isAir(feet) || !world.isAir(feet.up())
                 || !world.getFluidState(feet).isEmpty() || !world.getFluidState(feet.up()).isEmpty()) {
@@ -419,7 +452,7 @@ public final class StructureSpawnProximity {
             if (!this.portalVerified) {
                 return "";
             }
-            return ", portal generation verified, rejected " + this.rejectedCandidates + " false candidates";
+            return ", seedbank Looting chest verified, rejected " + this.rejectedCandidates + " false candidates";
         }
     }
 

@@ -5,9 +5,11 @@ import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockBox;
 import net.minecraft.util.math.BlockPos;
 import zsgrooms.modid.net.RoomProtocol;
 import zsgrooms.modid.net.RoomSnapshot;
+import zsgrooms.modid.ui.RoomRulePreset;
 import zsgrooms.modid.ui.ZsgInGameActions;
 
 import java.util.Arrays;
@@ -25,6 +27,35 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GameLogicTest {
+    @Test
+    public void roomRulePresetsApplyTheExpectedRuleCombinations() {
+        RoomRulePreset standard = RoomRulePreset.STANDARD_ZSG_ROOMS;
+        assertFalse(standard.allowsCheats());
+        assertTrue(standard.standardizesRng());
+        assertTrue(standard.boostsBarters());
+        assertTrue(standard.guaranteesBastionIron());
+        assertTrue(standard.removesBastionZombifiedPiglins());
+        assertTrue(standard.spawnsNearFilterStructure());
+        assertTrue(standard.guaranteesNearbyAnimals());
+
+        RoomRulePreset vanillaBarters = RoomRulePreset.STANDARD_ZSG_VANILLA_BARTERS;
+        assertTrue(vanillaBarters.standardizesRng());
+        assertFalse(vanillaBarters.boostsBarters());
+        assertTrue(vanillaBarters.guaranteesBastionIron());
+        assertTrue(vanillaBarters.removesBastionZombifiedPiglins());
+        assertTrue(vanillaBarters.spawnsNearFilterStructure());
+        assertTrue(vanillaBarters.guaranteesNearbyAnimals());
+
+        RoomRulePreset verifiable = RoomRulePreset.REGULAR_VERIFIABLE_ZSG;
+        assertFalse(verifiable.allowsCheats());
+        assertFalse(verifiable.standardizesRng());
+        assertFalse(verifiable.boostsBarters());
+        assertFalse(verifiable.guaranteesBastionIron());
+        assertFalse(verifiable.removesBastionZombifiedPiglins());
+        assertFalse(verifiable.spawnsNearFilterStructure());
+        assertFalse(verifiable.guaranteesNearbyAnimals());
+    }
+
     @Test
     public void activeRoomChatNormalizesMessagesAndLeavesCommandsAlone() {
         assertEquals("hello room", ZsgRoomsClient.normalizeRoomChatMessage("  hello room  "));
@@ -102,6 +133,7 @@ public class GameLogicTest {
         game.setMinimumBastionIron(true);
         game.setRemoveBastionZombifiedPiglins(true);
         game.setSpawnNearFilterStructure(true);
+        game.setMinimumNearbyAnimals(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -127,6 +159,7 @@ public class GameLogicTest {
         assertTrue(decoded.minimumBastionIron);
         assertTrue(decoded.removeBastionZombifiedPiglins);
         assertTrue(decoded.spawnNearFilterStructure);
+        assertTrue(decoded.minimumNearbyAnimals);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
@@ -149,6 +182,7 @@ public class GameLogicTest {
         assertTrue(appliedGame.hasMinimumBastionIron());
         assertTrue(appliedGame.removesBastionZombifiedPiglins());
         assertTrue(appliedGame.spawnsNearFilterStructure());
+        assertTrue(appliedGame.hasMinimumNearbyAnimals());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
@@ -222,6 +256,26 @@ public class GameLogicTest {
         for (long key : first) {
             assertTrue(unique.add(key));
         }
+    }
+
+    @Test
+    public void ruinedPortalChestAnchorMustBelongToTheLocatedPortalBounds() {
+        BlockBox bounds = new BlockBox(100, 50, -40, 130, 90, -10);
+        assertTrue(RuinedPortalGenerationTracker.isInside(bounds, new BlockPos(112, 65, -22)));
+        assertTrue(RuinedPortalGenerationTracker.isInside(bounds, new BlockPos(100, 50, -40)));
+        assertFalse(RuinedPortalGenerationTracker.isInside(bounds, new BlockPos(99, 65, -22)));
+        assertFalse(RuinedPortalGenerationTracker.isInside(bounds, new BlockPos(112, 91, -22)));
+    }
+
+    @Test
+    public void nearbyAnimalGuaranteeUsesRequestedRadiusAndLimits() {
+        assertEquals(70, StructureAnimalGuarantee.RADIUS);
+        assertEquals(3, StructureAnimalGuarantee.MINIMUM_ANIMALS);
+        assertTrue(StructureAnimalGuarantee.MAX_TERRAIN_CHUNKS <= 6);
+        assertEquals(3, StructureAnimalGuarantee.missingAnimals(0));
+        assertEquals(1, StructureAnimalGuarantee.missingAnimals(2));
+        assertEquals(0, StructureAnimalGuarantee.missingAnimals(3));
+        assertEquals(0, StructureAnimalGuarantee.missingAnimals(5));
     }
 
     @Test

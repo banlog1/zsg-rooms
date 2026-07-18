@@ -4,6 +4,15 @@ Room game rules are selected by the host before room creation and copied to all
 players in every room snapshot. Each rule is applied when the local integrated
 server starts for the race world.
 
+The room setup offers four starting presets:
+
+- **Standard ZSG Rooms:** every room rule is enabled except Allow Cheats.
+- **Standard - Vanilla Barters:** the standard preset with Increase Piglin
+  Barter Rates disabled.
+- **Regular Verifiable ZSG:** every room modification is disabled.
+- **Custom:** preserves the current values and allows any combination. Changing
+  an individual rule automatically selects Custom.
+
 ## Allow Cheats
 
 Calls Minecraft's player-manager cheat setting for the local race server. This
@@ -66,6 +75,27 @@ Filter targets are:
 Random, room-code, and manual seeds do not have a route structure and are left
 unchanged. This rule relocates spawn before a player joins; it does not move or
 regenerate the structure itself.
+
+Default: Off.
+
+For Ruined Portal Seedbank seeds, the mod reproduces each unopened chest's loot
+from its stored loot-table seed. The distance is measured only from a generated
+portal chest whose loot contains a golden sword enchanted with Looting, rather
+than from Minecraft's generic structure-start position. This check does not
+open or alter the real chest.
+
+## Guarantee 3 Animals Near Structure
+
+When enabled, the selected filter structure is checked during world loading and
+the mod guarantees at least three eligible land animals within a 70-block
+horizontal radius. Pigs, cows, sheep, chickens, and rabbits count; fish and all
+other creatures do not. Existing eligible animals are counted first, and only
+the missing amount is added.
+
+Candidate locations must pass Minecraft's natural spawn rules and are spread
+across safe surface positions. The search generates at most six terrain chunks
+and never builds platforms or places animals in water, so an unusually hostile
+or entirely aquatic area can remain below three and is reported in the log.
 
 Default: Off.
 

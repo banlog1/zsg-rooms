@@ -17,7 +17,9 @@ public class RoomSettingsScreen extends Screen {
     @Override
     protected void init() {
         int panelX = (this.width - panelWidth()) / 2;
-        int y = panelY() + 52;
+        boolean compact = this.height < 230;
+        int y = panelY() + (compact ? 40 : 52);
+        int row = compact ? 20 : 28;
         int gap = 8;
         int optionWidth = (panelWidth() - 32 - gap) / 2;
         int left = panelX + 16;
@@ -25,18 +27,24 @@ public class RoomSettingsScreen extends Screen {
 
         addPositionButton(left, y, optionWidth, RoomUiPreferences.HudPosition.TOP_LEFT);
         addPositionButton(right, y, optionWidth, RoomUiPreferences.HudPosition.TOP_RIGHT);
-        addPositionButton(left, y + 28, optionWidth, RoomUiPreferences.HudPosition.BOTTOM_LEFT);
-        addPositionButton(right, y + 28, optionWidth, RoomUiPreferences.HudPosition.BOTTOM_RIGHT);
-        this.addButton(new ButtonWidget(left, y + 62, panelWidth() - 32, 20, rpRepairText(), button -> {
+        addPositionButton(left, y + row, optionWidth, RoomUiPreferences.HudPosition.BOTTOM_LEFT);
+        addPositionButton(right, y + row, optionWidth, RoomUiPreferences.HudPosition.BOTTOM_RIGHT);
+        int preferenceY = y + row * 2 + (compact ? 0 : 6);
+        this.addButton(new ButtonWidget(left, preferenceY, panelWidth() - 32, 20, rpRepairText(), button -> {
             RoomUiPreferences.setRuinedPortalChestRepairEnabled(
                     !RoomUiPreferences.isRuinedPortalChestRepairEnabled());
             button.setMessage(rpRepairText());
         }));
-        this.addButton(new ButtonWidget(left, y + 90, panelWidth() - 32, 20, updateChecksText(), button -> {
+        this.addButton(new ButtonWidget(left, preferenceY + row, panelWidth() - 32, 20, updateChecksText(), button -> {
             UpdatePreferences.setChecksEnabled(!UpdatePreferences.areChecksEnabled());
             button.setMessage(updateChecksText());
         }));
-        this.addButton(new ButtonWidget(left, y + 118, panelWidth() - 32, 20, new LiteralText("Back"), button -> {
+        this.addButton(new ButtonWidget(left, preferenceY + row * 2, panelWidth() - 32, 20,
+                seedDebugLoggingText(), button -> {
+            RoomUiPreferences.setSeedDebugLoggingEnabled(!RoomUiPreferences.isSeedDebugLoggingEnabled());
+            button.setMessage(seedDebugLoggingText());
+        }));
+        this.addButton(new ButtonWidget(left, preferenceY + row * 3, panelWidth() - 32, 20, new LiteralText("Back"), button -> {
             this.client.openScreen(this.parent);
         }));
     }
@@ -56,7 +64,7 @@ public class RoomSettingsScreen extends Screen {
         fill(matrices, 0, 0, this.width, this.height, 0x66000000);
         int panelX = (this.width - panelWidth()) / 2;
         int panelY = panelY();
-        fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 202, 0xCC090909);
+        fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + panelHeight(), 0xCC090909);
         fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 28, 0xAA1A120C);
         drawCenteredString(matrices, this.textRenderer, "Room Settings", this.width / 2, panelY + 10, 0xFFFFFF);
         drawCenteredString(matrices, this.textRenderer, "HUD and race preferences", this.width / 2, panelY + 32, 0xA8D8FF);
@@ -73,7 +81,11 @@ public class RoomSettingsScreen extends Screen {
     }
 
     private int panelY() {
-        return Math.max(10, (this.height - 202) / 2);
+        return Math.max(6, (this.height - panelHeight()) / 2);
+    }
+
+    private int panelHeight() {
+        return Math.min(230, this.height - 12);
     }
 
     private LiteralText updateChecksText() {
@@ -83,5 +95,10 @@ public class RoomSettingsScreen extends Screen {
     private LiteralText rpRepairText() {
         return new LiteralText("Repair RP Corruption: "
                 + (RoomUiPreferences.isRuinedPortalChestRepairEnabled() ? "On" : "Off"));
+    }
+
+    private LiteralText seedDebugLoggingText() {
+        return new LiteralText("Seed Debug Logging: "
+                + (RoomUiPreferences.isSeedDebugLoggingEnabled() ? "On" : "Off"));
     }
 }

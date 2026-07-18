@@ -40,11 +40,14 @@ public abstract class RuinedPortalStructurePieceMixin {
         if (!((Object) this instanceof RuinedPortalStructurePiece)) {
             return;
         }
+        BlockBox portalBounds = ((RuinedPortalStructurePiece) (Object) this).getBoundingBox();
         if (Boolean.TRUE.equals(cir.getReturnValue())) {
-            RuinedPortalGenerationTracker.markGenerated(
-                    world, ((RuinedPortalStructurePiece) (Object) this).getBoundingBox());
+            RuinedPortalGenerationTracker.markGenerated(world, portalBounds);
         }
         for (Structure.StructureBlockInfo chest : this.structure.getInfosForBlock(this.pos, this.placementData, Blocks.CHEST)) {
+            if (Boolean.TRUE.equals(cir.getReturnValue())) {
+                RuinedPortalGenerationTracker.markGeneratedChest(world, portalBounds, chest.pos);
+            }
             RuinedPortalChestRepair.captureGenerated(world, chest.pos, chest.state);
         }
         for (Structure.StructureBlockInfo obsidian : this.structure.getInfosForBlock(this.pos, this.placementData, Blocks.OBSIDIAN)) {
