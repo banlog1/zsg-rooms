@@ -13,10 +13,12 @@
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",
 		"LivingEntityDropMixin",
+		"NetherPortalPreloadMixin",
 		"OpenToLanScreenMixin",
 		"PiglinBrainMixin",
 		"RuinedPortalChestMixin",
 		"RuinedPortalStructurePieceMixin",
+		"ServerChunkManagerInvoker",
 		"SelectWorldScreenMixin",
 		"ServerPlayerSpawnMixin",
 		"TitleScreenMixin"

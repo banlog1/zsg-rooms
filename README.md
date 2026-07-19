@@ -18,6 +18,8 @@ state, and player movement never pass through the room relay.
 - Also supports random, room-code-derived, and manually entered seeds.
 - Holds loaded players behind a synchronized start screen until every runner is
   ready.
+- Warms a 3x3 Nether destination area during the normal portal charge to reduce
+  first-entry generation and lighting stalls.
 - Shares room chat, selected advancements, race progress, player names, UUIDs,
   and skins.
 - Adds in-game controls for forfeiting, resetting the current run, requesting a

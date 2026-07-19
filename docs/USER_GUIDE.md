@@ -133,6 +133,19 @@ Tracked milestone labels include:
 
 These labels are race context, not the victory condition.
 
+## Nether Entry Warmup
+
+During an active room race, entering an Overworld Nether portal prepares the
+projected destination chunk and its eight neighbors. The chunks are requested
+through Minecraft's generation pipeline, with at most two requests active while
+the normal portal charge is already running. Temporary non-ticking tickets keep
+that 3x3 area available through the transition and expire automatically.
+
+Warmup does not add a second loading barrier and never delays dimension travel
+when preparation is incomplete. Existing destination portals can be farther
+from the projected coordinate, so previously linked portals may receive less
+benefit than a first Nether entry.
+
 ## Pause Menu Controls
 
 While a room race is active, ZSG Rooms replaces `Save and Quit`/`Disconnect`
