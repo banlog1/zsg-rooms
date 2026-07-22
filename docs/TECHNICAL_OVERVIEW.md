@@ -189,7 +189,7 @@ clients share a Minecraft server. The current Create/Join UI uses
 | Relay service | `relay/src/index.js` |
 | Lobby/setup UI | `RoomMenuScreen`, `RoomSetupScreen`, `RoomLobbyScreen` |
 | Race UI | `MatchHud`, `SynchronizedStartScreen`, `ZsgInGameActions` |
-| Game rules | `RngStandardization`, `BastionIronGuarantee`, `BastionZombifiedPiglinControl` |
+| Game rules | `RngStandardization`, `BastionIronGuarantee`, `BastionZombifiedPiglinControl`, `NetherPortalPreloader` |
 | RP repair | `RuinedPortalChestRepair` and ruined-portal mixins |
 | Completion/progress | `GameCompletionMixin`, `ClientAdvancementManagerMixin` |
 | Updates | `UpdateManager`, `UpdateScreen`, `UpdaterHelper` |

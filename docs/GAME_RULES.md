@@ -84,6 +84,23 @@ portal chest whose loot contains a golden sword enchanted with Looting, rather
 than from Minecraft's generic structure-start position. This check does not
 open or alter the real chest.
 
+## Preload Nether Entry Chunk
+
+While a runner charges an Overworld Nether portal, the mod asks Minecraft's
+normal chunk pipeline to prepare only the projected destination chunk. It first
+stages terrain generation, then promotes the chunk to fully loaded only while
+there is enough charge time remaining and the integrated server is keeping up.
+The readiness checks never wait for generation, and temporary tickets are
+released when the player leaves the portal or completes the transition. The
+warmup never replaces vanilla dimension transfer.
+
+This is enabled by both Standard presets and disabled by Regular Verifiable ZSG.
+The host's selection is copied to every runner through the room snapshot. Each
+runner can also turn the optimization off locally from Room Settings; warmup
+runs only when both the room rule and local preference are enabled.
+
+Raw game-state default: Off. Local preference default: On.
+
 ## Guarantee 3 Animals Near Structure
 
 When enabled, the selected filter structure is checked during world loading and

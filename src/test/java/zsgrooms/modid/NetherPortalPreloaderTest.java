@@ -3,10 +3,8 @@ package zsgrooms.modid;
 import net.minecraft.util.math.ChunkPos;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashSet;
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class NetherPortalPreloaderTest {
@@ -17,21 +15,16 @@ public class NetherPortalPreloaderTest {
     }
 
     @Test
-    public void warmsCenterFirstAndEachThreeByThreeChunkOnce() {
-        ChunkPos center = new ChunkPos(12, -8);
-        List<ChunkPos> chunks = NetherPortalPreloader.chunkOrder(center);
-
-        assertEquals((NetherPortalPreloader.PRELOAD_RADIUS * 2 + 1)
-                * (NetherPortalPreloader.PRELOAD_RADIUS * 2 + 1), chunks.size());
-        assertEquals(center, chunks.get(0));
-        assertEquals(9, new HashSet<ChunkPos>(chunks).size());
-        for (ChunkPos chunk : chunks) {
-            assertTrue(Math.max(Math.abs(chunk.x - center.x), Math.abs(chunk.z - center.z)) <= 1);
-        }
+    public void stagesTerrainBeforeRequestingAFullChunk() {
+        assertEquals(34, NetherPortalPreloader.TERRAIN_TICKET_LEVEL);
+        assertEquals(33, NetherPortalPreloader.FULL_TICKET_LEVEL);
     }
 
     @Test
-    public void boundsConcurrentChunkPreparation() {
-        assertEquals(2, NetherPortalPreloader.MAX_IN_FLIGHT);
+    public void promotesOnlyWhenThereIsTimeAndServerHeadroom() {
+        assertFalse(NetherPortalPreloader.shouldUpgradeToFull(19, 80, 10.0F));
+        assertTrue(NetherPortalPreloader.shouldUpgradeToFull(20, 80, 35.0F));
+        assertFalse(NetherPortalPreloader.shouldUpgradeToFull(61, 80, 10.0F));
+        assertFalse(NetherPortalPreloader.shouldUpgradeToFull(40, 80, 35.1F));
     }
 }

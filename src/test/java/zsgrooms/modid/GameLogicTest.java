@@ -37,6 +37,7 @@ public class GameLogicTest {
         assertTrue(standard.removesBastionZombifiedPiglins());
         assertTrue(standard.spawnsNearFilterStructure());
         assertTrue(standard.guaranteesNearbyAnimals());
+        assertTrue(standard.warmsNetherEntry());
 
         RoomRulePreset vanillaBarters = RoomRulePreset.STANDARD_ZSG_VANILLA_BARTERS;
         assertTrue(vanillaBarters.standardizesRng());
@@ -45,6 +46,7 @@ public class GameLogicTest {
         assertTrue(vanillaBarters.removesBastionZombifiedPiglins());
         assertTrue(vanillaBarters.spawnsNearFilterStructure());
         assertTrue(vanillaBarters.guaranteesNearbyAnimals());
+        assertTrue(vanillaBarters.warmsNetherEntry());
 
         RoomRulePreset verifiable = RoomRulePreset.REGULAR_VERIFIABLE_ZSG;
         assertFalse(verifiable.allowsCheats());
@@ -54,6 +56,7 @@ public class GameLogicTest {
         assertFalse(verifiable.removesBastionZombifiedPiglins());
         assertFalse(verifiable.spawnsNearFilterStructure());
         assertFalse(verifiable.guaranteesNearbyAnimals());
+        assertFalse(verifiable.warmsNetherEntry());
     }
 
     @Test
@@ -134,6 +137,7 @@ public class GameLogicTest {
         game.setRemoveBastionZombifiedPiglins(true);
         game.setSpawnNearFilterStructure(true);
         game.setMinimumNearbyAnimals(true);
+        game.setNetherEntryWarmup(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -160,6 +164,7 @@ public class GameLogicTest {
         assertTrue(decoded.removeBastionZombifiedPiglins);
         assertTrue(decoded.spawnNearFilterStructure);
         assertTrue(decoded.minimumNearbyAnimals);
+        assertTrue(decoded.netherEntryWarmup);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
@@ -183,6 +188,7 @@ public class GameLogicTest {
         assertTrue(appliedGame.removesBastionZombifiedPiglins());
         assertTrue(appliedGame.spawnsNearFilterStructure());
         assertTrue(appliedGame.hasMinimumNearbyAnimals());
+        assertTrue(appliedGame.hasNetherEntryWarmup());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));

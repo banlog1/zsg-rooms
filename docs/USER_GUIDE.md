@@ -135,11 +135,16 @@ These labels are race context, not the victory condition.
 
 ## Nether Entry Warmup
 
-During an active room race, entering an Overworld Nether portal prepares the
-projected destination chunk and its eight neighbors. The chunks are requested
-through Minecraft's generation pipeline, with at most two requests active while
-the normal portal charge is already running. Temporary non-ticking tickets keep
-that 3x3 area available through the transition and expire automatically.
+When the host enables `Preload Nether Entry Chunk`, entering an Overworld Nether
+portal prepares the projected destination chunk through Minecraft's generation
+pipeline while the normal portal charge is already running. Terrain is prepared
+first; the chunk is promoted to fully loaded only when enough charge time and
+server headroom remain. Temporary tickets are released after leaving the portal
+or completing the transition.
+
+Each player can disable `Nether Entry Warmup` in Room Settings for their own
+Minecraft instance. The optimization runs only when the host's room rule and
+the player's local preference are both enabled.
 
 Warmup does not add a second loading barrier and never delays dimension travel
 when preparation is incomplete. Existing destination portals can be farther

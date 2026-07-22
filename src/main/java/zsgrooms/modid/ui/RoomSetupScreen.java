@@ -50,6 +50,7 @@ public class RoomSetupScreen extends Screen {
     private boolean removeBastionZombifiedPiglins;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
+    private boolean netherEntryWarmup;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -124,7 +125,8 @@ public class RoomSetupScreen extends Screen {
                 gameRulesButtonText(), button -> {
             this.client.openScreen(new RoomGameRulesScreen(this, this.allowCheats, this.rngStandardization,
                     this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins,
-                    this.spawnNearFilterStructure, this.minimumNearbyAnimals, this.rulePreset));
+                    this.spawnNearFilterStructure, this.minimumNearbyAnimals, this.netherEntryWarmup,
+                    this.rulePreset));
         });
         this.gameRulesButton.active = this.createMode;
         this.addButton(this.gameRulesButton);
@@ -152,8 +154,8 @@ public class RoomSetupScreen extends Screen {
             if (this.createMode) {
                 ZsgRooms.createRoom(selectedRoomCode, maxPlayers, finishGoal, seedType, playerName,
                         this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron,
-                        this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
-                        this.minimumNearbyAnimals);
+                         this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
+                        this.minimumNearbyAnimals, this.netherEntryWarmup);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -293,7 +295,8 @@ public class RoomSetupScreen extends Screen {
 
     void setGameRules(boolean allowCheats, boolean rngStandardization, boolean boostedBarters,
             boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
-            boolean spawnNearFilterStructure, boolean minimumNearbyAnimals, RoomRulePreset rulePreset) {
+            boolean spawnNearFilterStructure, boolean minimumNearbyAnimals, boolean netherEntryWarmup,
+            RoomRulePreset rulePreset) {
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
         this.boostedBarters = boostedBarters;
@@ -301,6 +304,7 @@ public class RoomSetupScreen extends Screen {
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
+        this.netherEntryWarmup = netherEntryWarmup;
         this.rulePreset = rulePreset == null ? RoomRulePreset.CUSTOM : rulePreset;
         if (this.gameRulesButton != null) {
             this.gameRulesButton.setMessage(gameRulesButtonText());
@@ -318,6 +322,7 @@ public class RoomSetupScreen extends Screen {
         this.removeBastionZombifiedPiglins = preset.removesBastionZombifiedPiglins();
         this.spawnNearFilterStructure = preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = preset.guaranteesNearbyAnimals();
+        this.netherEntryWarmup = preset.warmsNetherEntry();
     }
 
     private LiteralText gameRulesButtonText() {

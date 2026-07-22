@@ -29,6 +29,7 @@ public class InGame {
     private boolean removeBastionZombifiedPiglins;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
+    private boolean netherEntryWarmup;
     private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
@@ -54,6 +55,7 @@ public class InGame {
         this.removeBastionZombifiedPiglins = false;
         this.spawnNearFilterStructure = false;
         this.minimumNearbyAnimals = false;
+        this.netherEntryWarmup = false;
         this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
         this.readyPlayers = new LinkedHashSet<String>();
@@ -280,6 +282,14 @@ public class InGame {
 
     public void setMinimumNearbyAnimals(boolean minimumNearbyAnimals) {
         this.minimumNearbyAnimals = minimumNearbyAnimals;
+    }
+
+    public boolean hasNetherEntryWarmup() {
+        return netherEntryWarmup;
+    }
+
+    public void setNetherEntryWarmup(boolean netherEntryWarmup) {
+        this.netherEntryWarmup = netherEntryWarmup;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

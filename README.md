@@ -18,8 +18,8 @@ state, and player movement never pass through the room relay.
 - Also supports random, room-code-derived, and manually entered seeds.
 - Holds loaded players behind a synchronized start screen until every runner is
   ready.
-- Warms a 3x3 Nether destination area during the normal portal charge to reduce
-  first-entry generation and lighting stalls.
+- Can warm the projected Nether destination chunk during the normal portal
+  charge to reduce first-entry generation and lighting stalls.
 - Shares room chat, selected advancements, race progress, player names, UUIDs,
   and skins.
 - Adds in-game controls for forfeiting, resetting the current run, requesting a
@@ -28,7 +28,7 @@ state, and player movement never pass through the room relay.
   time when that mod is installed.
 - Offers optional race rules for deterministic RNG, boosted barters, minimum
   bastion iron, cheats, structure-proximity spawning, and removing zombified
-  piglins inside bastions.
+  piglins inside bastions, plus Nether entry warmup.
 - Repairs known ruined-portal chest and obsidian corruption for RP seedbank
   runs when the local repair preference is enabled.
 - Adds a confirmed `Clear Speedrun Worlds` action for worlds whose name starts

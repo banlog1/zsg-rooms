@@ -27,9 +27,11 @@ public final class RoomUiPreferences {
     private static final Path CONFIG_PATH = Paths.get("config", "zsg-rooms-ui.txt");
     private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair.txt");
     private static final Path SEED_DEBUG_CONFIG_PATH = Paths.get("config", "zsg-rooms-seed-debug.txt");
+    private static final Path NETHER_WARMUP_CONFIG_PATH = Paths.get("config", "zsg-rooms-nether-warmup.txt");
     private static HudPosition hudPosition = loadHudPosition();
     private static boolean ruinedPortalChestRepairEnabled = loadRuinedPortalChestRepair();
     private static boolean seedDebugLoggingEnabled = loadSeedDebugLogging();
+    private static boolean netherEntryWarmupEnabled = loadNetherEntryWarmup();
 
     private RoomUiPreferences() {
     }
@@ -76,6 +78,19 @@ public final class RoomUiPreferences {
         }
     }
 
+    public static boolean isNetherEntryWarmupEnabled() {
+        return netherEntryWarmupEnabled;
+    }
+
+    public static void setNetherEntryWarmupEnabled(boolean enabled) {
+        netherEntryWarmupEnabled = enabled;
+        try {
+            Files.createDirectories(NETHER_WARMUP_CONFIG_PATH.getParent());
+            Files.write(NETHER_WARMUP_CONFIG_PATH, Boolean.toString(enabled).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) {
+        }
+    }
+
     private static HudPosition loadHudPosition() {
         try {
             if (Files.exists(CONFIG_PATH)) {
@@ -107,5 +122,16 @@ public final class RoomUiPreferences {
         } catch (IOException ignored) {
         }
         return false;
+    }
+
+    private static boolean loadNetherEntryWarmup() {
+        try {
+            if (Files.exists(NETHER_WARMUP_CONFIG_PATH)) {
+                return Boolean.parseBoolean(new String(
+                        Files.readAllBytes(NETHER_WARMUP_CONFIG_PATH), StandardCharsets.UTF_8).trim());
+            }
+        } catch (IOException ignored) {
+        }
+        return true;
     }
 }
