@@ -14,11 +14,47 @@ public abstract class NetherPortalPreloadMixin {
     @Shadow
     protected boolean inNetherPortal;
 
+    @Shadow
+    protected int netherPortalTime;
+
     @Inject(method = "tickNetherPortal", at = @At("HEAD"))
     private void zsgRooms$preloadNetherDestination(CallbackInfo ci) {
         Object entity = this;
         if (entity instanceof ServerPlayerEntity) {
-            NetherPortalPreloader.tick((ServerPlayerEntity) entity, this.inNetherPortal);
+            NetherPortalPreloader.tick(
+                    (ServerPlayerEntity) entity, this.inNetherPortal, this.netherPortalTime);
+        }
+    }
+
+    @Inject(
+            method = "tickNetherPortal",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/entity/Entity;changeDimension(Lnet/minecraft/server/world/ServerWorld;)"
+                            + "Lnet/minecraft/entity/Entity;"
+            )
+    )
+    private void zsgRooms$beforeNetherTransfer(CallbackInfo ci) {
+        Object entity = this;
+        if (entity instanceof ServerPlayerEntity) {
+            NetherPortalPreloader.beforeVanillaTransfer(
+                    (ServerPlayerEntity) entity, this.netherPortalTime);
+        }
+    }
+
+    @Inject(
+            method = "tickNetherPortal",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/entity/Entity;changeDimension(Lnet/minecraft/server/world/ServerWorld;)"
+                            + "Lnet/minecraft/entity/Entity;",
+                    shift = At.Shift.AFTER
+            )
+    )
+    private void zsgRooms$afterNetherTransfer(CallbackInfo ci) {
+        Object entity = this;
+        if (entity instanceof ServerPlayerEntity) {
+            NetherPortalPreloader.afterVanillaTransfer((ServerPlayerEntity) entity);
         }
     }
 }

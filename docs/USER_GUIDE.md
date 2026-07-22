@@ -240,6 +240,14 @@ The relay can also be overridden with the `zsgrooms.relay` system property or
 - Confirm everyone is using the same seed-generation mod versions.
 - Wait for relay reconnection if the lobby/HUD reports an interruption.
 
+### Nether portal does not transfer
+
+- Enable Seed Debug Logging in Room Settings before entering the portal.
+- Reproduce the first-entry failure, then provide the MultiMC console output or
+  `logs/latest.log` lines containing `[ZSG-Rooms/NetherWarmup]`.
+- The diagnostics report warmup and vanilla-transfer state without logging the
+  numeric seed or destination coordinates.
+
 ### Update downloads but does not install
 
 - Updates can only replace a packaged mod JAR, not an IDE classes directory.

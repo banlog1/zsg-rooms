@@ -1,17 +1,14 @@
 package zsgrooms.modid;
 
-import com.mojang.datafixers.util.Either;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ChunkHolder;
 import net.minecraft.server.world.ChunkTicketType;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.BlockView;
 import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.ChunkStatus;
-import zsgrooms.modid.mixin.ServerChunkManagerInvoker;
+import net.minecraft.world.chunk.WorldChunk;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,7 +16,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 public final class NetherPortalPreloader {
     static final int PRELOAD_RADIUS = 1;
@@ -42,20 +38,24 @@ public final class NetherPortalPreloader {
     private NetherPortalPreloader() {
     }
 
-    public static void tick(ServerPlayerEntity player, boolean inNetherPortal) {
+    public static void tick(ServerPlayerEntity player, boolean inNetherPortal, int portalTime) {
         if (player == null) {
             return;
         }
         UUID playerId = player.getUuid();
-        if (!inNetherPortal || !isActiveOverworldRoomRun(player)) {
-            WARMUPS.remove(playerId);
+        if (!inNetherPortal) {
+            logAndClear(playerId, "portal contact ended");
+            return;
+        }
+        if (!isActiveOverworldRoomRun(player)) {
+            logAndClear(playerId, "player left the active Overworld race");
             return;
         }
 
         MinecraftServer server = player.getServer();
         ServerWorld nether = server == null ? null : server.getWorld(World.NETHER);
         if (nether == null) {
-            WARMUPS.remove(playerId);
+            logAndClear(playerId, "Nether world was unavailable");
             return;
         }
 
@@ -64,8 +64,33 @@ public final class NetherPortalPreloader {
         if (warmup == null || warmup.world != nether || !warmup.center.equals(center)) {
             warmup = new Warmup(nether, center, chunkOrder(center));
             WARMUPS.put(playerId, warmup);
+            SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Started for {} at portal time {}/{}",
+                    player.getEntityName(), portalTime, player.getMaxNetherPortalTime());
         }
         advanceWarmup(playerId, warmup);
+    }
+
+    public static void beforeVanillaTransfer(ServerPlayerEntity player, int portalTime) {
+        Warmup warmup = player == null ? null : WARMUPS.get(player.getUuid());
+        if (warmup == null) {
+            return;
+        }
+        SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Vanilla transfer starting for {} at portal time {}; "
+                        + "requested={}, prepared={}, active={}",
+                player.getEntityName(), portalTime, warmup.nextIndex,
+                warmup.completed, warmup.pending.size());
+    }
+
+    public static void afterVanillaTransfer(ServerPlayerEntity player) {
+        Warmup warmup = player == null ? null : WARMUPS.get(player.getUuid());
+        if (warmup == null) {
+            return;
+        }
+        boolean enteredNether = player.world != null && player.world.getRegistryKey() == World.NETHER;
+        SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Vanilla transfer returned for {}; enteredNether={}, "
+                        + "requested={}, prepared={}, active={}",
+                player.getEntityName(), enteredNether, warmup.nextIndex,
+                warmup.completed, warmup.pending.size());
     }
 
     static ChunkPos projectedNetherChunk(double overworldX, double overworldZ) {
@@ -94,15 +119,11 @@ public final class NetherPortalPreloader {
     }
 
     private static void advanceWarmup(UUID playerId, Warmup warmup) {
-        if (warmup.failed || warmup.loggedComplete) {
+        if (warmup.loggedComplete) {
             return;
         }
 
         collectCompleted(warmup);
-        if (warmup.failed) {
-            WARMUPS.remove(playerId);
-            return;
-        }
 
         try {
             while (warmup.pending.size() < MAX_IN_FLIGHT
@@ -127,24 +148,14 @@ public final class NetherPortalPreloader {
         Iterator<PendingChunk> iterator = warmup.pending.iterator();
         while (iterator.hasNext()) {
             PendingChunk pending = iterator.next();
-            if (!pending.future.isDone()) {
-                continue;
+            BlockView loaded = warmup.world.getChunkManager()
+                    .getChunk(pending.chunk.x, pending.chunk.z);
+            if (loaded instanceof WorldChunk) {
+                iterator.remove();
+                warmup.completed++;
+                SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Prepared chunk {}/{}; active={}",
+                        warmup.completed, warmup.chunks.size(), warmup.pending.size());
             }
-
-            iterator.remove();
-            if (pending.future.isCompletedExceptionally()) {
-                warmup.failed = true;
-                ZsgRooms.LOGGER.warn("Could not prepare a Nether destination chunk");
-                continue;
-            }
-
-            Either<Chunk, ChunkHolder.Unloaded> result = pending.future.getNow(null);
-            if (result == null || !result.left().isPresent()) {
-                warmup.failed = true;
-                ZsgRooms.LOGGER.warn("A Nether destination chunk became unavailable during preparation");
-                continue;
-            }
-            warmup.completed++;
         }
     }
 
@@ -152,10 +163,17 @@ public final class NetherPortalPreloader {
         ChunkPos chunk = warmup.chunks.get(warmup.nextIndex++);
         warmup.world.getChunkManager().addTicket(
                 PRELOAD_TICKET, chunk, FULL_NON_TICKING_LEVEL, chunk);
-        CompletableFuture<Either<Chunk, ChunkHolder.Unloaded>> future =
-                ((ServerChunkManagerInvoker) warmup.world.getChunkManager())
-                        .zsgRooms$getChunkFuture(chunk.x, chunk.z, ChunkStatus.FULL, true);
-        warmup.pending.add(new PendingChunk(future));
+        warmup.pending.add(new PendingChunk(chunk));
+        SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Requested chunk {}/{}; active={}",
+                warmup.nextIndex, warmup.chunks.size(), warmup.pending.size());
+    }
+
+    private static void logAndClear(UUID playerId, String reason) {
+        Warmup warmup = WARMUPS.remove(playerId);
+        if (warmup != null && !warmup.loggedComplete) {
+            SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Cleared: {}; requested={}, prepared={}, active={}",
+                    reason, warmup.nextIndex, warmup.completed, warmup.pending.size());
+        }
     }
 
     private static final class Warmup {
@@ -166,7 +184,6 @@ public final class NetherPortalPreloader {
         private final long startedNanos = System.nanoTime();
         private int nextIndex;
         private int completed;
-        private boolean failed;
         private boolean loggedComplete;
 
         private Warmup(ServerWorld world, ChunkPos center, List<ChunkPos> chunks) {
@@ -177,10 +194,10 @@ public final class NetherPortalPreloader {
     }
 
     private static final class PendingChunk {
-        private final CompletableFuture<Either<Chunk, ChunkHolder.Unloaded>> future;
+        private final ChunkPos chunk;
 
-        private PendingChunk(CompletableFuture<Either<Chunk, ChunkHolder.Unloaded>> future) {
-            this.future = future;
+        private PendingChunk(ChunkPos chunk) {
+            this.chunk = chunk;
         }
     }
 }

@@ -18,7 +18,6 @@
 		"PiglinBrainMixin",
 		"RuinedPortalChestMixin",
 		"RuinedPortalStructurePieceMixin",
-		"ServerChunkManagerInvoker",
 		"SelectWorldScreenMixin",
 		"ServerPlayerSpawnMixin",
 		"TitleScreenMixin"
