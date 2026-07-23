@@ -118,17 +118,37 @@ public class RunHistoryScreen extends Screen {
 
         @Override
         public void renderButton(MatrixStack matrices, int mouseX, int mouseY, float delta) {
-            super.renderButton(matrices, mouseX, mouseY, delta);
             MinecraftClient client = MinecraftClient.getInstance();
-            String filter = client.textRenderer.trimToWidth(run.getFilterLabel(), this.width - 16);
+            boolean hovered = this.isHovered();
+            int borderColor = hovered ? 0xFFB8DFFF : 0xFF606060;
+            int backgroundColor = hovered ? 0xEE242A2E : 0xEE171717;
+            fill(matrices, this.x, this.y, this.x + this.width, this.y + this.height, borderColor);
+            fill(matrices, this.x + 1, this.y + 1, this.x + this.width - 1,
+                    this.y + this.height - 1, backgroundColor);
+            fill(matrices, this.x + 1, this.y + 1, this.x + 3,
+                    this.y + this.height - 1, hovered ? 0xFF6FC8FF : 0xFF477D9D);
+
             String igt = run.getIgtMilliseconds() > 0L
                     ? SpeedRunIgtBridge.formatMilliseconds(run.getIgtMilliseconds()) + " IGT"
                     : "IGT unavailable";
-            String metadata = DATE_FORMAT.format(new Date(run.getCompletedAt())) + "  |  " + igt;
-            metadata = client.textRenderer.trimToWidth(metadata, this.width - 16);
-            int color = this.isHovered() ? 0xFFFFFF : 0xE0E0E0;
-            client.textRenderer.drawWithShadow(matrices, filter, this.x + 8, this.y + 6, color);
-            client.textRenderer.drawWithShadow(matrices, metadata, this.x + 8, this.y + 18, 0x9CCBEE);
+            int igtWidth = client.textRenderer.getWidth(igt);
+            int textLeft = this.x + 10;
+            int textRight = this.x + this.width - 10;
+            String filter = client.textRenderer.trimToWidth(run.getFilterLabel(),
+                    Math.max(20, this.width - 30 - igtWidth));
+            int primaryColor = hovered ? 0xFFFFFF : 0xE2E2E2;
+            client.textRenderer.drawWithShadow(matrices, filter, textLeft, this.y + 6, primaryColor);
+            client.textRenderer.drawWithShadow(matrices, igt, textRight - igtWidth, this.y + 6, 0x8ED8FF);
+
+            String splitCount = run.getSplits().size() == 1
+                    ? "1 split" : run.getSplits().size() + " splits";
+            int splitWidth = client.textRenderer.getWidth(splitCount);
+            String completedAt = DATE_FORMAT.format(new Date(run.getCompletedAt()));
+            completedAt = client.textRenderer.trimToWidth(completedAt,
+                    Math.max(20, this.width - 30 - splitWidth));
+            client.textRenderer.drawWithShadow(matrices, completedAt, textLeft, this.y + 19, 0x9A9A9A);
+            client.textRenderer.drawWithShadow(matrices, splitCount,
+                    textRight - splitWidth, this.y + 19, 0x8F8F8F);
         }
     }
 }

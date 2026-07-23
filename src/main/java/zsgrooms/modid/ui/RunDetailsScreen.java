@@ -2,8 +2,10 @@ package zsgrooms.modid.ui;
 
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.LiteralText;
+import net.minecraft.util.Identifier;
 import zsgrooms.modid.SpeedRunIgtBridge;
 import zsgrooms.modid.history.CompletedRun;
 import zsgrooms.modid.history.RunSplit;
@@ -16,6 +18,13 @@ import java.util.Locale;
 public class RunDetailsScreen extends Screen {
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT);
     private static final int MIN_SEGMENT_WIDTH = 104;
+    private static final Identifier DIRT_TEXTURE = new Identifier("minecraft", "block/dirt");
+    private static final Identifier NETHERRACK_TEXTURE = new Identifier("minecraft", "block/netherrack");
+    private static final Identifier BASTION_TEXTURE =
+            new Identifier("minecraft", "block/polished_blackstone_bricks");
+    private static final Identifier FORTRESS_TEXTURE = new Identifier("minecraft", "block/nether_bricks");
+    private static final Identifier STRONGHOLD_TEXTURE = new Identifier("minecraft", "block/stone_bricks");
+    private static final Identifier END_TEXTURE = new Identifier("minecraft", "block/end_stone");
 
     private final Screen parent;
     private final CompletedRun run;
@@ -90,6 +99,9 @@ public class RunDetailsScreen extends Screen {
                 splits.get(firstVisibleSplit + visible - 1).getIgtMilliseconds() - visibleStart);
         int cursor = x;
         long previous = firstVisibleSplit == 0 ? 0L : splits.get(firstVisibleSplit - 1).getIgtMilliseconds();
+        String startTime = firstVisibleSplit == 0
+                ? "0:00" : SpeedRunIgtBridge.formatMilliseconds(previous);
+        this.textRenderer.drawWithShadow(matrices, startTime, x, y + 53, 0xAAAAAA);
         for (int offset = 0; offset < visible; offset++) {
             RunSplit split = splits.get(firstVisibleSplit + offset);
             long duration = Math.max(0L, split.getIgtMilliseconds() - previous);
@@ -101,29 +113,52 @@ public class RunDetailsScreen extends Screen {
             int right = offset == visible - 1 ? x + width : Math.min(x + width, left + currentWidth);
             cursor = right;
 
-            fill(matrices, left, y, right, y + 46, splitColor(split.getLabel()));
+            // Text rendering binds the font atlas, so restore the block atlas for every segment.
+            this.client.getTextureManager().bindTexture(SpriteAtlasTexture.BLOCK_ATLAS_TEX);
+            drawSprite(matrices, left, y, 0, Math.max(1, right - left), 46,
+                    this.client.getSpriteAtlas(SpriteAtlasTexture.BLOCK_ATLAS_TEX)
+                            .apply(phaseTexture(split.getLabel())));
+            fill(matrices, left, y, right, y + 46, 0x52000000);
             fill(matrices, left, y, left + 1, y + 46, 0xFF111111);
-            String label = this.textRenderer.trimToWidth(split.getLabel(), Math.max(8, right - left - 8));
+            fill(matrices, right - 1, y, right, y + 50, 0xFF111111);
+            String label = this.textRenderer.trimToWidth(
+                    phaseLabel(split.getLabel()), Math.max(8, right - left - 8));
             String interval = SpeedRunIgtBridge.formatMilliseconds(duration);
             String cumulative = SpeedRunIgtBridge.formatMilliseconds(split.getIgtMilliseconds());
             drawCenteredString(matrices, this.textRenderer, label, (left + right) / 2, y - 16, 0x6DE8E8);
             drawCenteredString(matrices, this.textRenderer, interval, (left + right) / 2, y + 19, 0xFFFFFF);
-            drawCenteredString(matrices, this.textRenderer, cumulative, (left + right) / 2, y + 53, 0xAAAAAA);
+            int cumulativeWidth = this.textRenderer.getWidth(cumulative);
+            int cumulativeX = right == x + width
+                    ? right - cumulativeWidth
+                    : right - cumulativeWidth / 2;
+            this.textRenderer.drawWithShadow(matrices, cumulative, cumulativeX, y + 53, 0xAAAAAA);
         }
         fill(matrices, x, y + 46, x + width, y + 47, 0xFF000000);
         drawCenteredString(matrices, this.textRenderer, "Segment time", this.width / 2, y + 72, 0x777777);
     }
 
-    private int visibleSplitCount() {
-        return Math.max(1, (panelWidth() - 32) / MIN_SEGMENT_WIDTH);
+    private String phaseLabel(String endpointLabel) {
+        if ("Entered Nether".equals(endpointLabel)) return "Overworld";
+        if ("Entered Bastion".equals(endpointLabel)) return "Nether to Bastion";
+        if ("Entered Fortress".equals(endpointLabel)) return "Bastion to Fortress";
+        if ("Found Stronghold".equals(endpointLabel)) return "Fortress to Stronghold";
+        if ("Entered End".equals(endpointLabel)) return "Stronghold to End";
+        if ("Run Complete".equals(endpointLabel)) return "End";
+        return endpointLabel;
     }
 
-    private int splitColor(String label) {
-        if (label.contains("Nether")) return 0xFF426536;
-        if (label.contains("Bastion") || label.contains("Fortress")) return 0xFF73352F;
-        if (label.contains("Stronghold")) return 0xFF4C4F57;
-        if (label.contains("End")) return 0xFF603A78;
-        return 0xFF8A8132;
+    private Identifier phaseTexture(String endpointLabel) {
+        if ("Entered Nether".equals(endpointLabel)) return DIRT_TEXTURE;
+        if ("Entered Bastion".equals(endpointLabel)) return NETHERRACK_TEXTURE;
+        if ("Entered Fortress".equals(endpointLabel)) return BASTION_TEXTURE;
+        if ("Found Stronghold".equals(endpointLabel)) return FORTRESS_TEXTURE;
+        if ("Entered End".equals(endpointLabel)) return STRONGHOLD_TEXTURE;
+        if ("Run Complete".equals(endpointLabel)) return END_TEXTURE;
+        return DIRT_TEXTURE;
+    }
+
+    private int visibleSplitCount() {
+        return Math.max(1, (panelWidth() - 32) / MIN_SEGMENT_WIDTH);
     }
 
     @Override
