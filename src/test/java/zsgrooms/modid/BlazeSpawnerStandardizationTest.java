@@ -181,7 +181,7 @@ public class BlazeSpawnerStandardizationTest {
     }
 
     @Test
-    public void inactiveSpawnerDoesNotAdvanceState() {
+    public void readingSpawnerStateDoesNotAdvanceIt() {
         RngStandardization.configure(true, false);
         BlazeSpawnerStandardization.SpawnerEvent before =
                 BlazeSpawnerStandardization.currentEvent(NETHER_KEY);
@@ -194,40 +194,114 @@ public class BlazeSpawnerStandardizationTest {
     }
 
     @Test
-    public void normalFortressBlazeBlockSpawnerQualifies() {
+    public void validFortressBlazeBlockSpawnerIsQualified() {
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.QUALIFIED,
+                qualification(true, true, true, true, true, false, true, true,
+                        200, 800, 4, 6, 16, 4));
+    }
+
+    @Test
+    public void spawnerTypeRejectionsHaveDistinctReasons() {
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NOT_BLAZE,
+                qualification(true, true, true, false, true, false, true, true,
+                        200, 800, 4, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NOT_OWNED_BLOCK_SPAWNER,
+                qualification(true, true, false, true, true, false, true, true,
+                        200, 800, 4, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NOT_INSIDE_FORTRESS,
+                qualification(true, true, true, true, false, false, true, true,
+                        200, 800, 4, 6, 16, 4));
+    }
+
+    @Test
+    public void spawnDataRejectionsHaveDistinctReasons() {
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.EXPLICIT_SPAWN_POSITION,
+                qualification(true, true, true, true, true, true, true, true,
+                        200, 800, 4, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.UNSUPPORTED_SPAWN_DATA,
+                qualification(true, true, true, true, true, false, false, true,
+                        200, 800, 4, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.UNSUPPORTED_SPAWN_POTENTIALS,
+                qualification(true, true, true, true, true, false, true, false,
+                        200, 800, 4, 6, 16, 4));
+    }
+
+    @Test
+    public void delayConfigurationRejectionsHaveDistinctReasons() {
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NON_VANILLA_MIN_DELAY,
+                qualification(true, true, true, true, true, false, true, true,
+                        100, 800, 4, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NON_VANILLA_MAX_DELAY,
+                qualification(true, true, true, true, true, false, true, true,
+                        200, 900, 4, 6, 16, 4));
+    }
+
+    @Test
+    public void numericConfigurationRejectionsHaveDistinctReasons() {
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NON_VANILLA_SPAWN_COUNT,
+                qualification(true, true, true, true, true, false, true, true,
+                        200, 800, 5, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NON_VANILLA_NEARBY_LIMIT,
+                qualification(true, true, true, true, true, false, true, true,
+                        200, 800, 4, 7, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NON_VANILLA_PLAYER_RANGE,
+                qualification(true, true, true, true, true, false, true, true,
+                        200, 800, 4, 6, 20, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NON_VANILLA_SPAWN_RANGE,
+                qualification(true, true, true, true, true, false, true, true,
+                        200, 800, 4, 6, 16, 5));
+    }
+
+    @Test
+    public void environmentRejectionsHaveDistinctReasons() {
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.STANDARDISATION_DISABLED,
+                qualification(false, true, true, true, true, false, true, true,
+                        200, 800, 4, 6, 16, 4));
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.NOT_SERVER_WORLD,
+                qualification(true, false, true, true, true, false, true, true,
+                        200, 800, 4, 6, 16, 4));
+    }
+
+    @Test
+    public void emptyAndSingleDefaultBlazePotentialAreSupported() {
+        assertTrue(BlazeSpawnerStandardization.hasSupportedSpawnPotentials(0, false));
+        assertTrue(BlazeSpawnerStandardization.hasSupportedSpawnPotentials(1, true));
+        assertFalse(BlazeSpawnerStandardization.hasSupportedSpawnPotentials(1, false));
+        assertFalse(BlazeSpawnerStandardization.hasSupportedSpawnPotentials(2, true));
+        assertTrue(BlazeSpawnerStandardization.isDefaultBlazeSpawnData(
+                "minecraft:blaze", 1));
+        assertFalse(BlazeSpawnerStandardization.isDefaultBlazeSpawnData(
+                "minecraft:blaze", 2));
+        assertFalse(BlazeSpawnerStandardization.isDefaultBlazeSpawnData(
+                "minecraft:skeleton", 1));
+
+        assertEquals(
+                BlazeSpawnerStandardization.QualificationResult.QUALIFIED,
+                qualification(true, true, true, true, true, false, true,
+                        BlazeSpawnerStandardization.hasSupportedSpawnPotentials(1, true),
+                        200, 800, 4, 6, 16, 4));
+    }
+
+    @Test
+    public void legacyBooleanQualificationMatchesDetailedResult() {
         assertTrue(qualifies(true, true, true, true, true, false, true, true,
                 200, 800, 4, 6, 16, 4));
-    }
-
-    @Test
-    public void unsupportedSpawnerKindsFallBackToVanilla() {
         assertFalse(qualifies(true, true, true, false, true, false, true, true,
-                200, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, true, false, true, true, false, true, true,
-                200, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, true, true, true, false, false, true, true,
-                200, 800, 4, 6, 16, 4));
-    }
-
-    @Test
-    public void explicitPositionAndCustomConfigurationFallBackToVanilla() {
-        assertFalse(qualifies(true, true, true, true, true, true, true, true,
-                200, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, true, true, true, true, false, false, true,
-                200, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, true, true, true, true, false, true, false,
-                200, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, true, true, true, true, false, true, true,
-                100, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, true, true, true, true, false, true, true,
-                200, 800, 5, 6, 16, 4));
-    }
-
-    @Test
-    public void disabledStandardizationAndNonServerWorldFallBackToVanilla() {
-        assertFalse(qualifies(false, true, true, true, true, false, true, true,
-                200, 800, 4, 6, 16, 4));
-        assertFalse(qualifies(true, false, true, true, true, false, true, true,
                 200, 800, 4, 6, 16, 4));
     }
 
@@ -257,6 +331,39 @@ public class BlazeSpawnerStandardizationTest {
             int spawnRange
     ) {
         return BlazeSpawnerStandardization.qualifies(
+                enabled,
+                serverWorld,
+                ownedBlockSpawner,
+                blaze,
+                fortress,
+                explicitPosition,
+                supportedSpawnData,
+                supportedPotentials,
+                minDelay,
+                maxDelay,
+                spawnCount,
+                maxNearby,
+                playerRange,
+                spawnRange);
+    }
+
+    private BlazeSpawnerStandardization.QualificationResult qualification(
+            boolean enabled,
+            boolean serverWorld,
+            boolean ownedBlockSpawner,
+            boolean blaze,
+            boolean fortress,
+            boolean explicitPosition,
+            boolean supportedSpawnData,
+            boolean supportedPotentials,
+            int minDelay,
+            int maxDelay,
+            int spawnCount,
+            int maxNearby,
+            int playerRange,
+            int spawnRange
+    ) {
+        return BlazeSpawnerStandardization.qualificationResult(
                 enabled,
                 serverWorld,
                 ownedBlockSpawner,

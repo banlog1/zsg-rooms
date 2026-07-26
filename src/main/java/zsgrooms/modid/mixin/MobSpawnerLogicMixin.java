@@ -33,35 +33,52 @@ import java.util.Optional;
 public abstract class MobSpawnerLogicMixin {
     @Unique
     private static final Identifier zsgRooms$BLAZE_ID = new Identifier("minecraft", "blaze");
+    @Unique
+    private BlazeSpawnerStandardization.QualificationResult zsgRooms$cachedQualification;
+    @Unique
+    private boolean zsgRooms$qualificationLogged;
 
     @Inject(method = "update", at = @At("HEAD"), cancellable = true)
     private void zsgRooms$standardizeBlazeSpawner(CallbackInfo ci) {
         MobSpawnerLogic logic = (MobSpawnerLogic) (Object) this;
         if (!(logic.getWorld() instanceof ServerWorld)) {
+            zsgRooms$cacheNonServerQualification(logic);
             return;
         }
 
         ServerWorld world = (ServerWorld) logic.getWorld();
         BlockPos pos = logic.getPos();
         MobSpawnerLogicAccessor accessor = (MobSpawnerLogicAccessor) this;
-        if (!RngStandardization.isEnabled()
-                || !accessor.zsgRooms$invokeIsPlayerInRange()
-                || !zsgRooms$qualifies(logic, accessor, world, pos)) {
+        boolean playerInRange = accessor.zsgRooms$invokeIsPlayerInRange();
+
+        if (zsgRooms$cachedQualification == null) {
+            if (!playerInRange) {
+                return;
+            }
+            if (!RngStandardization.isEnabled()) {
+                zsgRooms$cachedQualification =
+                        BlazeSpawnerStandardization.QualificationResult.STANDARDISATION_DISABLED;
+            } else {
+                zsgRooms$cachedQualification = zsgRooms$qualify(logic, accessor, world, pos);
+            }
+        }
+
+        String key = zsgRooms$spawnerKey(world, pos, accessor.zsgRooms$invokeGetEntityId());
+        zsgRooms$logQualificationOnce(key);
+        if (!zsgRooms$cachedQualification.isQualified() || !playerInRange) {
             return;
         }
 
         ci.cancel();
-        String key = BlazeSpawnerStandardization.spawnerKey(
-                world.getRegistryKey().getValue().toString(), pos.asLong(), zsgRooms$BLAZE_ID.toString());
         zsgRooms$tickStandardized(logic, accessor, world, pos, key);
     }
 
-    private boolean zsgRooms$qualifies(MobSpawnerLogic logic, MobSpawnerLogicAccessor accessor,
-                                       ServerWorld world, BlockPos pos) {
-        if (!RngStandardization.isEnabled()) {
-            return false;
-        }
-
+    private BlazeSpawnerStandardization.QualificationResult zsgRooms$qualify(
+            MobSpawnerLogic logic,
+            MobSpawnerLogicAccessor accessor,
+            ServerWorld world,
+            BlockPos pos
+    ) {
         BlockEntity blockEntity = world.getBlockEntity(pos);
         boolean ownedBlockSpawner = world.getBlockState(pos).isOf(Blocks.SPAWNER)
                 && blockEntity instanceof MobSpawnerBlockEntity
@@ -73,7 +90,7 @@ public abstract class MobSpawnerLogicMixin {
                 .getStructuresWithChildren(ChunkSectionPos.from(pos), StructureFeature.FORTRESS)
                 .anyMatch(start -> start.getBoundingBox().contains(pos));
 
-        return BlazeSpawnerStandardization.qualifies(
+        return BlazeSpawnerStandardization.qualificationResult(
                 true,
                 true,
                 ownedBlockSpawner,
@@ -90,8 +107,52 @@ public abstract class MobSpawnerLogicMixin {
                 accessor.zsgRooms$getSpawnRange());
     }
 
+    private void zsgRooms$cacheNonServerQualification(MobSpawnerLogic logic) {
+        if (zsgRooms$cachedQualification == null) {
+            zsgRooms$cachedQualification =
+                    BlazeSpawnerStandardization.QualificationResult.NOT_SERVER_WORLD;
+        }
+        if (SeedDebugLog.isEnabled() && !zsgRooms$qualificationLogged) {
+            zsgRooms$qualificationLogged = true;
+            SeedDebugLog.info(
+                    "[ZSG-Rooms/Spawner] key=non_server|{} qualification=rejected reason={}",
+                    logic.getPos().asLong(),
+                    zsgRooms$cachedQualification.getDiagnosticReason());
+        }
+    }
+
+    private void zsgRooms$logQualificationOnce(String key) {
+        if (zsgRooms$qualificationLogged || !SeedDebugLog.isEnabled()) {
+            return;
+        }
+        zsgRooms$qualificationLogged = true;
+        if (zsgRooms$cachedQualification.isQualified()) {
+            SeedDebugLog.info(
+                    "[ZSG-Rooms/Spawner] key={} qualification=accepted",
+                    key);
+        } else {
+            SeedDebugLog.info(
+                    "[ZSG-Rooms/Spawner] key={} qualification=rejected reason={}",
+                    key,
+                    zsgRooms$cachedQualification.getDiagnosticReason());
+        }
+    }
+
+    private static String zsgRooms$spawnerKey(
+            ServerWorld world,
+            BlockPos pos,
+            Identifier entityId
+    ) {
+        return BlazeSpawnerStandardization.spawnerKey(
+                world.getRegistryKey().getValue().toString(),
+                pos.asLong(),
+                entityId == null ? "" : entityId.toString());
+    }
+
     private void zsgRooms$tickStandardized(MobSpawnerLogic logic, MobSpawnerLogicAccessor accessor,
                                            ServerWorld world, BlockPos pos, String key) {
+        // Preserve a generated spawner's positive initial delay. Deterministic delay generation
+        // begins only for vanilla's uninitialized -1 state or after a completed spawn cycle.
         if (accessor.zsgRooms$getSpawnDelay() == -1) {
             zsgRooms$scheduleDelay(logic, accessor, world, key, false);
         }
@@ -204,6 +265,9 @@ public abstract class MobSpawnerLogicMixin {
 
     private void zsgRooms$scheduleDelay(MobSpawnerLogic logic, MobSpawnerLogicAccessor accessor,
                                         ServerWorld world, String key, boolean advanceCycle) {
+        // Qualification permits no potential entries or one entry identical to the current
+        // default Blaze data. Weighted selection is intentionally skipped because that sole
+        // entry cannot change the selected spawn data and would only consume world RNG.
         BlazeSpawnerStandardization.SpawnerEvent event = advanceCycle
                 ? BlazeSpawnerStandardization.advanceCycle(key)
                 : BlazeSpawnerStandardization.currentEvent(key);
@@ -222,16 +286,17 @@ public abstract class MobSpawnerLogicMixin {
 
     private static boolean zsgRooms$isDefaultBlazeData(CompoundTag data) {
         return data != null
-                && data.getSize() == 1
                 && data.contains("id", 8)
-                && zsgRooms$BLAZE_ID.toString().equals(data.getString("id"));
+                && BlazeSpawnerStandardization.isDefaultBlazeSpawnData(
+                data.getString("id"), data.getSize());
     }
 
     private static boolean zsgRooms$hasSupportedPotentials(List<MobSpawnerEntry> potentials) {
         return potentials != null
-                && (potentials.isEmpty()
-                || (potentials.size() == 1
-                && zsgRooms$isDefaultBlazeData(potentials.get(0).getEntityTag())));
+                && BlazeSpawnerStandardization.hasSupportedSpawnPotentials(
+                potentials.size(),
+                potentials.size() == 1
+                        && zsgRooms$isDefaultBlazeData(potentials.get(0).getEntityTag()));
     }
 
     private static void zsgRooms$logAttempt(

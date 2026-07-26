@@ -49,6 +49,16 @@ Blaze spawner sequences are keyed by dimension, block position, and Blaze
 entity ID. Unsupported or customized spawners, spawner minecarts, and all
 non-Blaze spawners continue using vanilla RNG.
 
+The generated spawner's initial stored delay is preserved. Deterministic delay
+generation begins only when its stored delay is `-1` or when a completed spawn
+cycle schedules the next delay. Subsequent delay rolls are deterministic per
+spawner and cycle.
+
+Generated spawners may have either no spawn-potential entries or one potential
+that is exactly the same default Blaze data as the current entry. The
+standardized scheduler skips weighted selection for that single identical
+entry because selecting it cannot change what the spawner produces.
+
 Default: Off.
 
 ## Spawn Near Filter Structure
