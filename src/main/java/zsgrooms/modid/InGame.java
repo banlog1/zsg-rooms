@@ -117,7 +117,7 @@ public class InGame {
         this.loadingScreenVisible = false;
         this.synchronizedStartReleased = false;
         this.readyPlayers.clear();
-        this.sharedChatMessages.add("Game ended for " + roomName);
+        this.sharedChatMessages.add("Game ended");
     }
 
     public synchronized boolean markPlayerReady(String playerName) {

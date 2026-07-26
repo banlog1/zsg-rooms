@@ -1,11 +1,18 @@
 package zsgrooms.modid.ui;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteAtlasTexture;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.LiteralText;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Matrix4f;
 import zsgrooms.modid.SpeedRunIgtBridge;
 import zsgrooms.modid.history.CompletedRun;
 import zsgrooms.modid.history.RunSplit;
@@ -18,6 +25,8 @@ import java.util.Locale;
 public class RunDetailsScreen extends Screen {
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT);
     private static final int MIN_SEGMENT_WIDTH = 104;
+    private static final int TIMELINE_HEIGHT = 48;
+    private static final int TEXTURE_TILE_SIZE = TIMELINE_HEIGHT;
     private static final Identifier DIRT_TEXTURE = new Identifier("minecraft", "block/dirt");
     private static final Identifier NETHERRACK_TEXTURE = new Identifier("minecraft", "block/netherrack");
     private static final Identifier BASTION_TEXTURE =
@@ -115,12 +124,12 @@ public class RunDetailsScreen extends Screen {
 
             // Text rendering binds the font atlas, so restore the block atlas for every segment.
             this.client.getTextureManager().bindTexture(SpriteAtlasTexture.BLOCK_ATLAS_TEX);
-            drawSprite(matrices, left, y, 0, Math.max(1, right - left), 46,
+            drawTiledSprite(matrices, left, right, y, y + TIMELINE_HEIGHT,
                     this.client.getSpriteAtlas(SpriteAtlasTexture.BLOCK_ATLAS_TEX)
                             .apply(phaseTexture(split.getLabel())));
-            fill(matrices, left, y, right, y + 46, 0x52000000);
-            fill(matrices, left, y, left + 1, y + 46, 0xFF111111);
-            fill(matrices, right - 1, y, right, y + 50, 0xFF111111);
+            fill(matrices, left, y, right, y + TIMELINE_HEIGHT, 0x52000000);
+            fill(matrices, left, y, left + 1, y + TIMELINE_HEIGHT, 0xFF111111);
+            fill(matrices, right - 1, y, right, y + TIMELINE_HEIGHT + 4, 0xFF111111);
             String label = this.textRenderer.trimToWidth(
                     phaseLabel(split.getLabel()), Math.max(8, right - left - 8));
             String interval = SpeedRunIgtBridge.formatMilliseconds(duration);
@@ -133,8 +142,48 @@ public class RunDetailsScreen extends Screen {
                     : right - cumulativeWidth / 2;
             this.textRenderer.drawWithShadow(matrices, cumulative, cumulativeX, y + 53, 0xAAAAAA);
         }
-        fill(matrices, x, y + 46, x + width, y + 47, 0xFF000000);
+        fill(matrices, x, y + TIMELINE_HEIGHT, x + width, y + TIMELINE_HEIGHT + 1, 0xFF000000);
         drawCenteredString(matrices, this.textRenderer, "Segment time", this.width / 2, y + 72, 0x777777);
+    }
+
+    private static void drawTiledSprite(MatrixStack matrices, int left, int right,
+                                        int top, int bottom, Sprite sprite) {
+        if (right <= left || bottom <= top) {
+            return;
+        }
+
+        Matrix4f matrix = matrices.peek().getModel();
+        BufferBuilder buffer = Tessellator.getInstance().getBuffer();
+        buffer.begin(7, VertexFormats.POSITION_TEXTURE);
+        for (int tileY = top; tileY < bottom; tileY += TEXTURE_TILE_SIZE) {
+            int drawTop = tileY;
+            int drawBottom = Math.min(tileY + TEXTURE_TILE_SIZE, bottom);
+            float v0 = sprite.getMinV();
+            float v1 = interpolate(sprite.getMinV(), sprite.getMaxV(),
+                    (drawBottom - tileY) / (float) TEXTURE_TILE_SIZE);
+
+            for (int tileX = left; tileX < right; tileX += TEXTURE_TILE_SIZE) {
+                int drawLeft = Math.max(left, tileX);
+                int drawRight = Math.min(right, tileX + TEXTURE_TILE_SIZE);
+                float u0 = interpolate(sprite.getMinU(), sprite.getMaxU(),
+                        (drawLeft - tileX) / (float) TEXTURE_TILE_SIZE);
+                float u1 = interpolate(sprite.getMinU(), sprite.getMaxU(),
+                        (drawRight - tileX) / (float) TEXTURE_TILE_SIZE);
+
+                buffer.vertex(matrix, drawLeft, drawBottom, 0).texture(u0, v1).next();
+                buffer.vertex(matrix, drawRight, drawBottom, 0).texture(u1, v1).next();
+                buffer.vertex(matrix, drawRight, drawTop, 0).texture(u1, v0).next();
+                buffer.vertex(matrix, drawLeft, drawTop, 0).texture(u0, v0).next();
+            }
+        }
+
+        buffer.end();
+        RenderSystem.enableAlphaTest();
+        BufferRenderer.draw(buffer);
+    }
+
+    private static float interpolate(float start, float end, float amount) {
+        return start + (end - start) * amount;
     }
 
     private String phaseLabel(String endpointLabel) {

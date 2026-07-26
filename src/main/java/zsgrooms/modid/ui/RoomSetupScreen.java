@@ -40,6 +40,7 @@ public class RoomSetupScreen extends Screen {
     private TextFieldWidget maxPlayersField;
     private TextFieldWidget finishGoalField;
     private TextFieldWidget manualSeedField;
+    private ButtonWidget roomCodeVisibilityButton;
     private ButtonWidget seedTypeButton;
     private ButtonWidget gameRulesButton;
     private RoomRulePreset rulePreset;
@@ -51,6 +52,7 @@ public class RoomSetupScreen extends Screen {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean roomCodeVisible;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
     private String statusText;
@@ -60,6 +62,7 @@ public class RoomSetupScreen extends Screen {
         this.parent = parent;
         this.createMode = createMode;
         this.helpVisible = false;
+        this.roomCodeVisible = false;
         this.selectedSeedTypeIndex = 0;
         this.statusText = "";
         this.rulePreset = RoomRulePreset.STANDARD_ZSG_ROOMS;
@@ -78,13 +81,24 @@ public class RoomSetupScreen extends Screen {
         int fieldX = panelX + labelWidth();
         int fieldWidth = panelWidth() - labelWidth() - 16;
         int copyWidth = 44;
+        int visibilityWidth = 44;
         int copyGap = 5;
         int y = formTop();
         int rowGap = rowGap();
 
-        this.roomCodeField = new TextFieldWidget(this.textRenderer, fieldX, y, fieldWidth - copyWidth - copyGap, 20, new LiteralText("Room Code"));
+        int roomCodeFieldWidth = fieldWidth - copyWidth - visibilityWidth - copyGap * 2;
+        this.roomCodeField = new TextFieldWidget(this.textRenderer, fieldX, y, roomCodeFieldWidth, 20,
+                new LiteralText("Room Code"));
         this.roomCodeField.setText(roomCode);
+        updateRoomCodePrivacy();
         this.addButton(this.roomCodeField);
+        this.roomCodeVisibilityButton = new ButtonWidget(fieldX + roomCodeFieldWidth + copyGap, y,
+                visibilityWidth, 20, roomCodeVisibilityText(), button -> {
+            this.roomCodeVisible = !this.roomCodeVisible;
+            updateRoomCodePrivacy();
+            button.setMessage(roomCodeVisibilityText());
+        });
+        this.addButton(this.roomCodeVisibilityButton);
         this.addButton(new ButtonWidget(fieldX + fieldWidth - copyWidth, y, copyWidth, 20, new LiteralText("Copy"), button -> {
             String code = this.roomCodeField.getText().trim();
             if (code.isEmpty()) {
@@ -407,6 +421,25 @@ public class RoomSetupScreen extends Screen {
 
     private String fieldText(TextFieldWidget field, String fallback) {
         return field == null ? fallback : field.getText();
+    }
+
+    private void updateRoomCodePrivacy() {
+        if (this.roomCodeField != null) {
+            this.roomCodeField.setRenderTextProvider((text, offset) ->
+                    this.roomCodeVisible ? text : maskRoomCode(text));
+        }
+    }
+
+    private LiteralText roomCodeVisibilityText() {
+        return new LiteralText(this.roomCodeVisible ? "Hide" : "Show");
+    }
+
+    private String maskRoomCode(String text) {
+        StringBuilder masked = new StringBuilder();
+        for (int index = 0; index < text.length(); index++) {
+            masked.append('*');
+        }
+        return masked.toString();
     }
 
     private String trimToWidth(String text, int width) {

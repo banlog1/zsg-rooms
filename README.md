@@ -118,7 +118,8 @@ the relay.
   cannot reconnect within 60 seconds, the relay closes the room.
 - RNG standardization makes equivalent event sequences deterministic. Different
   player actions or a different kill/barter order can still produce different
-  later outcomes.
+  later outcomes within those channels. Eye of Ender break rolls use their own
+  isolated deterministic sequence.
 - Room chat uses TLS in transit through the relay, but it is not end-to-end
   encrypted and should not be treated as private messaging.
 

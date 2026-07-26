@@ -14,6 +14,7 @@ public final class RngStandardization {
     private static volatile boolean enabled;
     private static volatile boolean boostedBarters;
     private static long barterCount;
+    private static long eyeBreakCount;
 
     private RngStandardization() {
     }
@@ -27,6 +28,7 @@ public final class RngStandardization {
         boostedBarters = boostBarters;
         MOB_DROP_COUNTS.clear();
         barterCount = 0L;
+        eyeBreakCount = 0L;
     }
 
     public static boolean isEnabled() {
@@ -41,14 +43,31 @@ public final class RngStandardization {
         ServerWorld world = (ServerWorld) mob.world;
         Identifier entityId = Registry.ENTITY_TYPE.getId(mob.getType());
         String key = world.getRegistryKey().getValue() + "|" + entityId;
+        return nextMobDropSeed(world.getSeed(), key);
+    }
+
+    static synchronized long nextMobDropSeed(long worldSeed, String key) {
         long eventIndex = MOB_DROP_COUNTS.containsKey(key) ? MOB_DROP_COUNTS.get(key) : 0L;
         MOB_DROP_COUNTS.put(key, eventIndex + 1L);
-        return eventSeed(world.getSeed(), "mob_drop", key, eventIndex);
+        return eventSeed(worldSeed, "mob_drop", key, eventIndex);
     }
 
     public static synchronized Random nextPiglinBarterRandom(ServerWorld world) {
+        return new Random(nextPiglinBarterSeed(world.getSeed()));
+    }
+
+    static synchronized long nextPiglinBarterSeed(long worldSeed) {
         long eventIndex = barterCount++;
-        return new Random(eventSeed(world.getSeed(), "piglin_barter", "global", eventIndex));
+        return eventSeed(worldSeed, "piglin_barter", "global", eventIndex);
+    }
+
+    public static synchronized Random nextEyeBreakRandom(ServerWorld world) {
+        return new Random(nextEyeBreakSeed(world.getSeed()));
+    }
+
+    static synchronized long nextEyeBreakSeed(long worldSeed) {
+        long eventIndex = eyeBreakCount++;
+        return eventSeed(worldSeed, "eye_break", "global", eventIndex);
     }
 
     static long eventSeed(long worldSeed, String channel, String key, long eventIndex) {

@@ -3,6 +3,7 @@ package zsgrooms.modid.net;
 import net.minecraft.client.MinecraftClient;
 import zsgrooms.modid.InGame;
 import zsgrooms.modid.Room;
+import zsgrooms.modid.RoomMuteManager;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
@@ -483,7 +484,9 @@ public class RoomWebSocketTransport {
 
         private void handleAdvancement(String player, String value) {
             boolean won = ZsgRooms.trackAdvancement(this.roomName, player, value);
-            ZsgInGameActions.showRemoteAdvancement(MinecraftClient.getInstance(), player, value);
+            if (!RoomMuteManager.isMuted(this.roomName, player)) {
+                ZsgInGameActions.showRemoteAdvancement(MinecraftClient.getInstance(), player, value);
+            }
             send("advancement", player, value);
             if (won) {
                 finishAndBroadcast(player, "Completed the run");
@@ -702,7 +705,10 @@ public class RoomWebSocketTransport {
                         ZsgRoomsClient.releaseSynchronizedStart(decoded.get("room"), value);
                     }
                     if ("advancement".equals(type)) {
-                        ZsgInGameActions.showRemoteAdvancement(MinecraftClient.getInstance(), decoded.get("player"), value);
+                        if (!RoomMuteManager.isMuted(decoded.get("room"), decoded.get("player"))) {
+                            ZsgInGameActions.showRemoteAdvancement(
+                                    MinecraftClient.getInstance(), decoded.get("player"), value);
+                        }
                     }
                     if ("seed_change_ready".equals(type)) {
                         ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());

@@ -29,6 +29,8 @@ seed:
 - Mob drops are seeded by dimension, entity type, and that channel's event
   index.
 - Piglin barters use one deterministic global barter sequence.
+- Eye of Ender break rolls use an independent deterministic global eye
+  sequence. Extra mob kills or barters do not change the eye sequence.
 - The player is positioned at the world's exact configured spawn point instead
   of receiving Minecraft's normal randomized spawn offset.
 
@@ -37,7 +39,8 @@ boosted-barters rule is enabled.
 
 This is event-sequence standardization, not a lockstep simulation. If one
 runner kills different mobs or barters in a different order, later random
-results can diverge because the event indexes no longer match.
+results within those channels can diverge because the event indexes no longer
+match. Eye break rolls remain isolated from both channels.
 
 Default: Off.
 

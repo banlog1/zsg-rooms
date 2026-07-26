@@ -21,7 +21,7 @@ public class Room {
         this.roomMessages = new ArrayList<String>();
         this.players[0] = host;
         if (host != null) {
-            roomMessages.add(host.getName() + " joined " + roomName);
+            roomMessages.add(host.getName() + " joined the room");
         }
     }
 
@@ -32,7 +32,7 @@ public class Room {
         for (int i = 0; i < maxPlayers; i++) {
             if (players[i] == null) {
                 players[i] = player;
-                roomMessages.add(player.getName() + " joined " + roomName);
+                roomMessages.add(player.getName() + " joined the room");
                 return;
             }
         }
@@ -43,7 +43,7 @@ public class Room {
         for (int i = 0; i < maxPlayers; i++) {
             if (players[i] != null && players[i].equals(player)) {
                 players[i] = null;
-                roomMessages.add(player.getName() + " left " + roomName);
+                roomMessages.add(player.getName() + " left the room");
                 return;
             }
         }
@@ -62,7 +62,7 @@ public class Room {
         for (int i = 0; i < maxPlayers; i++) {
             players[i] = null;
         }
-        roomMessages.add("Room closed: " + roomName);
+        roomMessages.add("Room closed");
     }
 
     public int getPlayerCount() {

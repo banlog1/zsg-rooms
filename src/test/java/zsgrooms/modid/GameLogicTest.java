@@ -109,6 +109,27 @@ public class GameLogicTest {
         assertTrue(room.getRoomMessages().size() >= 2);
     }
 
+    @Test
+    public void roomCodeDoesNotLeakIntoAutomaticChatMessages() {
+        String privateCode = "ZSG-PRIVATE42";
+        Player host = new Player("Host", true, true);
+        Player guest = new Player("Guest", false, false);
+        Room room = new Room(privateCode, "seed", host, 2);
+
+        room.addPlayer(guest);
+        room.removePlayer(guest);
+        room.closeRoom();
+        for (String message : room.getRoomMessages()) {
+            assertFalse(message.contains(privateCode));
+        }
+
+        InGame game = new InGame("seed", privateCode, InGame.SeedType.FIXED, true);
+        game.endGame();
+        for (String message : game.getSharedChatMessages()) {
+            assertFalse(message.contains(privateCode));
+        }
+    }
+
     private static String repeat(String value, int count) {
         StringBuilder result = new StringBuilder(value.length() * count);
         for (int i = 0; i < count; i++) {

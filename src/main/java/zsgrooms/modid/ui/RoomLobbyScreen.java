@@ -7,6 +7,7 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.LiteralText;
 import zsgrooms.modid.Player;
 import zsgrooms.modid.Room;
+import zsgrooms.modid.RoomMuteManager;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
@@ -14,6 +15,7 @@ import zsgrooms.modid.net.HostSeedPrefetchManager;
 import zsgrooms.modid.net.RoomSocketTransport;
 import zsgrooms.modid.net.RoomWebSocketTransport;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RoomLobbyScreen extends Screen {
@@ -23,13 +25,17 @@ public class RoomLobbyScreen extends Screen {
     private ButtonWidget optionsButton;
     private ButtonWidget startButton;
     private ButtonWidget copyCodeButton;
+    private ButtonWidget codeVisibilityButton;
+    private boolean roomCodeVisible;
     private int chatScrollOffset;
+    private String muteButtonPlayerSignature = "";
 
     public RoomLobbyScreen(Screen parent, String roomName) {
         super(new LiteralText("Room Lobby"));
         this.parent = parent;
         this.roomName = roomName;
         this.chatScrollOffset = 0;
+        this.roomCodeVisible = false;
     }
 
     @Override
@@ -42,11 +48,19 @@ public class RoomLobbyScreen extends Screen {
 
         int copyWidth = 46;
         int copyX = this.width - copyWidth - 8;
+        int visibilityWidth = 46;
+        int visibilityX = copyX - visibilityWidth - 4;
         this.copyCodeButton = new ButtonWidget(copyX, compact ? 16 : 11, copyWidth, 20, new LiteralText("Copy"), button -> {
             this.client.keyboard.setClipboard(this.roomName);
             button.setMessage(new LiteralText("Copied"));
         });
         this.addButton(this.copyCodeButton);
+        this.codeVisibilityButton = new ButtonWidget(visibilityX, compact ? 16 : 11, visibilityWidth, 20,
+                codeVisibilityText(), button -> {
+            this.roomCodeVisible = !this.roomCodeVisible;
+            button.setMessage(codeVisibilityText());
+        });
+        this.addButton(this.codeVisibilityButton);
 
         this.chatField = new TextFieldWidget(this.textRenderer, chatX, chatY, chatWidth, 20, new LiteralText("Chat"));
         this.chatField.setMaxLength(120);
@@ -70,11 +84,19 @@ public class RoomLobbyScreen extends Screen {
             addLobbyButton(this.width - 116, bottomY, 100, "Share Seed", "share");
         }
         updateHostControls();
+        Room room = ZsgRooms.getRoom(this.roomName);
+        addMuteButtons(room);
+        this.muteButtonPlayerSignature = playerSignature(room);
     }
 
     @Override
     public void tick() {
         super.tick();
+        Room room = ZsgRooms.getRoom(this.roomName);
+        if (!this.muteButtonPlayerSignature.equals(playerSignature(room))) {
+            this.init(this.client, this.width, this.height);
+            return;
+        }
         updateHostControls();
         if (this.chatField != null) {
             this.chatField.tick();
@@ -156,13 +178,14 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private void drawRoomCode(MatrixStack matrices) {
-        String code = "Code: " + this.roomName;
+        String code = this.roomCodeVisible ? "Code: " + this.roomName : "Room code hidden";
         if (isCompact()) {
-            int availableWidth = Math.max(80, this.width - 72);
+            int availableWidth = Math.max(60, this.codeVisibilityButton == null
+                    ? this.width - 72 : this.codeVisibilityButton.x - 8);
             drawCenteredString(matrices, this.textRenderer, trimToWidth(code, availableWidth), availableWidth / 2 + 4, 20, 0xA8D8FF);
             return;
         }
-        int right = this.copyCodeButton == null ? this.width - 8 : this.copyCodeButton.x - 5;
+        int right = this.codeVisibilityButton == null ? this.width - 8 : this.codeVisibilityButton.x - 5;
         code = trimToWidth(code, Math.max(110, this.width / 3));
         int textWidth = this.textRenderer.getWidth(code);
         int x = Math.max(8, right - textWidth - 6);
@@ -198,6 +221,7 @@ public class RoomLobbyScreen extends Screen {
 
     private void drawPlayerRows(MatrixStack matrices, Room room, int startY, int maxY) {
         List<String> names = room.getPlayerNames();
+        String localName = ZsgRoomsClient.localPlayerName(this.client);
         boolean compact = isCompact();
         int columns = this.width >= 480 ? 2 : 1;
         int outerMargin = compact ? 12 : 24;
@@ -226,14 +250,17 @@ public class RoomLobbyScreen extends Screen {
 
             int nameColor = i == 0 ? 0xFFFFFF : 0xFFD85A;
             int textX = avatarX + avatarSize + 8;
+            boolean canMute = !localName.equals(name);
             if (compact) {
                 String label = name + (i == 0 ? " - Host" : " - Ready");
-                this.textRenderer.drawWithShadow(matrices, trimToWidth(label, rowWidth - (textX - rowX) - 8), textX, y + 6, nameColor);
+                int reservedWidth = canMute ? 58 : 8;
+                this.textRenderer.drawWithShadow(matrices,
+                        trimToWidth(label, rowWidth - (textX - rowX) - reservedWidth), textX, y + 6, nameColor);
             } else {
-                this.textRenderer.drawWithShadow(matrices, trimToWidth(name, rowWidth - (textX - rowX) - 58), textX, y + 5, nameColor);
+                int reservedWidth = canMute ? 62 : 8;
+                this.textRenderer.drawWithShadow(matrices,
+                        trimToWidth(name, rowWidth - (textX - rowX) - reservedWidth), textX, y + 5, nameColor);
                 this.textRenderer.drawWithShadow(matrices, i == 0 ? "Host - Ready" : "Runner - Ready", textX, y + 19, 0xB8B8B8);
-                fill(matrices, rowX + rowWidth - 46, y + 8, rowX + rowWidth - 7, y + 27, 0xFF5A5A5A);
-                drawCenteredString(matrices, this.textRenderer, "Mute", rowX + rowWidth - 26, y + 14, 0xFFFFFF);
             }
         }
 
@@ -274,7 +301,7 @@ public class RoomLobbyScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Room Chat", chatX, chatPanelTop - 14, 0xA8D8FF);
 
         if (room != null) {
-            List<String> messages = room.getRoomMessages();
+            List<String> messages = visibleRoomMessages(room);
             int visibleLines = Math.max(1, (chatBottom - chatPanelTop) / 11);
             this.chatScrollOffset = Math.min(this.chatScrollOffset, maxChatScrollOffset(room));
             int end = Math.max(0, messages.size() - this.chatScrollOffset);
@@ -312,7 +339,75 @@ public class RoomLobbyScreen extends Screen {
             return 0;
         }
         int visibleLines = Math.max(1, (chatBottom() - (chatTop() + 26)) / 11);
-        return Math.max(0, room.getRoomMessages().size() - visibleLines);
+        return Math.max(0, visibleRoomMessages(room).size() - visibleLines);
+    }
+
+    private void addMuteButtons(Room room) {
+        if (room == null) {
+            return;
+        }
+
+        List<String> names = room.getPlayerNames();
+        String localName = ZsgRoomsClient.localPlayerName(this.client);
+        boolean compact = isCompact();
+        int columns = this.width >= 480 ? 2 : 1;
+        int outerMargin = compact ? 12 : 24;
+        int columnGap = 8;
+        int rowHeight = compact ? 20 : 34;
+        int rowGap = compact ? 3 : 4;
+        int rowWidth = (this.width - outerMargin * 2 - columnGap * (columns - 1)) / columns;
+        int startY = headerHeight() + (compact ? 5 : 12);
+        int maxY = chatTop() - (compact ? 18 : 44);
+        int rowsAvailable = Math.max(0, (maxY - startY) / (rowHeight + rowGap));
+        int visibleCount = Math.min(names.size(), rowsAvailable * columns);
+
+        for (int i = 0; i < visibleCount; i++) {
+            String playerName = names.get(i);
+            if (localName.equals(playerName)) {
+                continue;
+            }
+
+            int column = i % columns;
+            int row = i / columns;
+            int rowX = outerMargin + column * (rowWidth + columnGap);
+            int rowY = startY + row * (rowHeight + rowGap);
+            int buttonWidth = 47;
+            int buttonHeight = compact ? 18 : 19;
+            ButtonWidget muteButton = new ButtonWidget(
+                    rowX + rowWidth - buttonWidth - 7,
+                    rowY + (rowHeight - buttonHeight) / 2,
+                    buttonWidth,
+                    buttonHeight,
+                    muteButtonText(playerName),
+                    button -> {
+                        RoomMuteManager.toggle(this.roomName, playerName);
+                        button.setMessage(muteButtonText(playerName));
+                        this.chatScrollOffset = Math.min(this.chatScrollOffset,
+                                maxChatScrollOffset(ZsgRooms.getRoom(this.roomName)));
+                    });
+            this.addButton(muteButton);
+        }
+    }
+
+    private List<String> visibleRoomMessages(Room room) {
+        List<String> visible = new ArrayList<>();
+        if (room == null) {
+            return visible;
+        }
+        for (String message : room.getRoomMessages()) {
+            if (!RoomMuteManager.shouldHideRoomMessage(this.roomName, message)) {
+                visible.add(message);
+            }
+        }
+        return visible;
+    }
+
+    private String playerSignature(Room room) {
+        return room == null ? "" : String.join("\n", room.getPlayerNames());
+    }
+
+    private LiteralText muteButtonText(String playerName) {
+        return new LiteralText(RoomMuteManager.isMuted(this.roomName, playerName) ? "Unmute" : "Mute");
     }
 
     private ButtonWidget addLobbyButton(int x, int y, int width, String label, String action) {
@@ -321,6 +416,7 @@ public class RoomLobbyScreen extends Screen {
                 ZsgRoomsClient.sendRoomAction("leave_room", this.roomName, "");
                 RoomWebSocketTransport.stop();
                 RoomSocketTransport.stop();
+                RoomMuteManager.clearRoom(this.roomName);
                 ZsgRooms.leaveRoomLocally(this.roomName);
                 this.client.openScreen(this.parent);
             } else if ("options".equals(action)) {
@@ -387,5 +483,9 @@ public class RoomLobbyScreen extends Screen {
         if (this.chatField != null) {
             this.chatField.setSuggestion(this.chatField.getText().isEmpty() ? "Type a message..." : "");
         }
+    }
+
+    private LiteralText codeVisibilityText() {
+        return new LiteralText(this.roomCodeVisible ? "Hide" : "Show");
     }
 }

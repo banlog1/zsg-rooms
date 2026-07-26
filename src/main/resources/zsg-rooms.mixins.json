@@ -10,6 +10,7 @@
 		"ClientAdvancementManagerMixin",
 		"ClientPlayerChatMixin",
 		"EntityRandomAccessor",
+		"EyeOfEnderEntityMixin",
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",
 		"LivingEntityDropMixin",

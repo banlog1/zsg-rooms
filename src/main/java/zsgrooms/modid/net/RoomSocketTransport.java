@@ -3,6 +3,7 @@ package zsgrooms.modid.net;
 import net.minecraft.client.MinecraftClient;
 import zsgrooms.modid.InGame;
 import zsgrooms.modid.Room;
+import zsgrooms.modid.RoomMuteManager;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
@@ -127,6 +128,11 @@ public class RoomSocketTransport {
             }
             if ("race_start".equals(type)) {
                 ZsgRoomsClient.releaseSynchronizedStart(message.get("room"), message.get("value"));
+            }
+            if ("advancement".equals(type)
+                    && !RoomMuteManager.isMuted(message.get("room"), message.get("player"))) {
+                ZsgInGameActions.showRemoteAdvancement(
+                        MinecraftClient.getInstance(), message.get("player"), message.get("value"));
             }
             if ("seed_change_ready".equals(type)) {
                 ZsgInGameActions.showSeedChangeAgreement(MinecraftClient.getInstance());
@@ -279,6 +285,19 @@ public class RoomSocketTransport {
             }
             if ("world_ready".equals(type)) {
                 handleWorldReady(player, value);
+                return;
+            }
+            if ("advancement".equals(type)) {
+                boolean won = ZsgRooms.trackAdvancement(this.roomName, player, value);
+                if (!RoomMuteManager.isMuted(this.roomName, player)) {
+                    ZsgInGameActions.showRemoteAdvancement(MinecraftClient.getInstance(), player, value);
+                }
+                broadcast(type, this.roomName, player, value);
+                if (won) {
+                    finishAndBroadcast(player, "Completed the run");
+                } else {
+                    broadcastSnapshot();
+                }
                 return;
             }
             if (!"chat".equals(type)

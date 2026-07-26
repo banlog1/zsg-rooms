@@ -42,7 +42,9 @@ a deterministic safe spawn 70-128 blocks from its target whenever the original
 distance exceeds 140 blocks. It only applies to FSG filters with a known route
 structure; manual, random, and room-code seeds are unchanged.
 
-The `Copy` button copies the room code. The relay hostname is saved to
+Room codes are hidden by default on both the setup screen and in the lobby.
+`Show` reveals the code locally, while `Copy` always copies the real code even
+while it is concealed. The relay hostname is saved to
 `config/zsg-rooms-relay.txt` after a successful connection.
 
 ## Seed Sources
@@ -80,12 +82,16 @@ not repeatedly fetched as gameplay state.
 
 - `Room Chat`: type a message and press Enter. Hover the chat panel and use the
   mouse wheel to view older messages.
+- `Mute` / `Unmute`: locally hides or restores another runner's typed chat and
+  advancement notifications in the lobby and active run. Seed votes, forfeits,
+  results, and other race-critical messages remain visible.
 - `Options`: host-only selection for the filter used by the next seed.
 - `Start Race`: host-only. Consumes the prepared seed, or waits for the
   remainder of the matching preparation, and launches it once.
 - `Share Seed`: writes the current internal seed value to room chat.
 - `Leave Room`: sends a clean leave action and closes the local room state.
-- `Copy`: copies the room code shown in the upper-right area.
+- `Show` / `Hide`: controls whether the room code is visible locally.
+- `Copy`: copies the real room code even while its display is hidden.
 
 Advancements received during a race are also copied into room chat. Recipe
 unlocks and advancements without display metadata are intentionally ignored.

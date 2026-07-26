@@ -240,7 +240,8 @@ public class ZsgRoomsClient implements ClientModInitializer {
         String activeRoom = ZsgRooms.getActiveRoomName();
         InGame game = activeRoom == null ? null : ZsgRooms.getGame(activeRoom);
         if (roomName == null || !roomName.equals(activeRoom) || game == null || !game.getIsInGame()
-                || localPlayerName(client).equals(playerName)) {
+                || localPlayerName(client).equals(playerName)
+                || RoomMuteManager.isMuted(roomName, playerName)) {
             return;
         }
 
