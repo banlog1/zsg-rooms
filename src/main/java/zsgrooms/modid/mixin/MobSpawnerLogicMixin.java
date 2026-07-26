@@ -36,6 +36,8 @@ public abstract class MobSpawnerLogicMixin {
     @Unique
     private BlazeSpawnerStandardization.QualificationResult zsgRooms$cachedQualification;
     @Unique
+    private String zsgRooms$cachedSpawnerKey;
+    @Unique
     private boolean zsgRooms$qualificationLogged;
 
     @Inject(method = "update", at = @At("HEAD"), cancellable = true)
@@ -63,7 +65,13 @@ public abstract class MobSpawnerLogicMixin {
             }
         }
 
-        String key = zsgRooms$spawnerKey(world, pos, accessor.zsgRooms$invokeGetEntityId());
+        if (zsgRooms$cachedSpawnerKey == null) {
+            zsgRooms$cachedSpawnerKey = zsgRooms$spawnerKey(
+                    world,
+                    pos,
+                    accessor.zsgRooms$invokeGetEntityId());
+        }
+        String key = zsgRooms$cachedSpawnerKey;
         zsgRooms$logQualificationOnce(key);
         if (!zsgRooms$cachedQualification.isQualified() || !playerInRange) {
             return;
