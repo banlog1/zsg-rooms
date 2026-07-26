@@ -29,6 +29,7 @@ public final class RngStandardization {
         MOB_DROP_COUNTS.clear();
         barterCount = 0L;
         eyeBreakCount = 0L;
+        BlazeSpawnerStandardization.reset();
     }
 
     public static boolean isEnabled() {
