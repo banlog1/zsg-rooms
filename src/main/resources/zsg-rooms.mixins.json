@@ -23,6 +23,7 @@
 		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
 		"ServerPlayerSpawnMixin",
+		"StriderEntityMixin",
 		"TitleScreenMixin"
 	],
 	"injectors": {

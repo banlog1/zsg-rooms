@@ -14,6 +14,7 @@ public class RoomGameRulesScreen extends Screen {
     private ButtonWidget boostedBartersButton;
     private ButtonWidget minimumBastionIronButton;
     private ButtonWidget removeBastionZombifiedPiglinsButton;
+    private ButtonWidget removeNaturalStriderJockeysButton;
     private ButtonWidget spawnNearFilterStructureButton;
     private ButtonWidget minimumNearbyAnimalsButton;
     private ButtonWidget netherEntryWarmupButton;
@@ -22,14 +23,15 @@ public class RoomGameRulesScreen extends Screen {
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
+    private boolean removeNaturalStriderJockeys;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
 
     public RoomGameRulesScreen(RoomSetupScreen parent, boolean allowCheats, boolean rngStandardization,
             boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
-            boolean spawnNearFilterStructure, boolean minimumNearbyAnimals, boolean netherEntryWarmup,
-            RoomRulePreset preset) {
+            boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
+            boolean minimumNearbyAnimals, boolean netherEntryWarmup, RoomRulePreset preset) {
         super(new LiteralText("Room Game Rules"));
         this.parent = parent;
         this.allowCheats = allowCheats;
@@ -37,6 +39,7 @@ public class RoomGameRulesScreen extends Screen {
         this.boostedBarters = boostedBarters;
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
+        this.removeNaturalStriderJockeys = removeNaturalStriderJockeys;
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
@@ -90,21 +93,29 @@ public class RoomGameRulesScreen extends Screen {
             button.setMessage(removeBastionZombifiedPiglinsText());
         });
         this.addButton(this.removeBastionZombifiedPiglinsButton);
-        this.spawnNearFilterStructureButton = new ButtonWidget(buttonX, y + gap * 6, buttonWidth, buttonHeight,
+        this.removeNaturalStriderJockeysButton = new ButtonWidget(
+                buttonX, y + gap * 6, buttonWidth, buttonHeight,
+                removeNaturalStriderJockeysText(), button -> {
+            markCustom();
+            this.removeNaturalStriderJockeys = !this.removeNaturalStriderJockeys;
+            button.setMessage(removeNaturalStriderJockeysText());
+        });
+        this.addButton(this.removeNaturalStriderJockeysButton);
+        this.spawnNearFilterStructureButton = new ButtonWidget(buttonX, y + gap * 7, buttonWidth, buttonHeight,
                 spawnNearFilterStructureText(), button -> {
             markCustom();
             this.spawnNearFilterStructure = !this.spawnNearFilterStructure;
             button.setMessage(spawnNearFilterStructureText());
         });
         this.addButton(this.spawnNearFilterStructureButton);
-        this.minimumNearbyAnimalsButton = new ButtonWidget(buttonX, y + gap * 7, buttonWidth, buttonHeight,
+        this.minimumNearbyAnimalsButton = new ButtonWidget(buttonX, y + gap * 8, buttonWidth, buttonHeight,
                 minimumNearbyAnimalsText(), button -> {
             markCustom();
             this.minimumNearbyAnimals = !this.minimumNearbyAnimals;
             button.setMessage(minimumNearbyAnimalsText());
         });
         this.addButton(this.minimumNearbyAnimalsButton);
-        this.netherEntryWarmupButton = new ButtonWidget(buttonX, y + gap * 8, buttonWidth, buttonHeight,
+        this.netherEntryWarmupButton = new ButtonWidget(buttonX, y + gap * 9, buttonWidth, buttonHeight,
                 netherEntryWarmupText(), button -> {
             markCustom();
             this.netherEntryWarmup = !this.netherEntryWarmup;
@@ -136,7 +147,8 @@ public class RoomGameRulesScreen extends Screen {
 
     private void saveAndClose() {
         this.parent.setGameRules(this.allowCheats, this.rngStandardization, this.boostedBarters,
-                this.minimumBastionIron, this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
+                this.minimumBastionIron, this.removeBastionZombifiedPiglins,
+                this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
                 this.minimumNearbyAnimals, this.netherEntryWarmup, this.preset);
         this.client.openScreen(this.parent);
     }
@@ -165,11 +177,12 @@ public class RoomGameRulesScreen extends Screen {
     private int rowGap() {
         int buttonHeight = ruleButtonHeight();
         int available = actionY() - listTop() - buttonHeight;
-        return Math.max(buttonHeight, Math.min(26, available / 8));
+        return Math.max(buttonHeight, Math.min(26, available / 9));
     }
 
     private int ruleButtonHeight() {
-        return this.height < 185 ? 12 : this.height <= 220 ? 14 : isCompact() ? 16 : 20;
+        return this.height < 180 ? 10 : this.height < 220 ? 12
+                : this.height < 240 ? 14 : isCompact() ? 16 : 20;
     }
 
     private boolean isCompact() {
@@ -193,6 +206,7 @@ public class RoomGameRulesScreen extends Screen {
         this.boostedBarters = this.preset.boostsBarters();
         this.minimumBastionIron = this.preset.guaranteesBastionIron();
         this.removeBastionZombifiedPiglins = this.preset.removesBastionZombifiedPiglins();
+        this.removeNaturalStriderJockeys = this.preset.removesNaturalStriderJockeys();
         this.spawnNearFilterStructure = this.preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = this.preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = this.preset.warmsNetherEntry();
@@ -212,6 +226,7 @@ public class RoomGameRulesScreen extends Screen {
         this.boostedBartersButton.setMessage(boostedBartersText());
         this.minimumBastionIronButton.setMessage(minimumBastionIronText());
         this.removeBastionZombifiedPiglinsButton.setMessage(removeBastionZombifiedPiglinsText());
+        this.removeNaturalStriderJockeysButton.setMessage(removeNaturalStriderJockeysText());
         this.spawnNearFilterStructureButton.setMessage(spawnNearFilterStructureText());
         this.minimumNearbyAnimalsButton.setMessage(minimumNearbyAnimalsText());
         this.netherEntryWarmupButton.setMessage(netherEntryWarmupText());
@@ -231,6 +246,10 @@ public class RoomGameRulesScreen extends Screen {
 
     private LiteralText removeBastionZombifiedPiglinsText() {
         return toggleText("Remove Zombified Piglins from Bastions", this.removeBastionZombifiedPiglins);
+    }
+
+    private LiteralText removeNaturalStriderJockeysText() {
+        return toggleText("Remove Natural Strider Jockeys", this.removeNaturalStriderJockeys);
     }
 
     private LiteralText spawnNearFilterStructureText() {

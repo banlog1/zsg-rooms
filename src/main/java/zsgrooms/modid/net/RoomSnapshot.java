@@ -28,6 +28,7 @@ public class RoomSnapshot {
     public boolean boostedBarters;
     public boolean minimumBastionIron;
     public boolean removeBastionZombifiedPiglins;
+    public boolean removeNaturalStriderJockeys;
     public boolean spawnNearFilterStructure;
     public boolean minimumNearbyAnimals;
     public boolean netherEntryWarmup;
@@ -62,6 +63,7 @@ public class RoomSnapshot {
             snapshot.boostedBarters = game.areBartersBoosted();
             snapshot.minimumBastionIron = game.hasMinimumBastionIron();
             snapshot.removeBastionZombifiedPiglins = game.removesBastionZombifiedPiglins();
+            snapshot.removeNaturalStriderJockeys = game.removesNaturalStriderJockeys();
             snapshot.spawnNearFilterStructure = game.spawnsNearFilterStructure();
             snapshot.minimumNearbyAnimals = game.hasMinimumNearbyAnimals();
             snapshot.netherEntryWarmup = game.hasNetherEntryWarmup();

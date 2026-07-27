@@ -195,6 +195,20 @@ needed for the supported version.
 
 Default: Off.
 
+## Remove Natural Strider Jockeys
+
+Prevents natural strider initialization from creating zombified-piglin riders
+or baby-strider riders. Ordinary adult and baby striders still initialize
+normally, and players can still saddle, mount, and control striders.
+
+The rule avoids creating unnecessary natural passenger entities and is intended
+to reduce one known source of Minecraft's `Received passengers for unknown
+entity` warning. It does not alter player-created passenger relationships and
+does not fix warnings involving boats, minecarts, or other mounted entities.
+
+Enabled by both Standard presets. Disabled by Regular Verifiable ZSG.
+Raw game-state and Custom preset default: Off.
+
 ## Ruined Portal Corruption Repair
 
 This is a local Room Settings preference rather than a host game rule. It only

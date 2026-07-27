@@ -35,6 +35,7 @@ public class GameLogicTest {
         assertTrue(standard.boostsBarters());
         assertTrue(standard.guaranteesBastionIron());
         assertTrue(standard.removesBastionZombifiedPiglins());
+        assertTrue(standard.removesNaturalStriderJockeys());
         assertTrue(standard.spawnsNearFilterStructure());
         assertTrue(standard.guaranteesNearbyAnimals());
         assertTrue(standard.warmsNetherEntry());
@@ -44,6 +45,7 @@ public class GameLogicTest {
         assertFalse(vanillaBarters.boostsBarters());
         assertTrue(vanillaBarters.guaranteesBastionIron());
         assertTrue(vanillaBarters.removesBastionZombifiedPiglins());
+        assertTrue(vanillaBarters.removesNaturalStriderJockeys());
         assertTrue(vanillaBarters.spawnsNearFilterStructure());
         assertTrue(vanillaBarters.guaranteesNearbyAnimals());
         assertTrue(vanillaBarters.warmsNetherEntry());
@@ -54,9 +56,12 @@ public class GameLogicTest {
         assertFalse(verifiable.boostsBarters());
         assertFalse(verifiable.guaranteesBastionIron());
         assertFalse(verifiable.removesBastionZombifiedPiglins());
+        assertFalse(verifiable.removesNaturalStriderJockeys());
         assertFalse(verifiable.spawnsNearFilterStructure());
         assertFalse(verifiable.guaranteesNearbyAnimals());
         assertFalse(verifiable.warmsNetherEntry());
+
+        assertFalse(RoomRulePreset.CUSTOM.removesNaturalStriderJockeys());
     }
 
     @Test
@@ -156,6 +161,7 @@ public class GameLogicTest {
         game.setBoostedBarters(true);
         game.setMinimumBastionIron(true);
         game.setRemoveBastionZombifiedPiglins(true);
+        game.setRemoveNaturalStriderJockeys(true);
         game.setSpawnNearFilterStructure(true);
         game.setMinimumNearbyAnimals(true);
         game.setNetherEntryWarmup(true);
@@ -183,6 +189,7 @@ public class GameLogicTest {
         assertTrue(decoded.boostedBarters);
         assertTrue(decoded.minimumBastionIron);
         assertTrue(decoded.removeBastionZombifiedPiglins);
+        assertTrue(decoded.removeNaturalStriderJockeys);
         assertTrue(decoded.spawnNearFilterStructure);
         assertTrue(decoded.minimumNearbyAnimals);
         assertTrue(decoded.netherEntryWarmup);
@@ -207,6 +214,7 @@ public class GameLogicTest {
         assertTrue(appliedGame.areBartersBoosted());
         assertTrue(appliedGame.hasMinimumBastionIron());
         assertTrue(appliedGame.removesBastionZombifiedPiglins());
+        assertTrue(appliedGame.removesNaturalStriderJockeys());
         assertTrue(appliedGame.spawnsNearFilterStructure());
         assertTrue(appliedGame.hasMinimumNearbyAnimals());
         assertTrue(appliedGame.hasNetherEntryWarmup());

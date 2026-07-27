@@ -27,6 +27,7 @@ public class InGame {
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
+    private boolean removeNaturalStriderJockeys;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
@@ -53,6 +54,7 @@ public class InGame {
         this.boostedBarters = false;
         this.minimumBastionIron = false;
         this.removeBastionZombifiedPiglins = false;
+        this.removeNaturalStriderJockeys = false;
         this.spawnNearFilterStructure = false;
         this.minimumNearbyAnimals = false;
         this.netherEntryWarmup = false;
@@ -266,6 +268,14 @@ public class InGame {
 
     public void setRemoveBastionZombifiedPiglins(boolean removeBastionZombifiedPiglins) {
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
+    }
+
+    public boolean removesNaturalStriderJockeys() {
+        return removeNaturalStriderJockeys;
+    }
+
+    public void setRemoveNaturalStriderJockeys(boolean removeNaturalStriderJockeys) {
+        this.removeNaturalStriderJockeys = removeNaturalStriderJockeys;
     }
 
     public boolean spawnsNearFilterStructure() {
