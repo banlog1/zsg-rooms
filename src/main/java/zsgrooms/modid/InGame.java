@@ -31,6 +31,7 @@ public class InGame {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean disablePauseWorldSaves;
     private boolean synchronizedStartReleased;
 
     private boolean loadingScreenVisible;
@@ -58,6 +59,7 @@ public class InGame {
         this.spawnNearFilterStructure = false;
         this.minimumNearbyAnimals = false;
         this.netherEntryWarmup = false;
+        this.disablePauseWorldSaves = false;
         this.synchronizedStartReleased = false;
         this.loadingScreenVisible = false;
         this.readyPlayers = new LinkedHashSet<String>();
@@ -300,6 +302,14 @@ public class InGame {
 
     public void setNetherEntryWarmup(boolean netherEntryWarmup) {
         this.netherEntryWarmup = netherEntryWarmup;
+    }
+
+    public boolean disablesPauseWorldSaves() {
+        return disablePauseWorldSaves;
+    }
+
+    public void setDisablePauseWorldSaves(boolean disablePauseWorldSaves) {
+        this.disablePauseWorldSaves = disablePauseWorldSaves;
     }
 
     public void replacePlayerProgress(Map<String, Integer> progress) {

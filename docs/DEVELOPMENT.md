@@ -168,3 +168,13 @@ non-sources JAR, and verifies either GitHub's SHA-256 asset digest or the
 uploaded `.sha256` file.
 
 Follow [`RELEASING.md`](../RELEASING.md) for the tag-driven release workflow.
+
+## Temporary Server Save Diagnostics
+
+The `MinecraftServerSaveProbeMixin` and `ServerWorldSaveProbeMixin` instrument
+integrated-server save entry and return points without changing save arguments,
+flow, or results. They are diagnostic-only and run when **Seed Debug Logging**
+is enabled in Room Settings. The probe records nested elapsed times, filtered
+callers, room context, and the slowest dimension for saves taking at least
+50 ms. Remove the probe, its tests, and both mixin registrations after the
+gameplay-save trigger has been identified.

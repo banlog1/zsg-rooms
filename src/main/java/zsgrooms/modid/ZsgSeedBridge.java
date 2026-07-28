@@ -459,6 +459,7 @@ public class ZsgSeedBridge {
     }
 
     public static void releaseRoomControl() {
+        PauseWorldSaveControl.configure(false);
         try {
             Class<?> atumClass = Class.forName("me.voidxwalker.autoreset.Atum");
             atumClass.getMethod("stopRunning").invoke(null);

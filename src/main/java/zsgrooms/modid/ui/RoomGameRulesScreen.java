@@ -18,6 +18,7 @@ public class RoomGameRulesScreen extends Screen {
     private ButtonWidget spawnNearFilterStructureButton;
     private ButtonWidget minimumNearbyAnimalsButton;
     private ButtonWidget netherEntryWarmupButton;
+    private ButtonWidget disablePauseWorldSavesButton;
     private boolean allowCheats;
     private boolean rngStandardization;
     private boolean boostedBarters;
@@ -27,11 +28,13 @@ public class RoomGameRulesScreen extends Screen {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean disablePauseWorldSaves;
 
     public RoomGameRulesScreen(RoomSetupScreen parent, boolean allowCheats, boolean rngStandardization,
             boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
-            boolean minimumNearbyAnimals, boolean netherEntryWarmup, RoomRulePreset preset) {
+            boolean minimumNearbyAnimals, boolean netherEntryWarmup,
+            boolean disablePauseWorldSaves, RoomRulePreset preset) {
         super(new LiteralText("Room Game Rules"));
         this.parent = parent;
         this.allowCheats = allowCheats;
@@ -43,6 +46,7 @@ public class RoomGameRulesScreen extends Screen {
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
+        this.disablePauseWorldSaves = disablePauseWorldSaves;
         this.preset = preset == null ? RoomRulePreset.CUSTOM : preset;
         applyPreset();
     }
@@ -122,6 +126,14 @@ public class RoomGameRulesScreen extends Screen {
             button.setMessage(netherEntryWarmupText());
         });
         this.addButton(this.netherEntryWarmupButton);
+        this.disablePauseWorldSavesButton = new ButtonWidget(
+                buttonX, y + gap * 10, buttonWidth, buttonHeight,
+                disablePauseWorldSavesText(), button -> {
+            markCustom();
+            this.disablePauseWorldSaves = !this.disablePauseWorldSaves;
+            button.setMessage(disablePauseWorldSavesText());
+        });
+        this.addButton(this.disablePauseWorldSavesButton);
         this.addButton(new ButtonWidget(buttonX, actionY(), buttonWidth, buttonHeight, new LiteralText("Done"), button -> {
             saveAndClose();
         }));
@@ -149,7 +161,8 @@ public class RoomGameRulesScreen extends Screen {
         this.parent.setGameRules(this.allowCheats, this.rngStandardization, this.boostedBarters,
                 this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                 this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
-                this.minimumNearbyAnimals, this.netherEntryWarmup, this.preset);
+                this.minimumNearbyAnimals, this.netherEntryWarmup,
+                this.disablePauseWorldSaves, this.preset);
         this.client.openScreen(this.parent);
     }
 
@@ -177,7 +190,7 @@ public class RoomGameRulesScreen extends Screen {
     private int rowGap() {
         int buttonHeight = ruleButtonHeight();
         int available = actionY() - listTop() - buttonHeight;
-        return Math.max(buttonHeight, Math.min(26, available / 9));
+        return Math.max(buttonHeight, Math.min(26, available / 10));
     }
 
     private int ruleButtonHeight() {
@@ -210,6 +223,7 @@ public class RoomGameRulesScreen extends Screen {
         this.spawnNearFilterStructure = this.preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = this.preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = this.preset.warmsNetherEntry();
+        this.disablePauseWorldSaves = this.preset.disablesPauseWorldSaves();
     }
 
     private void markCustom() {
@@ -230,6 +244,7 @@ public class RoomGameRulesScreen extends Screen {
         this.spawnNearFilterStructureButton.setMessage(spawnNearFilterStructureText());
         this.minimumNearbyAnimalsButton.setMessage(minimumNearbyAnimalsText());
         this.netherEntryWarmupButton.setMessage(netherEntryWarmupText());
+        this.disablePauseWorldSavesButton.setMessage(disablePauseWorldSavesText());
     }
 
     private LiteralText rngStandardizationText() {
@@ -262,6 +277,10 @@ public class RoomGameRulesScreen extends Screen {
 
     private LiteralText netherEntryWarmupText() {
         return toggleText("Preload Nether Entry Chunk", this.netherEntryWarmup);
+    }
+
+    private LiteralText disablePauseWorldSavesText() {
+        return toggleText("Disable Pause World Saves During Races", this.disablePauseWorldSaves);
     }
 
     private LiteralText toggleText(String label, boolean enabled) {

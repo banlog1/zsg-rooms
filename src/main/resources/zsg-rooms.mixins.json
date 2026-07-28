@@ -13,7 +13,9 @@
 		"EyeOfEnderEntityMixin",
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",
+		"IntegratedServerPauseSaveMixin",
 		"LivingEntityDropMixin",
+		"MinecraftServerSaveProbeMixin",
 		"MobSpawnerLogicAccessor",
 		"MobSpawnerLogicMixin",
 		"NetherPortalPreloadMixin",
@@ -23,6 +25,7 @@
 		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
 		"ServerPlayerSpawnMixin",
+		"ServerWorldSaveProbeMixin",
 		"StriderEntityMixin",
 		"TitleScreenMixin"
 	],

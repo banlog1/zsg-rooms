@@ -121,6 +121,26 @@ runs only when both the room rule and local preference are enabled.
 
 Raw game-state default: Off. Local preference default: On.
 
+## Disable Pause World Saves During Races
+
+When an integrated server transitions from unpaused to paused during an active
+managed room race, Minecraft normally saves player data and then saves every
+loaded world. This rule leaves normal pausing and player-data saving intact but
+skips that one pause-triggered world save to avoid large chunk-save stalls.
+
+The rule does not affect periodic autosaves, seed-reset shutdown, leaving a
+world, closing Minecraft, crash handling, dedicated servers, ordinary
+singleplayer worlds, or normal chunk unloading. It does not use or change
+Minecraft's world `savingDisabled` flag.
+
+Both Standard presets enable this rule. Regular Verifiable ZSG and the raw
+Custom state disable it. Turning it off restores completely vanilla pause-save
+behavior. Because progress between periodic autosaves is no longer persisted
+when opening the pause menu, enabling it can reduce crash recovery during an
+active race.
+
+Raw game-state default: Off.
+
 ## Guarantee 3 Animals Near Structure
 
 When enabled, the selected filter structure is checked during world loading and

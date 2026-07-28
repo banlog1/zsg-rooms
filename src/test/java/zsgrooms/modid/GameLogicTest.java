@@ -39,6 +39,7 @@ public class GameLogicTest {
         assertTrue(standard.spawnsNearFilterStructure());
         assertTrue(standard.guaranteesNearbyAnimals());
         assertTrue(standard.warmsNetherEntry());
+        assertTrue(standard.disablesPauseWorldSaves());
 
         RoomRulePreset vanillaBarters = RoomRulePreset.STANDARD_ZSG_VANILLA_BARTERS;
         assertTrue(vanillaBarters.standardizesRng());
@@ -49,6 +50,7 @@ public class GameLogicTest {
         assertTrue(vanillaBarters.spawnsNearFilterStructure());
         assertTrue(vanillaBarters.guaranteesNearbyAnimals());
         assertTrue(vanillaBarters.warmsNetherEntry());
+        assertTrue(vanillaBarters.disablesPauseWorldSaves());
 
         RoomRulePreset verifiable = RoomRulePreset.REGULAR_VERIFIABLE_ZSG;
         assertFalse(verifiable.allowsCheats());
@@ -60,8 +62,10 @@ public class GameLogicTest {
         assertFalse(verifiable.spawnsNearFilterStructure());
         assertFalse(verifiable.guaranteesNearbyAnimals());
         assertFalse(verifiable.warmsNetherEntry());
+        assertFalse(verifiable.disablesPauseWorldSaves());
 
         assertFalse(RoomRulePreset.CUSTOM.removesNaturalStriderJockeys());
+        assertFalse(RoomRulePreset.CUSTOM.disablesPauseWorldSaves());
     }
 
     @Test
@@ -165,6 +169,7 @@ public class GameLogicTest {
         game.setSpawnNearFilterStructure(true);
         game.setMinimumNearbyAnimals(true);
         game.setNetherEntryWarmup(true);
+        game.setDisablePauseWorldSaves(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
         game.setPlayerProgress("Host", 6, "Found Stronghold");
@@ -193,6 +198,7 @@ public class GameLogicTest {
         assertTrue(decoded.spawnNearFilterStructure);
         assertTrue(decoded.minimumNearbyAnimals);
         assertTrue(decoded.netherEntryWarmup);
+        assertTrue(decoded.disablePauseWorldSaves);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
         assertEquals(2, decoded.players.size());
@@ -218,9 +224,20 @@ public class GameLogicTest {
         assertTrue(appliedGame.spawnsNearFilterStructure());
         assertTrue(appliedGame.hasMinimumNearbyAnimals());
         assertTrue(appliedGame.hasNetherEntryWarmup());
+        assertTrue(appliedGame.disablesPauseWorldSaves());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
         assertEquals(2, appliedGame.getPlayerProgress().get("Guest"));
+    }
+
+    @Test
+    public void legacySnapshotWithoutPauseSaveRuleDefaultsToDisabled() {
+        RoomSnapshot snapshot = RoomSnapshot.fromJson(
+                "{\"protocolVersion\":1,\"roomName\":\"legacy-room\"}");
+
+        assertFalse(snapshot.disablePauseWorldSaves);
+        assertTrue(ZsgRooms.applyRoomSnapshot(snapshot.toJson()));
+        assertFalse(ZsgRooms.getGame("legacy-room").disablesPauseWorldSaves());
     }
 
     @Test

@@ -53,6 +53,7 @@ public class RoomSetupScreen extends Screen {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean disablePauseWorldSaves;
     private boolean roomCodeVisible;
     private boolean helpVisible;
     private int selectedSeedTypeIndex;
@@ -141,7 +142,8 @@ public class RoomSetupScreen extends Screen {
             this.client.openScreen(new RoomGameRulesScreen(this, this.allowCheats, this.rngStandardization,
                     this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                     this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
-                    this.minimumNearbyAnimals, this.netherEntryWarmup, this.rulePreset));
+                    this.minimumNearbyAnimals, this.netherEntryWarmup,
+                    this.disablePauseWorldSaves, this.rulePreset));
         });
         this.gameRulesButton.active = this.createMode;
         this.addButton(this.gameRulesButton);
@@ -171,7 +173,7 @@ public class RoomSetupScreen extends Screen {
                         this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron,
                         this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
                         this.minimumNearbyAnimals, this.netherEntryWarmup,
-                        this.removeNaturalStriderJockeys);
+                        this.removeNaturalStriderJockeys, this.disablePauseWorldSaves);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -312,7 +314,8 @@ public class RoomSetupScreen extends Screen {
     void setGameRules(boolean allowCheats, boolean rngStandardization, boolean boostedBarters,
             boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
-            boolean minimumNearbyAnimals, boolean netherEntryWarmup, RoomRulePreset rulePreset) {
+            boolean minimumNearbyAnimals, boolean netherEntryWarmup,
+            boolean disablePauseWorldSaves, RoomRulePreset rulePreset) {
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
         this.boostedBarters = boostedBarters;
@@ -322,6 +325,7 @@ public class RoomSetupScreen extends Screen {
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
+        this.disablePauseWorldSaves = disablePauseWorldSaves;
         this.rulePreset = rulePreset == null ? RoomRulePreset.CUSTOM : rulePreset;
         if (this.gameRulesButton != null) {
             this.gameRulesButton.setMessage(gameRulesButtonText());
@@ -341,6 +345,7 @@ public class RoomSetupScreen extends Screen {
         this.spawnNearFilterStructure = preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = preset.warmsNetherEntry();
+        this.disablePauseWorldSaves = preset.disablesPauseWorldSaves();
     }
 
     private LiteralText gameRulesButtonText() {

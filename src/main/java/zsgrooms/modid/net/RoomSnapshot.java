@@ -32,6 +32,7 @@ public class RoomSnapshot {
     public boolean spawnNearFilterStructure;
     public boolean minimumNearbyAnimals;
     public boolean netherEntryWarmup;
+    public boolean disablePauseWorldSaves;
     public boolean synchronizedStartReleased;
     public List<String> readyPlayers = new ArrayList<String>();
     public List<PlayerState> players = new ArrayList<PlayerState>();
@@ -67,6 +68,7 @@ public class RoomSnapshot {
             snapshot.spawnNearFilterStructure = game.spawnsNearFilterStructure();
             snapshot.minimumNearbyAnimals = game.hasMinimumNearbyAnimals();
             snapshot.netherEntryWarmup = game.hasNetherEntryWarmup();
+            snapshot.disablePauseWorldSaves = game.disablesPauseWorldSaves();
             snapshot.synchronizedStartReleased = game.isSynchronizedStartReleased();
             snapshot.readyPlayers = game.getReadyPlayers();
             snapshot.progress = game.getPlayerProgress();
