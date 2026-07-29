@@ -15,6 +15,7 @@ public final class RngStandardization {
     private static volatile boolean boostedBarters;
     private static long barterCount;
     private static long eyeBreakCount;
+    private static long dragonPerchCount;
 
     private RngStandardization() {
     }
@@ -29,6 +30,7 @@ public final class RngStandardization {
         MOB_DROP_COUNTS.clear();
         barterCount = 0L;
         eyeBreakCount = 0L;
+        dragonPerchCount = 0L;
         BlazeSpawnerStandardization.reset();
     }
 
@@ -69,6 +71,15 @@ public final class RngStandardization {
     static synchronized long nextEyeBreakSeed(long worldSeed) {
         long eventIndex = eyeBreakCount++;
         return eventSeed(worldSeed, "eye_break", "global", eventIndex);
+    }
+
+    public static synchronized Random nextDragonPerchRandom(ServerWorld world) {
+        return new Random(nextDragonPerchSeed(world.getSeed()));
+    }
+
+    static synchronized long nextDragonPerchSeed(long worldSeed) {
+        long eventIndex = dragonPerchCount++;
+        return eventSeed(worldSeed, "dragon_perch", "global", eventIndex);
     }
 
     static long eventSeed(long worldSeed, String channel, String key, long eventIndex) {
