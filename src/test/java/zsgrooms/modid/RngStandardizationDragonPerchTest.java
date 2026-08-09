@@ -8,6 +8,7 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class RngStandardizationDragonPerchTest {
     private static final long WORLD_SEED = 246813579L;
@@ -84,6 +85,16 @@ public class RngStandardizationDragonPerchTest {
         RngStandardization.configure(false, false);
 
         assertFalse(RngStandardization.isEnabled());
+        assertFalse(RngStandardization.isDragonPerchStandardizationActive(1300));
+    }
+
+    @Test
+    public void perchStandardizationStartsAfterVanillaGracePeriod() {
+        RngStandardization.configure(true, false);
+
+        assertFalse(RngStandardization.isDragonPerchStandardizationActive(0));
+        assertFalse(RngStandardization.isDragonPerchStandardizationActive(1299));
+        assertTrue(RngStandardization.isDragonPerchStandardizationActive(1300));
     }
 
     private long secondPerchSeedWithoutOtherEvents() {

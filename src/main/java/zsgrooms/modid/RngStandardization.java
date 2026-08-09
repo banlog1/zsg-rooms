@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Random;
 
 public final class RngStandardization {
+    private static final int DRAGON_PERCH_GRACE_TICKS = 1300;
     private static final Map<String, Long> MOB_DROP_COUNTS = new HashMap<String, Long>();
     private static volatile boolean enabled;
     private static volatile boolean boostedBarters;
@@ -36,6 +37,10 @@ public final class RngStandardization {
 
     public static boolean isEnabled() {
         return enabled;
+    }
+
+    public static boolean isDragonPerchStandardizationActive(int dragonAge) {
+        return enabled && dragonAge >= DRAGON_PERCH_GRACE_TICKS;
     }
 
     public static boolean areBartersBoosted() {

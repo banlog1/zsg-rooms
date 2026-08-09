@@ -26,7 +26,8 @@ public abstract class HoldingPatternPhaseMixin extends AbstractPhase {
             )
     )
     private int zsgRooms$standardizePerchRoll(Random vanillaRandom, int bound) {
-        if (RngStandardization.isEnabled() && dragon.world instanceof ServerWorld) {
+        if (RngStandardization.isDragonPerchStandardizationActive(dragon.age)
+                && dragon.world instanceof ServerWorld) {
             // Keep the dragon's shared vanilla RNG stream aligned for later AI decisions.
             vanillaRandom.nextInt(bound);
             return RngStandardization.nextDragonPerchRandom((ServerWorld) dragon.world)

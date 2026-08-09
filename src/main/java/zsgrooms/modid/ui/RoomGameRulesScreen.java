@@ -163,7 +163,8 @@ public class RoomGameRulesScreen extends Screen {
         addRuleRow(
                 "Standardize Race RNG",
                 "Makes supported mob drops, piglin barters, Eye of Ender break rolls, "
-                        + "Blaze spawners, and world spawn deterministic from the shared seed.",
+                        + "Blaze spawners, world spawn, and later dragon perch checks deterministic "
+                        + "from the shared seed. Dragon perches remain vanilla for the first 65 seconds.",
                 x, y + rowGap, width, height,
                 () -> this.rngStandardization,
                 () -> this.rngStandardization = !this.rngStandardization,
