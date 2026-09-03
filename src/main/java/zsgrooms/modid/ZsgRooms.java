@@ -7,6 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import zsgrooms.modid.benchmark.DragonPerchHeadlessBenchmark;
 import zsgrooms.modid.net.RoomSnapshot;
 
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public class ZsgRooms implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> PauseWorldSaveControl.configure(false));
 		ServerTickEvents.END_SERVER_TICK.register(RuinedPortalChestRepair::tick);
+		DragonPerchHeadlessBenchmark.register();
 		ZsgRoomNetworking.registerServer();
 	}
 
@@ -680,6 +682,9 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	private void onServerStarted(MinecraftServer server) {
+		if (DragonPerchHeadlessBenchmark.isEnabled()) {
+			return;
+		}
 		Room room = getActiveRoom();
 		InGame game = room == null ? null : ACTIVE_GAMES.get(room.roomName);
 		boolean cheatsAllowed = game != null && game.areCheatsAllowed();

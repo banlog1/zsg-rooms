@@ -119,7 +119,10 @@ the relay.
 - RNG standardization makes equivalent event sequences deterministic. Different
   player actions or a different kill/barter order can still produce different
   later outcomes within those channels. Eye of Ender break rolls use their own
-  isolated deterministic sequence.
+  isolated deterministic sequence. Nether natural monster spawning also uses
+  isolated per-chunk cycle streams. Covering surrounding Nether chunks helps
+  keep the populations feeding the mob cap more consistent while vanilla mob
+  caps, biome and fortress tables, eligibility, and acceptance remain unchanged.
 - Room chat uses TLS in transit through the relay, but it is not end-to-end
   encrypted and should not be treated as private messaging.
 

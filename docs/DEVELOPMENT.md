@@ -37,6 +37,9 @@ Windows PowerShell:
 
 # Launch the Fabric development client
 .\gradlew.bat runClient
+
+# Run the full-period headless dragon-perch benchmark
+.\gradlew.bat runPerchBenchmark
 ```
 
 Build outputs are under `build/libs/`. Development instance files, logs, worlds,
@@ -57,6 +60,71 @@ git diff --check
 
 For mixin changes, also launch `runClient` because target method signatures and
 runtime injection behavior cannot be proven by the unit tests alone.
+
+### Headless Dragon Perch Benchmark
+
+`runPerchBenchmark` launches a headless development server and runs paired
+trials from dragon age zero until the dragon actually perches. Each pair uses
+the same initial dragon RNG, stationary fountain player, crystal count, End
+terrain, and starting pose. It compares fully vanilla behavior with the current
+1,300-tick vanilla grace period followed by deterministic perch decisions.
+
+```powershell
+# Default: 10 paired trials with all 10 crystals alive
+.\gradlew.bat runPerchBenchmark
+
+# Faster smoke run, or a different fixed crystal count
+.\gradlew.bat runPerchBenchmark -PperchTrials=10 -PperchCrystals=0
+
+# Reproduce a trial sample or raise the timeout
+.\gradlew.bat runPerchBenchmark -PperchSampleSeed=123456789 -PperchMaxTicks=18000
+
+# Testing comparison: current 1,300-tick grace versus no grace
+.\gradlew.bat runPerchBenchmark -PperchCompareGrace=true
+```
+
+Each trial begins with a synthetic player entering the End. The benchmark lets
+vanilla `EnderDragonFight` detect that player and create the dragon naturally,
+then reports the natural spawn delay, the tick where `LANDING_APPROACH` begins,
+and the tick where the dragon reaches a sitting phase. All timings are measured
+from End entry and include mean, median, p90, p95, p99,
+completed trials, timeouts, and a paired second-mode-minus-first-mode delta. This is a
+CPU-heavy simulation of complete dragon ticks; progress is logged every 500
+simulated ticks, and larger samples may take a long time. Its run directory is
+`run/perch-benchmark`; set `eula=true` there before the first dedicated-server
+run after reviewing Mojang's EULA. The no-grace override exists only inside the
+benchmark process; normal `RngStandardization.configure(...)` calls restore the
+production 1,300-tick grace.
+
+### Nether Natural Spawn Standardization
+
+When RNG standardization is enabled, every natural `MONSTER` spawn cycle in the
+Nether receives deterministic, event-indexed random streams for initial
+positions, attempt offsets, spawn-entry selection, pack size, and random
+spawn-restriction checks. The section key contains the dimension, spawn group,
+and chunk coordinates; each invocation advances only that section's cycle
+index. Each of vanilla's three outer pack passes receives fresh attempt-count,
+offset, selection, and spawn-check streams. A shortened or rejected earlier
+pack therefore cannot shift the random sequence used by a later pack in the
+same cycle. Standardizing surrounding Nether chunks also makes the natural mob
+population feeding vanilla's mob cap more consistent between equivalent runs.
+
+Minecraft still performs the exact-position fortress lookup and therefore still
+chooses between its biome and fortress spawn tables normally. Biome and fortress
+spawn tables, weights, mob caps, environment checks, frequency, and entity RNG
+after creation remain vanilla.
+Each replaced roll also consumes and discards the corresponding vanilla RNG
+result so unrelated `world.random` advancement is preserved as closely as the
+same branch path permits. Natural fortress spawning is independent from the
+existing deterministic blaze block-spawner implementation.
+
+With Seed Debug Logging enabled, natural-spawn diagnostics are limited to
+positions where vanilla uses the fortress monster table: an exact generated
+fortress piece with nether bricks beneath the candidate. They include the chunk,
+cycle, pack and attempt indexes; entry selection; environment, density and
+entity-validity checks; and each mob accepted into the world. Biome attempts are
+omitted to keep MultiMC logs manageable, and all diagnostics are skipped when
+debugging is disabled.
 
 ## Relay Development
 

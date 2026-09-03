@@ -3,6 +3,24 @@ plugins {
 	id 'maven-publish'
 }
 
+loom {
+	runs {
+		perchBenchmark {
+			server()
+			name = "Dragon Perch Benchmark"
+			runDir = "run/perch-benchmark"
+			vmArg "-Dzsgrooms.perchBenchmark=true"
+			vmArg "-Dzsgrooms.perchBenchmark.trials=${project.findProperty('perchTrials') ?: 10}"
+			vmArg "-Dzsgrooms.perchBenchmark.crystals=${project.findProperty('perchCrystals') ?: 10}"
+			vmArg "-Dzsgrooms.perchBenchmark.maxTicks=${project.findProperty('perchMaxTicks') ?: 12000}"
+			vmArg "-Dzsgrooms.perchBenchmark.sampleSeed=${project.findProperty('perchSampleSeed') ?: 6505258691473851208}"
+			vmArg "-Dzsgrooms.perchBenchmark.compareGrace=${project.findProperty('perchCompareGrace') ?: false}"
+			programArg "--port=0"
+			programArg "nogui"
+		}
+	}
+}
+
 version = project.mod_version
 group = project.maven_group
 

@@ -14,9 +14,11 @@ public final class RngStandardization {
     private static final Map<String, Long> MOB_DROP_COUNTS = new HashMap<String, Long>();
     private static volatile boolean enabled;
     private static volatile boolean boostedBarters;
+    private static volatile int dragonPerchGraceTicks = DRAGON_PERCH_GRACE_TICKS;
     private static long barterCount;
     private static long eyeBreakCount;
     private static long dragonPerchCount;
+    private static long configurationGeneration;
 
     private RngStandardization() {
     }
@@ -32,6 +34,8 @@ public final class RngStandardization {
         barterCount = 0L;
         eyeBreakCount = 0L;
         dragonPerchCount = 0L;
+        configurationGeneration++;
+        dragonPerchGraceTicks = DRAGON_PERCH_GRACE_TICKS;
         BlazeSpawnerStandardization.reset();
     }
 
@@ -40,11 +44,26 @@ public final class RngStandardization {
     }
 
     public static boolean isDragonPerchStandardizationActive(int dragonAge) {
-        return enabled && dragonAge >= DRAGON_PERCH_GRACE_TICKS;
+        return enabled && dragonAge >= dragonPerchGraceTicks;
+    }
+
+    static int dragonPerchGraceTicks() {
+        return dragonPerchGraceTicks;
+    }
+
+    public static synchronized void setDragonPerchGraceTicksForTesting(int graceTicks) {
+        if (graceTicks < 0) {
+            throw new IllegalArgumentException("Dragon perch grace ticks must be non-negative");
+        }
+        dragonPerchGraceTicks = graceTicks;
     }
 
     public static boolean areBartersBoosted() {
         return boostedBarters;
+    }
+
+    public static synchronized long getConfigurationGeneration() {
+        return configurationGeneration;
     }
 
     public static synchronized long nextMobDropSeed(MobEntity mob) {
@@ -82,6 +101,19 @@ public final class RngStandardization {
         return new Random(nextDragonPerchSeed(world.getSeed()));
     }
 
+    public static int nextDragonPerchRoll(
+            Random vanillaRandom,
+            int bound,
+            int dragonAge,
+            long worldSeed
+    ) {
+        int vanillaResult = vanillaRandom.nextInt(bound);
+        if (!isDragonPerchStandardizationActive(dragonAge)) {
+            return vanillaResult;
+        }
+        return new Random(nextDragonPerchSeed(worldSeed)).nextInt(bound);
+    }
+
     static synchronized long nextDragonPerchSeed(long worldSeed) {
         long eventIndex = dragonPerchCount++;
         return eventSeed(worldSeed, "dragon_perch", "global", eventIndex);
@@ -93,6 +125,17 @@ public final class RngStandardization {
         hash = hashString(hash, key);
         hash ^= eventIndex * 0x9e3779b97f4a7c15L;
         return mix64(hash);
+    }
+
+    public static long naturalSpawnStreamSeed(
+            long worldSeed,
+            String sectionKey,
+            long cycleIndex,
+            String stream
+    ) {
+        long cycleSeed = eventSeed(
+                worldSeed, "natural_spawn_cycle", sectionKey, cycleIndex);
+        return eventSeed(cycleSeed, "natural_spawn_stream", stream, 0L);
     }
 
     private static long hashString(long hash, String value) {
