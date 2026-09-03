@@ -1,6 +1,7 @@
 package zsgrooms.modid;
 
 import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.registry.Registry;
@@ -12,11 +13,13 @@ import java.util.Random;
 public final class RngStandardization {
     private static final int DRAGON_PERCH_GRACE_TICKS = 1300;
     private static final Map<String, Long> MOB_DROP_COUNTS = new HashMap<String, Long>();
+    private static final Map<String, Long> UNBREAKING_COUNTS = new HashMap<String, Long>();
     private static volatile boolean enabled;
     private static volatile boolean boostedBarters;
     private static volatile int dragonPerchGraceTicks = DRAGON_PERCH_GRACE_TICKS;
     private static long barterCount;
     private static long eyeBreakCount;
+    private static long gravelFlintCount;
     private static long dragonPerchCount;
     private static long configurationGeneration;
 
@@ -31,8 +34,10 @@ public final class RngStandardization {
         enabled = standardize;
         boostedBarters = boostBarters;
         MOB_DROP_COUNTS.clear();
+        UNBREAKING_COUNTS.clear();
         barterCount = 0L;
         eyeBreakCount = 0L;
+        gravelFlintCount = 0L;
         dragonPerchCount = 0L;
         configurationGeneration++;
         dragonPerchGraceTicks = DRAGON_PERCH_GRACE_TICKS;
@@ -95,6 +100,31 @@ public final class RngStandardization {
     static synchronized long nextEyeBreakSeed(long worldSeed) {
         long eventIndex = eyeBreakCount++;
         return eventSeed(worldSeed, "eye_break", "global", eventIndex);
+    }
+
+    public static synchronized Random nextGravelFlintRandom(ServerWorld world) {
+        return new Random(nextGravelFlintSeed(world.getSeed()));
+    }
+
+    static synchronized long nextGravelFlintSeed(long worldSeed) {
+        long eventIndex = gravelFlintCount++;
+        return eventSeed(worldSeed, "gravel_flint", "global", eventIndex);
+    }
+
+    public static synchronized Random nextUnbreakingRandom(
+            ServerWorld world,
+            ItemStack stack
+    ) {
+        String key = Registry.ITEM.getId(stack.getItem()).toString();
+        return new Random(nextUnbreakingSeed(world.getSeed(), key));
+    }
+
+    static synchronized long nextUnbreakingSeed(long worldSeed, String key) {
+        long eventIndex = UNBREAKING_COUNTS.containsKey(key)
+                ? UNBREAKING_COUNTS.get(key)
+                : 0L;
+        UNBREAKING_COUNTS.put(key, eventIndex + 1L);
+        return eventSeed(worldSeed, "unbreaking", key, eventIndex);
     }
 
     public static synchronized Random nextDragonPerchRandom(ServerWorld world) {

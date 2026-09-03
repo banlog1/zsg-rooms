@@ -126,6 +126,20 @@ entity-validity checks; and each mob accepted into the world. Biome attempts are
 omitted to keep MultiMC logs manageable, and all diagnostics are skipped when
 debugging is disabled.
 
+Gravel's Fortune-aware flint condition uses its own global, event-indexed
+`gravel_flint` channel. The mixin applies only when the loot context contains a
+gravel block and the table-bonus enchantment is Fortune. Minecraft still supplies
+the chance for the active Fortune level, while the deterministic wrapper also
+consumes the corresponding vanilla random float. Silk Touch and explosion paths
+that never evaluate the flint condition do not advance the gravel sequence.
+
+Player Unbreaking checks use per-item-type event counters under the `unbreaking`
+channel. The redirect wraps only `UnbreakingEnchantment.shouldPreventDamage(...)`
+inside `ItemStack.damage(...)`, allowing vanilla to retain its complete tool and
+armor probability formulas. The wrapper consumes matching calls from the player's
+original random stream. Equipment damage for non-player entities, unenchanted
+items, and all ordinary durability application remain vanilla.
+
 ## Relay Development
 
 The relay is an ES module Cloudflare Worker with a SQLite-backed Durable Object.

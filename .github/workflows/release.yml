@@ -40,4 +40,9 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           JAR="build/libs/zsg-rooms-$VERSION.jar"
-          gh release create "$GITHUB_REF_NAME" "$JAR" "$JAR.sha256" --generate-notes --title "ZSG Rooms $VERSION"
+          RELEASE_FLAGS=()
+          if [[ "$VERSION" == *-* ]]; then
+            RELEASE_FLAGS+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" "$JAR" "$JAR.sha256" \
+            --generate-notes --title "ZSG Rooms $VERSION" "${RELEASE_FLAGS[@]}"

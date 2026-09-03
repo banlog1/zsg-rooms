@@ -16,6 +16,7 @@
 		"GameMenuScreenMixin",
 		"HoldingPatternPhaseMixin",
 		"IntegratedServerPauseSaveMixin",
+		"ItemStackUnbreakingMixin",
 		"LivingEntityDropMixin",
 		"MinecraftServerSaveProbeMixin",
 		"MinecraftServerRngMixin",
@@ -33,6 +34,7 @@
 		"ServerWorldSaveProbeMixin",
 		"SpawnHelperMixin",
 		"StriderEntityMixin",
+		"TableBonusLootConditionMixin",
 		"TitleScreenMixin"
 	],
 	"injectors": {

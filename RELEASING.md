@@ -22,6 +22,18 @@ uploads its SHA-256 checksum. Existing installations discover the release on the
 title screen. Updates remain optional, and players may disable checks or skip a
 specific version.
 
+Experimental versions use a prerelease suffix and are marked as GitHub
+prereleases automatically:
+
+```powershell
+git tag -a v1.0.25-experimental.1 -m "ZSG Rooms 1.0.25 experimental 1"
+git push origin main
+git push origin v1.0.25-experimental.1
+```
+
+GitHub excludes prereleases from the `/releases/latest` endpoint, so the normal
+in-mod updater does not offer experimental builds to existing installations.
+
 For a different repository, place its latest-release API URL in:
 
 `config/zsg-rooms-update-url.txt`
