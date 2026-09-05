@@ -28,13 +28,16 @@
 		"RuinedPortalChestMixin",
 		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
+		"ServerChunkManagerFortressMixin",
 		"ServerPlayerSpawnMixin",
 		"ServerWorldBenchmarkTickMixin",
 		"ServerWorldPlayerListAccessor",
 		"ServerWorldSaveProbeMixin",
 		"SpawnHelperMixin",
+		"SpawnHelperInfoAccessor",
 		"StriderEntityMixin",
 		"TableBonusLootConditionMixin",
+		"ThreadedAnvilChunkStorageAccessor",
 		"TitleScreenMixin"
 	],
 	"injectors": {

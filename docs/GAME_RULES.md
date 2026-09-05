@@ -34,6 +34,13 @@ seed:
 - Vanilla fortress Blaze spawners use independent per-spawner delay and
   candidate-position sequences. Collision, nearby-Blaze limits, activation
   range, and all other normal spawn checks still apply.
+- Nether natural monster spawning uses independent per-chunk, per-cycle and
+  per-pack RNG. A fortress's first eight fortress-table pack selections are
+  protected from the global monster cap. A selection consumes an opportunity
+  even if terrain, distance, collision or other vanilla checks reject the pack.
+  Successful mobs still count toward the global cap, possibly exceeding it
+  temporarily. Ordinary biome packs cannot use the exception. Afterwards,
+  normal cap behavior resumes, including continued spawning when space exists.
 - The player is positioned at the world's exact configured spawn point instead
   of receiving Minecraft's normal randomized spawn offset.
 
@@ -44,6 +51,14 @@ This is event-sequence standardization, not a lockstep simulation. If one
 runner kills different mobs or barters in a different order, later random
 results within those channels can diverge because the event indexes no longer
 match. Eye break rolls remain isolated from both channels.
+
+The initial fortress protection is experimental: eight is a starting value for
+playtesting, not eight guaranteed mobs. An additional limit of 4,096 evaluated
+chunk cycles per fortress prevents an unproductive search from running forever.
+Both limits are stored with the world and do not refill on chunk unload, world
+reload, or toggling the rule. Fresh worlds get a fresh allowance. Different
+loaded chunks, player positions, or rejected candidates can still change the
+encounter. This does not modify Blaze block-spawner behavior.
 
 Blaze spawner sequences are keyed by dimension, block position, and Blaze
 entity ID. Unsupported or customized spawners, spawner minecarts, and all

@@ -106,25 +106,102 @@ and chunk coordinates; each invocation advances only that section's cycle
 index. Each of vanilla's three outer pack passes receives fresh attempt-count,
 offset, selection, and spawn-check streams. A shortened or rejected earlier
 pack therefore cannot shift the random sequence used by a later pack in the
-same cycle. Standardizing surrounding Nether chunks also makes the natural mob
+same cycle. Spawn-restriction RNG is also isolated by attempt index within each
+pack and initialized only when that attempt reaches a random restriction check.
+Skipping a check, or consuming extra rolls in an earlier check, cannot shift
+later attempts. Multiple rolls within one attempt still advance normally.
+Standardizing surrounding Nether chunks also makes the natural mob
 population feeding vanilla's mob cap more consistent between equivalent runs.
 
 Minecraft still performs the exact-position fortress lookup and therefore still
 chooses between its biome and fortress spawn tables normally. Biome and fortress
-spawn tables, weights, mob caps, environment checks, frequency, and entity RNG
-after creation remain vanilla.
+spawn tables, weights, environment checks, and entity RNG after creation remain
+vanilla. The initial fortress protection described below is the sole new
+global-cap exception; no extra spawn pass is scheduled.
 Each replaced roll also consumes and discards the corresponding vanilla RNG
 result so unrelated `world.random` advancement is preserved as closely as the
 same branch path permits. Natural fortress spawning is independent from the
 existing deterministic blaze block-spawner implementation.
 
 With Seed Debug Logging enabled, natural-spawn diagnostics are limited to
-positions where vanilla uses the fortress monster table: an exact generated
-fortress piece with nether bricks beneath the candidate. They include the chunk,
+fortress-table terrain: a generated fortress piece, or nether bricks beneath
+the candidate inside the fortress's overall bounds. They include the chunk,
 cycle, pack and attempt indexes; entry selection; environment, density and
 entity-validity checks; and each mob accepted into the world. Biome attempts are
 omitted to keep MultiMC logs manageable, and all diagnostics are skipped when
 debugging is disabled.
+
+Rejection diagnostics append `reason` and the world `tick` to environment and
+entity checks. They observe which vanilla predicate is reached before a failure;
+they never re-run random spawn predicates. `early-rejection` records missing
+eligible players, the 24-block player/world-spawn exclusion, and candidate chunks
+that are not ticking. Reasons distinguish table mismatches, terrain/fluid/border
+restrictions, spawn-restriction predicates, bounding-box collisions, entity spawn
+rules, entity space/fluid checks, and immediate-despawn distance. Density failures
+are labeled `biome_spawn_density`. `rejection-details` adds supporting blocks,
+light, bounds, fluid and block-collision observations, plus up to three overlapping
+spawn-blocking entities. These are observations after the failure, not extra
+spawn attempts or a re-evaluation of its random roll.
+
+For loaded chunks referencing a fortress, `cap-summary` observes the original
+monster-cap result before a cycle starts. It reports on first observation, cap
+pass/fail transitions, and every 100 world ticks while observed. It includes the
+monster count, calculated cap, spawning-chunk count, admitted/blocked calls since
+the last report, initial-position skips (below world or solid), and the last
+observed cycle. Initial-position counters are recorded after admission, so a
+summary at the cap check describes prior cycles. `cycle=not_started` means this
+cap check precedes cycle allocation; it does not increment the RNG counter.
+These summaries use existing chunk structure references and do not locate or
+generate a fortress. They do not run for chunks the vanilla scheduler never
+visits, or when earlier spawn flags prevent the cap check; missing summaries
+alone therefore do not prove a mob-cap rejection. All these diagnostics require
+both RNG standardization and Seed Debug Logging to be enabled.
+
+### Initial Fortress Opportunity Protection
+
+`FortressSpawnProtectionState` reserves eight initial fortress-table **pack
+selections**, shared by all referencing chunks of that fortress. Its key is the
+generated structure-start chunk in the Nether world. State is saved in
+`DIM-1/data/zsg_rooms_fortress_opportunities.dat`; ordinary unload/reload does
+not replenish it. A fresh race/reset world starts with fresh state.
+
+`SpawnHelperMixin` still evaluates the original cap predicate exactly once.
+When it denies a Nether monster cycle, a generated fortress reference with
+remaining allowance can admit that cycle. `method_29950`'s returned list is
+observed to identify the actual vanilla fortress table, without replacing its
+weights or rerolling selection. Selection consumes one opportunity before
+validation, whether the cap originally allowed or denied the cycle. Repeated
+candidate checks within a pack do not consume more opportunities. A protected
+eighth pack can finish; a ninth pack cannot borrow its exception.
+
+Only a pack selected from that protected fortress can use the cap exception.
+`containsSpawnEntry` additionally rejects candidates that drift into a biome or
+another fortress during a bypassed pack. Cap-admitted packs retain vanilla
+cross-boundary behavior. All remaining predicates and the original population
+runner stay in place, so successful mobs count toward the global population.
+After eight selections, the exception ends, not natural fortress spawning.
+
+For reproducible allowance allocation, `ServerChunkManagerFortressMixin`
+snapshots the eligible, already-ticking fortress chunks after vanilla's shuffle.
+`FortressSpawnOrder` dispatches their monster-spawn slots in chunk X/Z order.
+It does not reorder the chunk-tick list, ordinary biome slots, other groups or
+random block ticks, and never loads chunks or creates an additional spawn pass.
+The mapping lasts until the end of that tick, including when the eighth
+opportunity is consumed midway through it. Different eligible chunk sets and
+player-dependent checks can still produce different outcomes.
+
+`MAX_INITIAL_CYCLES = 4096` bounds unsuccessful searches per fortress as well as
+the eight-selection budget. Each admitted referencing chunk evaluation consumes
+one cycle, including initial-solid/below-world failures; several chunks can
+consume several cycles in one tick. The final granted evaluation may finish.
+The cycle budget is persisted too. Both constants are provisional playtest
+values, not guarantees of a particular population or mob type.
+
+With Seed Debug Logging on, `[ZSG-Rooms/FortressProtection]` reports activation,
+`used=N/8`, `capBypassed`, exhaustion and the evaluation-limit cutoff. Existing
+`cap-summary` counts still report the **original** cap decision, so a blocked
+count can now coexist with protected evaluations. No numeric world seed is
+included. These hooks and ordering are inactive when RNG standardization is off.
 
 Gravel's Fortune-aware flint condition uses its own global, event-indexed
 `gravel_flint` channel. The mixin applies only when the loot context contains a

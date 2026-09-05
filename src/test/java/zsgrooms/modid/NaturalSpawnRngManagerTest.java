@@ -10,6 +10,8 @@ import zsgrooms.modid.rng.NaturalSpawnCycle;
 import zsgrooms.modid.rng.NaturalSpawnRngManager;
 import zsgrooms.modid.rng.NaturalSpawnScope;
 
+import java.util.Random;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -182,6 +184,90 @@ public class NaturalSpawnRngManagerTest {
 
         assertNotEquals(netherMonster, overworldMonster);
         assertNotEquals(netherMonster, netherCreature);
+    }
+
+    @Test
+    public void skippedRestrictionChecksDoNotShiftLaterAttempts() {
+        RngStandardization.configure(true, false);
+        NaturalSpawnCycle checked = cycle(new NaturalSpawnRngManager(WORLD_SEED), 6, -4);
+        NaturalSpawnCycle skipped = cycle(new NaturalSpawnRngManager(WORLD_SEED), 6, -4);
+
+        for (int attempt = 0; attempt < 12; attempt++) {
+            beginAttempt(checked);
+            beginAttempt(skipped);
+            Random checks = checked.getSpawnCheckRandom();
+            if (attempt % 3 == 2) {
+                assertEquals(checks.nextInt(32), skipped.getSpawnCheckRandom().nextInt(32));
+                assertEquals(checks.nextInt(8), skipped.getSpawnCheckRandom().nextInt(8));
+            } else {
+                checks.nextInt(32);
+                checks.nextInt(8);
+            }
+        }
+    }
+
+    @Test
+    public void extraRestrictionRollsDoNotShiftLaterAttemptsOrOtherStreams() {
+        RngStandardization.configure(true, false);
+        NaturalSpawnCycle extra = cycle(new NaturalSpawnRngManager(WORLD_SEED), 6, -4);
+        NaturalSpawnCycle normal = cycle(new NaturalSpawnRngManager(WORLD_SEED), 6, -4);
+        beginAttempt(extra);
+        beginAttempt(normal);
+        normal.getSpawnCheckRandom().nextInt(32);
+        for (int roll = 0; roll < 17; roll++) {
+            extra.getSpawnCheckRandom().nextInt(32);
+        }
+
+        beginAttempt(extra);
+        beginAttempt(normal);
+        assertEquals(normal.getSpawnCheckRandom().nextLong(), extra.getSpawnCheckRandom().nextLong());
+        assertEquals(normal.getOffsetRandom().nextLong(), extra.getOffsetRandom().nextLong());
+        assertEquals(normal.getSelectionRandom().nextLong(), extra.getSelectionRandom().nextLong());
+        assertEquals(normal.getAttemptCountRandom().nextLong(), extra.getAttemptCountRandom().nextLong());
+        assertEquals(normal.getPositionRandom().nextLong(), extra.getPositionRandom().nextLong());
+    }
+
+    @Test
+    public void repeatedAccessWithinAnAttemptContinuesTheRestrictionStream() {
+        RngStandardization.configure(true, false);
+        NaturalSpawnCycle repeated = cycle(new NaturalSpawnRngManager(WORLD_SEED), 6, -4);
+        NaturalSpawnCycle retained = cycle(new NaturalSpawnRngManager(WORLD_SEED), 6, -4);
+        beginAttempt(repeated);
+        beginAttempt(retained);
+        Random checks = retained.getSpawnCheckRandom();
+
+        for (int roll = 0; roll < 10; roll++) {
+            assertEquals(checks.nextInt(32), repeated.getSpawnCheckRandom().nextInt(32));
+        }
+    }
+
+    @Test
+    public void restrictionSequencesAreDistinctPerAttemptAndResetOnConfigure() {
+        RngStandardization.configure(true, false);
+        NaturalSpawnRngManager manager = new NaturalSpawnRngManager(WORLD_SEED);
+        NaturalSpawnCycle original = cycle(manager, 6, -4);
+        beginAttempt(original);
+        long first = original.getSpawnCheckRandom().nextLong();
+        beginAttempt(original);
+        long second = original.getSpawnCheckRandom().nextLong();
+        assertNotEquals(first, second);
+
+        RngStandardization.configure(true, false);
+        NaturalSpawnCycle reset = cycle(manager, 6, -4);
+        beginAttempt(reset);
+        assertEquals(first, reset.getSpawnCheckRandom().nextLong());
+        beginAttempt(reset);
+        assertEquals(second, reset.getSpawnCheckRandom().nextLong());
+
+        reset.beginPack();
+        beginAttempt(reset);
+        assertNotEquals(first, reset.getSpawnCheckRandom().nextLong());
+    }
+
+    private void beginAttempt(NaturalSpawnCycle cycle) {
+        for (int roll = 0; roll < 4; roll++) {
+            cycle.nextOffsetInt(6);
+        }
     }
 
     @Test

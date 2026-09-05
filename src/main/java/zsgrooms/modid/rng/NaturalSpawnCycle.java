@@ -16,6 +16,7 @@ public final class NaturalSpawnCycle {
     private final Random spawnCheckRandom;
     private int packIndex = -1;
     private int offsetRollCount;
+    private boolean spawnCheckNeedsReset = true;
     private boolean currentAttemptFortress;
 
     NaturalSpawnCycle(long worldSeed, NaturalSpawnSection section, long cycleIndex) {
@@ -51,7 +52,7 @@ public final class NaturalSpawnCycle {
         resetPackStream(this.attemptCountRandom, "attempt_count");
         resetPackStream(this.offsetRandom, "offset");
         resetPackStream(this.selectionRandom, "selection");
-        resetPackStream(this.spawnCheckRandom, "spawn_check");
+        this.spawnCheckNeedsReset = true;
     }
 
     private void resetPackStream(Random random, String stream) {
@@ -76,6 +77,7 @@ public final class NaturalSpawnCycle {
         requireActivePack();
         if (this.offsetRollCount % 4 == 0) {
             this.currentAttemptFortress = false;
+            this.spawnCheckNeedsReset = true;
         }
         int result = this.offsetRandom.nextInt(bound);
         this.offsetRollCount++;
@@ -89,6 +91,11 @@ public final class NaturalSpawnCycle {
 
     public Random getSpawnCheckRandom() {
         requireActivePack();
+        // Earlier rejected attempts must not shift this attempt's restriction rolls.
+        if (this.spawnCheckNeedsReset) {
+            resetPackStream(this.spawnCheckRandom, "spawn_check|attempt=" + getAttemptIndex());
+            this.spawnCheckNeedsReset = false;
+        }
         return this.spawnCheckRandom;
     }
 
