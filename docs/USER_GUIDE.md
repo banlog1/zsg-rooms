@@ -122,9 +122,22 @@ player list so the remaining players are not held forever.
 
 ## In-Game HUD
 
-The match HUD shows each player's skin head, name, and latest tracked stage. Its
-position can be set to any screen corner from the gear button on the main rooms
-menu. The default is top-right.
+The match HUD shows player skin heads, names, and latest tracked stages. Open
+`Room Settings > Match HUD` from the rooms menu gear, or use the `HUD` button in
+the in-game pause menu. These preferences only affect your own display.
+
+- Appearance: show/hide the HUD, header, heads, and progress numbers; choose
+  background opacity (0% removes the background) and size (75%-150%).
+- Players: choose the corner, number of visible players, and rotation interval
+  (2-10 seconds). Your row stays visible by default, with one opponent beneath
+  it rotating every five seconds. Rooms that fit do not rotate. You can show up
+  to four rows, or turn off the pinned row to rotate everyone together.
+- Preview: changes appear immediately in the sample HUD. On narrow screens,
+  use the Preview tab; short screens provide arrows and mouse-wheel paging.
+
+The default corner remains top-right. Heads and stage updates for players not
+currently visible are not removed from the room; they appear when their row
+rotates into view. HUD settings do not mute chat or change race rules.
 
 Tracked milestone labels include:
 
@@ -220,6 +233,7 @@ Update checks are optional and can be disabled in Room Settings.
 | --- | --- |
 | `config/zsg-rooms-relay.txt` | Last successful relay hostname. |
 | `config/zsg-rooms-ui.txt` | Match HUD corner. |
+| `config/zsg-rooms-hud.properties` | Local HUD appearance and player rotation preferences. |
 | `config/zsg-rooms-rp-repair.txt` | Ruined-portal repair preference. |
 | `config/zsg-rooms-seed-debug.txt` | Verbose seed diagnostics preference. |
 | `config/zsg-rooms-update-url.txt` | Optional replacement GitHub latest-release API URL. |

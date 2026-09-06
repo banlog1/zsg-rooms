@@ -22,16 +22,11 @@ public class RoomSettingsScreen extends Screen {
         int buttonHeight = tiny ? 14 : 20;
         int y = panelY() + (tiny ? 32 : compact ? 40 : 52);
         int row = tiny ? 15 : compact ? 20 : 28;
-        int gap = 8;
-        int optionWidth = (panelWidth() - 32 - gap) / 2;
         int left = panelX + 16;
-        int right = left + optionWidth + gap;
 
-        addPositionButton(left, y, optionWidth, buttonHeight, RoomUiPreferences.HudPosition.TOP_LEFT);
-        addPositionButton(right, y, optionWidth, buttonHeight, RoomUiPreferences.HudPosition.TOP_RIGHT);
-        addPositionButton(left, y + row, optionWidth, buttonHeight, RoomUiPreferences.HudPosition.BOTTOM_LEFT);
-        addPositionButton(right, y + row, optionWidth, buttonHeight, RoomUiPreferences.HudPosition.BOTTOM_RIGHT);
-        int preferenceY = y + row * 2 + (compact ? 0 : 6);
+        this.addButton(new ButtonWidget(left, y, panelWidth() - 32, buttonHeight,
+                new LiteralText("Match HUD..."), button -> this.client.openScreen(new MatchHudSettingsScreen(this))));
+        int preferenceY = y + row + (compact ? 0 : 6);
         this.addButton(new ButtonWidget(left, preferenceY, panelWidth() - 32, buttonHeight, rpRepairText(), button -> {
             RoomUiPreferences.setRuinedPortalChestRepairEnabled(
                     !RoomUiPreferences.isRuinedPortalChestRepairEnabled());
@@ -54,15 +49,6 @@ public class RoomSettingsScreen extends Screen {
         this.addButton(new ButtonWidget(left, preferenceY + row * 4, panelWidth() - 32, buttonHeight,
                 new LiteralText("Back"), button -> {
             this.client.openScreen(this.parent);
-        }));
-    }
-
-    private void addPositionButton(int x, int y, int width, int height, RoomUiPreferences.HudPosition position) {
-        boolean selected = RoomUiPreferences.getHudPosition() == position;
-        String label = selected ? "[" + position.getLabel() + "]" : position.getLabel();
-        this.addButton(new ButtonWidget(x, y, width, height, new LiteralText(label), button -> {
-            RoomUiPreferences.setHudPosition(position);
-            this.init(this.client, this.width, this.height);
         }));
     }
 

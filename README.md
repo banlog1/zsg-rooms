@@ -123,9 +123,10 @@ the relay.
   rolls. Nether natural
   monster spawning also uses isolated per-chunk cycle streams. Covering
   surrounding Nether chunks helps keep the populations feeding the mob cap more
-  consistent. Each fortress's first eight fortress-table pack opportunities can
+  consistent. The first activated fortress's eight initial pack opportunities can
   be evaluated even at the global monster cap; failed packs count too. After
-  that initial window, normal cap behavior resumes. Tables, weights, eligibility,
+  that initial window, normal cap behavior resumes and later fortresses receive
+  no protection. Tables, weights, eligibility,
   and spawn validation remain vanilla; this does not guarantee matching mobs.
 - Room chat uses TLS in transit through the relay, but it is not end-to-end
   encrypted and should not be treated as private messaging.

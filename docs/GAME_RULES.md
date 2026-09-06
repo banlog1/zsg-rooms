@@ -35,7 +35,7 @@ seed:
   candidate-position sequences. Collision, nearby-Blaze limits, activation
   range, and all other normal spawn checks still apply.
 - Nether natural monster spawning uses independent per-chunk, per-cycle and
-  per-pack RNG. A fortress's first eight fortress-table pack selections are
+  per-pack RNG. The first activated fortress's eight initial pack selections are
   protected from the global monster cap. A selection consumes an opportunity
   even if terrain, distance, collision or other vanilla checks reject the pack.
   Successful mobs still count toward the global cap, possibly exceeding it
@@ -43,6 +43,8 @@ seed:
   normal cap behavior resumes, including continued spawning when space exists.
 - The player is positioned at the world's exact configured spawn point instead
   of receiving Minecraft's normal randomized spawn offset.
+- Portal wood lighting uses repeatable local lava-ignition and fire-spread
+  opportunities. See the scope and timing conditions below.
 
 The vanilla mob drop and barter loot tables are still used unless the separate
 boosted-barters rule is enabled.
@@ -54,9 +56,11 @@ match. Eye break rolls remain isolated from both channels.
 
 The initial fortress protection is experimental: eight is a starting value for
 playtesting, not eight guaranteed mobs. An additional limit of 4,096 evaluated
-chunk cycles per fortress prevents an unproductive search from running forever.
+chunk cycles for that fortress prevents an unproductive search from running forever.
 Both limits are stored with the world and do not refill on chunk unload, world
-reload, or toggling the rule. Fresh worlds get a fresh allowance. Different
+reload, or toggling the rule. Only the first fortress activated by natural spawn
+processing receives protection, which can happen before the player enters it.
+Later fortresses use normal mob-cap behavior. Fresh worlds get a fresh allowance. Different
 loaded chunks, player positions, or rejected candidates can still change the
 encounter. This does not modify Blaze block-spawner behavior.
 
@@ -75,6 +79,49 @@ standardized scheduler skips weighted selection for that single identical
 entry because selecting it cannot change what the spawner produces.
 
 Default: Off.
+
+### Portal Wood Lighting
+
+With RNG standardization enabled, nearby construction changes can register a
+complete, unlit Overworld portal frame. A three-block margin around its interior
+is tracked. The local clock starts once that area contains lava and burnable
+material. The clock only advances while the surrounding chunks are loaded, the
+anchor is block-ticking, a non-spectator player is within 128 blocks, and
+`doFireTick` is on. No chunks are force-loaded by this feature.
+
+For matching static setups, the same world seed, frame dimensions/orientation,
+and portal-relative source positions produce the same opportunity sequence,
+even at different absolute coordinates or world times. Difficulty, rain,
+humidity, obstructions, material, fire age, and subsequent construction changes
+still matter. Lava flow itself is NOT standardized; changing fluid layouts or
+external fires can still cause different outcomes. Initial existing-fire state
+must also match. A better setup retains more valid opportunities, not a promise
+to beat every worse setup on every seed.
+
+Vanilla decides whether each attempt can ignite/spread/burn and whether fire
+creates a portal. There is no forced lighting deadline. The current difficulty
+is read during each fire update: Hard retains its vanilla spread advantage where
+the integer probability calculation differs. Difficulty does not speed up
+lava's initial ignition roll. Each source/target has independent event seeds;
+adding fuel does not reseed existing sources or targets.
+
+This changes LOCAL scheduling, not just roll results. Independent geometric
+selection gaps preserve lava's per-block random-tick rate (one selection in
+4096 per random-tick draw), but do not reproduce the joint selection correlations
+between blocks in vanilla's shared chunk stream. Fire retains 30-39 tick update
+delays. `randomTickSpeed=0` stops lava opportunities but not existing scheduled
+fire. Pauses in active simulation are not counted as lighting time.
+
+Discovery follows nearby block changes within 16 blocks of a player and requires
+the search area already loaded. Up to four non-overlapping frames are tracked
+per world. This initial version does not discover untouched pre-existing setups
+just by looking at them, nor promise identical results after saving/reopening an
+already-running setup. Fresh world launches reset the state. A broken/changed
+frame or activated portal releases ownership, and remaining fire resumes vanilla
+scheduling. Disabling RNG standardization leaves the vanilla paths in use.
+
+Seed Debug Logging reports `[ZSG-Rooms/WoodLight]` discovery, activation, and
+release times, without logging exact seeds. No relay messages are added.
 
 ## Spawn Near Filter Structure
 

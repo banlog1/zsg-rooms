@@ -22,6 +22,11 @@ uploads its SHA-256 checksum. Existing installations discover the release on the
 title screen. Updates remain optional, and players may disable checks or skip a
 specific version.
 
+Write player-facing release notes in `docs/releases/<version>.md` before tagging.
+For a stable release after experimental builds, cover all changes since the last
+stable release, including the experimental builds' additions and any limitations.
+The workflow publishes that file when present, otherwise it generates GitHub notes.
+
 Experimental versions use a prerelease suffix and are marked as GitHub
 prereleases automatically:
 

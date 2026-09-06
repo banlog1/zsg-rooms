@@ -18,6 +18,14 @@ loom {
 			programArg "--port=0"
 			programArg "nogui"
 		}
+		woodLightingTest {
+			server()
+			name = "Wood Lighting Integration Test"
+			runDir = "run/perch-benchmark"
+			vmArg "-Dzsgrooms.woodLightingTest=true"
+			programArg "--port=0"
+			programArg "nogui"
+		}
 	}
 }
 
@@ -76,6 +84,19 @@ tasks.withType(JavaCompile).configureEach {
 
 test {
 	useJUnitPlatform()
+}
+
+tasks.named('runWoodLightingTest') {
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+	}
+	doLast {
+		def log = file('run/perch-benchmark/logs/latest.log')
+		if (!log.exists() || log.lastModified() < testStartedAt
+				|| !log.text.contains('[WoodLightTest] PASS:') || log.text.contains('[WoodLightTest] FAIL')) {
+			throw new GradleException('Wood lighting integration test did not pass; see run/perch-benchmark/logs/latest.log')
+		}
+	}
 }
 
 java {

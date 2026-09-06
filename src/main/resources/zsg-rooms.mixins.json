@@ -12,11 +12,13 @@
 		"EnderDragonFightBenchmarkMixin",
 		"EnderDragonFightAccessor",
 		"EyeOfEnderEntityMixin",
+		"FireSpreadMixin",
 		"GameCompletionMixin",
 		"GameMenuScreenMixin",
 		"HoldingPatternPhaseMixin",
 		"IntegratedServerPauseSaveMixin",
 		"ItemStackUnbreakingMixin",
+		"LavaIgnitionMixin",
 		"LivingEntityDropMixin",
 		"MinecraftServerSaveProbeMixin",
 		"MinecraftServerRngMixin",
@@ -25,6 +27,7 @@
 		"NetherPortalPreloadMixin",
 		"OpenToLanScreenMixin",
 		"PiglinBrainMixin",
+		"PortalAreaAccessor",
 		"RuinedPortalChestMixin",
 		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
@@ -38,7 +41,8 @@
 		"StriderEntityMixin",
 		"TableBonusLootConditionMixin",
 		"ThreadedAnvilChunkStorageAccessor",
-		"TitleScreenMixin"
+		"TitleScreenMixin",
+		"WoodLightingWorldMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

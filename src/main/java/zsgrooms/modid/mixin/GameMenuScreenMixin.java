@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import zsgrooms.modid.ui.ZsgInGameActions;
+import zsgrooms.modid.ui.MatchHudSettingsScreen;
 
 import java.util.Iterator;
 
@@ -27,6 +28,10 @@ public abstract class GameMenuScreenMixin extends Screen {
         if (!ZsgInGameActions.hasActiveRoom()) {
             return;
         }
+
+        this.addButton(new ButtonWidget(this.width - 44, 8, 36, 20, new LiteralText("HUD"), button -> {
+            this.client.openScreen(new MatchHudSettingsScreen(this));
+        }));
 
         AbstractButtonWidget quitSlot = removeVanillaQuitButton();
         int availableWidth = Math.max(80, this.width - 20);

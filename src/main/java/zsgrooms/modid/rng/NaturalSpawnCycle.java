@@ -5,40 +5,24 @@ import zsgrooms.modid.RngStandardization;
 import java.util.Random;
 
 public final class NaturalSpawnCycle {
-    private final long worldSeed;
+    private final long cycleSeed;
     private final NaturalSpawnSection section;
     private final long cycleIndex;
-    private final String sectionKey;
     private final Random positionRandom;
-    private final Random attemptCountRandom;
-    private final Random offsetRandom;
-    private final Random selectionRandom;
-    private final Random spawnCheckRandom;
+    private Random attemptCountRandom;
+    private Random offsetRandom;
+    private Random selectionRandom;
+    private Random spawnCheckRandom;
     private int packIndex = -1;
     private int offsetRollCount;
     private boolean spawnCheckNeedsReset = true;
     private boolean currentAttemptFortress;
 
     NaturalSpawnCycle(long worldSeed, NaturalSpawnSection section, long cycleIndex) {
-        this.worldSeed = worldSeed;
         this.section = section;
         this.cycleIndex = cycleIndex;
-        this.sectionKey = section.seedKey();
-        this.positionRandom = stream(worldSeed, this.sectionKey, cycleIndex, "position");
-        this.attemptCountRandom = new Random(0L);
-        this.offsetRandom = new Random(0L);
-        this.selectionRandom = new Random(0L);
-        this.spawnCheckRandom = new Random(0L);
-    }
-
-    private static Random stream(
-            long worldSeed,
-            String sectionKey,
-            long cycleIndex,
-            String stream
-    ) {
-        return new Random(RngStandardization.naturalSpawnStreamSeed(
-                worldSeed, sectionKey, cycleIndex, stream));
+        this.cycleSeed = RngStandardization.naturalSpawnCycleSeed(worldSeed, section.seedKey(), cycleIndex);
+        this.positionRandom = new Random(RngStandardization.naturalSpawnStreamSeed(this.cycleSeed, "position"));
     }
 
     public Random getPositionRandom() {
@@ -49,27 +33,41 @@ public final class NaturalSpawnCycle {
         this.packIndex++;
         this.offsetRollCount = 0;
         this.currentAttemptFortress = false;
-        resetPackStream(this.attemptCountRandom, "attempt_count");
-        resetPackStream(this.offsetRandom, "offset");
-        resetPackStream(this.selectionRandom, "selection");
+        // Preserve resets for retained RNG references without constructing streams never used.
+        if (this.attemptCountRandom != null) {
+            resetPackStream(this.attemptCountRandom, "attempt_count");
+        }
+        if (this.offsetRandom != null) {
+            resetPackStream(this.offsetRandom, "offset");
+        }
+        if (this.selectionRandom != null) {
+            resetPackStream(this.selectionRandom, "selection");
+        }
         this.spawnCheckNeedsReset = true;
     }
 
-    private void resetPackStream(Random random, String stream) {
-        random.setSeed(RngStandardization.naturalSpawnStreamSeed(
-                this.worldSeed,
-                this.sectionKey,
-                this.cycleIndex,
-                stream + "|pack=" + this.packIndex));
+    private Random resetPackStream(Random random, String stream) {
+        long seed = RngStandardization.naturalSpawnStreamSeed(this.cycleSeed, stream + "|pack=" + this.packIndex);
+        if (random == null) {
+            return new Random(seed);
+        }
+        random.setSeed(seed);
+        return random;
     }
 
     public Random getAttemptCountRandom() {
         requireActivePack();
+        if (this.attemptCountRandom == null) {
+            this.attemptCountRandom = resetPackStream(null, "attempt_count");
+        }
         return this.attemptCountRandom;
     }
 
     public Random getOffsetRandom() {
         requireActivePack();
+        if (this.offsetRandom == null) {
+            this.offsetRandom = resetPackStream(null, "offset");
+        }
         return this.offsetRandom;
     }
 
@@ -79,13 +77,16 @@ public final class NaturalSpawnCycle {
             this.currentAttemptFortress = false;
             this.spawnCheckNeedsReset = true;
         }
-        int result = this.offsetRandom.nextInt(bound);
+        int result = getOffsetRandom().nextInt(bound);
         this.offsetRollCount++;
         return result;
     }
 
     public Random getSelectionRandom() {
         requireActivePack();
+        if (this.selectionRandom == null) {
+            this.selectionRandom = resetPackStream(null, "selection");
+        }
         return this.selectionRandom;
     }
 
@@ -93,7 +94,7 @@ public final class NaturalSpawnCycle {
         requireActivePack();
         // Earlier rejected attempts must not shift this attempt's restriction rolls.
         if (this.spawnCheckNeedsReset) {
-            resetPackStream(this.spawnCheckRandom, "spawn_check|attempt=" + getAttemptIndex());
+            this.spawnCheckRandom = resetPackStream(this.spawnCheckRandom, "spawn_check|attempt=" + getAttemptIndex());
             this.spawnCheckNeedsReset = false;
         }
         return this.spawnCheckRandom;

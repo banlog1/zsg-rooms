@@ -15,6 +15,9 @@ public final class FortressSpawnProtectionState extends PersistentState {
     public static final int MAX_INITIAL_CYCLES = 4096;
     private static final String ID = "zsg_rooms_fortress_opportunities";
     private final Map<Long, Allowance> allowances = new HashMap<Long, Allowance>();
+    private Long firstFortress;
+    private Allowance firstAllowance;
+    private boolean legacyClosed;
 
     public FortressSpawnProtectionState() {
         super(ID);
@@ -25,11 +28,24 @@ public final class FortressSpawnProtectionState extends PersistentState {
     }
 
     public boolean hasRemaining(long fortress) {
+        if (this.legacyClosed || (this.firstFortress != null && this.firstFortress.longValue() != fortress)) {
+            return false;
+        }
         Allowance allowance = this.allowances.get(fortress);
         return allowance == null || allowance.hasRemaining();
     }
 
+    public boolean isFinished() {
+        return this.legacyClosed || (this.firstAllowance != null && !this.firstAllowance.hasRemaining());
+    }
+
     public Evaluation beginCycle(long fortress) {
+        if (!hasRemaining(fortress)) {
+            return null;
+        }
+        if (this.firstFortress == null) {
+            this.firstFortress = fortress;
+        }
         Allowance allowance = this.allowances.get(fortress);
         if (allowance == null) {
             allowance = new Allowance();
@@ -42,6 +58,7 @@ public final class FortressSpawnProtectionState extends PersistentState {
         if (!allowance.hasRemaining()) {
             return null;
         }
+        this.firstAllowance = allowance;
         allowance.cycles++;
         markDirty();
         if (allowance.cycles == MAX_INITIAL_CYCLES && SeedDebugLog.isEnabled()) {
@@ -56,6 +73,7 @@ public final class FortressSpawnProtectionState extends PersistentState {
     @Override
     public void fromTag(CompoundTag tag) {
         this.allowances.clear();
+        this.firstFortress = tag.contains("FirstFortress", 4) ? tag.getLong("FirstFortress") : null;
         ListTag entries = tag.getList("Fortresses", 10);
         for (int index = 0; index < entries.size(); index++) {
             CompoundTag entry = entries.getCompound(index);
@@ -64,10 +82,27 @@ public final class FortressSpawnProtectionState extends PersistentState {
             allowance.cycles = Math.max(0, entry.getInt("Cycles"));
             this.allowances.put(entry.getLong("StartChunk"), allowance);
         }
+        this.legacyClosed = tag.getBoolean("LegacyClosed");
+        if (this.firstFortress == null && !this.allowances.isEmpty()) {
+            // One old entry identifies the first fortress; multiple entries have no activation order.
+            if (this.allowances.size() == 1) {
+                this.firstFortress = this.allowances.keySet().iterator().next();
+            } else {
+                this.legacyClosed = true;
+            }
+            markDirty();
+        }
+        this.firstAllowance = this.allowances.get(this.firstFortress);
     }
 
     @Override
     public CompoundTag toTag(CompoundTag tag) {
+        if (this.firstFortress != null) {
+            tag.putLong("FirstFortress", this.firstFortress);
+        } else {
+            tag.remove("FirstFortress");
+        }
+        tag.putBoolean("LegacyClosed", this.legacyClosed);
         ListTag entries = new ListTag();
         for (Map.Entry<Long, Allowance> item : this.allowances.entrySet()) {
             CompoundTag entry = new CompoundTag();

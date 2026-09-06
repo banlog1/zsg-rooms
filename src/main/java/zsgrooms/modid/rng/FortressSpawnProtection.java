@@ -21,21 +21,32 @@ public final class FortressSpawnProtection {
     }
 
     public static boolean beginPass(ServerWorld world, WorldChunk chunk, boolean vanillaAllowed) {
-        return beginPass(FortressSpawnProtectionState.get(world), vanillaAllowed,
+        FortressSpawnProtectionState state = FortressSpawnProtectionState.get(world);
+        if (state.isFinished()) {
+            clear();
+            return vanillaAllowed;
+        }
+        return beginPass(state, vanillaAllowed,
                 chunk.getStructureReferences(StructureFeature.FORTRESS));
     }
 
     static boolean beginPass(FortressSpawnProtectionState state, boolean vanillaAllowed, Iterable<Long> references) {
         clear();
-        Pass pass = new Pass(state, !vanillaAllowed);
+        if (state.isFinished()) {
+            return vanillaAllowed;
+        }
+        Pass pass = vanillaAllowed ? new Pass(state, false) : null;
         // References identify generated fortress starts without a locate call or chunk generation.
         for (long fortress : references) {
             FortressSpawnProtectionState.Evaluation evaluation = state.beginCycle(fortress);
             if (evaluation != null) {
-                pass.evaluations.put(fortress, evaluation);
+                if (pass == null) {
+                    pass = new Pass(state, true);
+                }
+                pass.addEvaluation(fortress, evaluation);
             }
         }
-        if (!vanillaAllowed && pass.evaluations.isEmpty()) {
+        if (pass == null) {
             return false;
         }
         ACTIVE.set(pass);
@@ -117,12 +128,13 @@ public final class FortressSpawnProtection {
         if (fortress == null) {
             return -1;
         }
-        FortressSpawnProtectionState.Evaluation evaluation = pass.evaluations.get(fortress);
+        FortressSpawnProtectionState.Evaluation evaluation = pass.evaluations == null
+                ? null : pass.evaluations.get(fortress);
         if (evaluation == null && !pass.capBypassed) {
             // A vanilla pack can walk into a fortress from a neighbouring origin chunk.
             evaluation = pass.state.beginCycle(fortress);
             if (evaluation != null) {
-                pass.evaluations.put(fortress, evaluation);
+                pass.addEvaluation(fortress, evaluation);
             }
         }
         int opportunity = evaluation == null ? -1 : evaluation.consumeOpportunity();
@@ -160,8 +172,7 @@ public final class FortressSpawnProtection {
     private static final class Pass {
         private final FortressSpawnProtectionState state;
         private final boolean capBypassed;
-        private final Map<Long, FortressSpawnProtectionState.Evaluation> evaluations =
-                new HashMap<Long, FortressSpawnProtectionState.Evaluation>();
+        private Map<Long, FortressSpawnProtectionState.Evaluation> evaluations;
         private Long selectedFortress;
         private Long candidateFortress;
         private Long protectedFortress;
@@ -171,6 +182,13 @@ public final class FortressSpawnProtection {
         private Pass(FortressSpawnProtectionState state, boolean capBypassed) {
             this.state = state;
             this.capBypassed = capBypassed;
+        }
+
+        private void addEvaluation(long fortress, FortressSpawnProtectionState.Evaluation evaluation) {
+            if (this.evaluations == null) {
+                this.evaluations = new HashMap<Long, FortressSpawnProtectionState.Evaluation>();
+            }
+            this.evaluations.put(fortress, evaluation);
         }
     }
 }

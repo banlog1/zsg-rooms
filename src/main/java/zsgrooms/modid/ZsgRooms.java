@@ -8,6 +8,7 @@ import net.minecraft.util.Identifier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import zsgrooms.modid.benchmark.DragonPerchHeadlessBenchmark;
+import zsgrooms.modid.benchmark.WoodLightingHeadlessTest;
 import zsgrooms.modid.net.RoomSnapshot;
 
 import java.util.ArrayList;
@@ -30,8 +31,11 @@ public class ZsgRooms implements ModInitializer {
 
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> PauseWorldSaveControl.configure(false));
+		ServerLifecycleEvents.SERVER_STOPPED.register(WoodLightingStandardization::stop);
+		ServerTickEvents.START_WORLD_TICK.register(WoodLightingStandardization::tick);
 		ServerTickEvents.END_SERVER_TICK.register(RuinedPortalChestRepair::tick);
 		DragonPerchHeadlessBenchmark.register();
+		WoodLightingHeadlessTest.register();
 		ZsgRoomNetworking.registerServer();
 	}
 
@@ -682,7 +686,7 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	private void onServerStarted(MinecraftServer server) {
-		if (DragonPerchHeadlessBenchmark.isEnabled()) {
+		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()) {
 			return;
 		}
 		Room room = getActiveRoom();

@@ -48,6 +48,9 @@ public abstract class ServerChunkManagerFortressMixin {
             return;
         }
         FortressSpawnProtectionState state = FortressSpawnProtectionState.get(this.world);
+        if (state.isFinished()) {
+            return;
+        }
         List<WorldChunk> eligible = new ArrayList<WorldChunk>();
         for (ChunkHolder holder : holders) {
             if (!holder.getTickingFuture().getNow(ChunkHolder.UNLOADED_WORLD_CHUNK).left().isPresent()) {

@@ -157,14 +157,24 @@ public final class RngStandardization {
         return mix64(hash);
     }
 
+    public static long woodLightingSeed(long worldSeed, String channel, String localKey, long eventIndex) {
+        return eventSeed(worldSeed, "wood_light_" + channel, localKey, eventIndex);
+    }
+
     public static long naturalSpawnStreamSeed(
             long worldSeed,
             String sectionKey,
             long cycleIndex,
             String stream
     ) {
-        long cycleSeed = eventSeed(
-                worldSeed, "natural_spawn_cycle", sectionKey, cycleIndex);
+        return naturalSpawnStreamSeed(naturalSpawnCycleSeed(worldSeed, sectionKey, cycleIndex), stream);
+    }
+
+    public static long naturalSpawnCycleSeed(long worldSeed, String sectionKey, long cycleIndex) {
+        return eventSeed(worldSeed, "natural_spawn_cycle", sectionKey, cycleIndex);
+    }
+
+    public static long naturalSpawnStreamSeed(long cycleSeed, String stream) {
         return eventSeed(cycleSeed, "natural_spawn_stream", stream, 0L);
     }
 

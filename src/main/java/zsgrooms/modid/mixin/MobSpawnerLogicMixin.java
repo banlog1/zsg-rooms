@@ -265,9 +265,11 @@ public abstract class MobSpawnerLogicMixin {
         } else {
             BlazeSpawnerStandardization.SpawnerEvent retry =
                     BlazeSpawnerStandardization.advanceRetryBatch(key);
-            SeedDebugLog.info(
-                    "[ZSG-Rooms/Spawner] key={} cycle={} batch={} result=retry_next_tick",
-                    key, retry.getCycleIndex(), retry.getRetryBatchIndex());
+            if (SeedDebugLog.isEnabled()) {
+                SeedDebugLog.info(
+                        "[ZSG-Rooms/Spawner] key={} cycle={} batch={} result=retry_next_tick",
+                        key, retry.getCycleIndex(), retry.getRetryBatchIndex());
+            }
         }
     }
 
@@ -287,9 +289,11 @@ public abstract class MobSpawnerLogicMixin {
                 accessor.zsgRooms$getMaxSpawnDelay());
         accessor.zsgRooms$setSpawnDelay(delay);
         logic.sendStatus(1);
-        SeedDebugLog.info(
-                "[ZSG-Rooms/Spawner] key={} cycle={} batch={} nextDelay={}",
-                key, event.getCycleIndex(), event.getRetryBatchIndex(), delay);
+        if (SeedDebugLog.isEnabled()) {
+            SeedDebugLog.info(
+                    "[ZSG-Rooms/Spawner] key={} cycle={} batch={} nextDelay={}",
+                    key, event.getCycleIndex(), event.getRetryBatchIndex(), delay);
+        }
     }
 
     private static boolean zsgRooms$isDefaultBlazeData(CompoundTag data) {
@@ -314,6 +318,9 @@ public abstract class MobSpawnerLogicMixin {
             BlazeSpawnerStandardization.CandidatePosition candidate,
             String result
     ) {
+        if (!SeedDebugLog.isEnabled()) {
+            return;
+        }
         SeedDebugLog.info(
                 "[ZSG-Rooms/Spawner] key={} cycle={} batch={} attempt={} position={},{},{} result={}",
                 key,

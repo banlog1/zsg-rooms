@@ -96,6 +96,55 @@ run after reviewing Mojang's EULA. The no-grace override exists only inside the
 benchmark process; normal `RngStandardization.configure(...)` calls restore the
 production 1,300-tick grace.
 
+### Portal Wood-Lighting Standardization
+
+`WoodLightingStandardization` owns bounded portal-local sessions on the server
+thread. `WoodLightingWorldMixin` observes `ServerWorld.onBlockChanged`; nearby
+construction discovers an unlit frame using vanilla `NetherPortalBlock.AreaHelper`
+and `PortalAreaAccessor`. Block changes update tracked fuel/source state directly;
+there is no repeated whole-area scan on each simulation tick. Sources are ordered
+by Y/Z/X, which stays consistent under translation and across chunk boundaries.
+
+`WoodLightingSequence` derives independent, event-indexed seeds through
+`RngStandardization.woodLightingSeed`. Keys contain frame orientation/dimensions
+and relative source/target coordinates, not absolute coordinates, world age,
+difficulty, mutable fuel layout, or another mechanic's counters. Lava uses
+geometric gaps in virtual 1/4096 selections, consuming `randomTickSpeed` selections
+per active tick. Each fire source owns a 30-39 tick schedule and state RNG; burn
+and air-spread targets have separate per-event RNGs. Difficulty and all other
+physical checks stay inside vanilla `FireBlock`.
+
+`LavaIgnitionMixin` redirects only the two fire-placement calls in
+`LavaFluid.onRandomTick`. Ordinary owned attempts still consume their original
+RNG draws but cannot double-ignite; the locally scheduled call can place fire.
+`FireSpreadMixin` suppresses duplicate native scheduled ticks for owned fire and
+redirects delays and target RNG within manager-driven events. The event context
+is restored in a `finally` block. The feature does not globally reseed world RNG;
+different fire histories/scheduling can nevertheless change its subsequent use.
+Callbacks and accessors are verified against Minecraft 1.16.1 Yarn build 21.
+
+Configuration-generation changes release sessions on the next server tick;
+server shutdown clears world references. Releasing schedules remaining fire,
+including unloaded positions, without reading/loading those chunks. The feature
+never calls `AreaHelper.createPortal` or edits the difficulty/spread formulas.
+See GAME_RULES.md for supported setup conditions and intentional differences
+from vanilla random-tick scheduling.
+
+```powershell
+.\gradlew.bat test --tests zsgrooms.modid.WoodLightingSequenceTest
+.\gradlew.bat runWoodLightingTest
+```
+
+The opt-in integration test uses the disposable `run/perch-benchmark` world and
+its existing EULA setting. It edits two elevated Overworld test areas and runs
+real lava/fire/portal methods with accelerated LOCAL opportunity clocks. It is
+not a wall-clock performance benchmark or a complete fluid-flow simulation.
+The task requires a fresh `[WoodLightTest] PASS` log entry and fails on a test
+failure, including Minecraft errors that otherwise return exit code zero. The
+fixtures cover both direct lava ignition and existing-fire spread, translated
+positions, staggered starts, extra native attempts, difficulty changes, and a
+`doFireTick` pause. Normal launches do not enable this test or its synthetic players.
+
 ### Nether Natural Spawn Standardization
 
 When RNG standardization is enabled, every natural `MONSTER` spawn cycle in the
@@ -110,6 +159,12 @@ same cycle. Spawn-restriction RNG is also isolated by attempt index within each
 pack and initialized only when that attempt reaches a random restriction check.
 Skipping a check, or consuming extra rolls in an earlier check, cannot shift
 later attempts. Multiple rolls within one attempt still advance normally.
+The cycle's base seed hash is computed once and reused for stream derivation,
+with the same channel strings and hash formula. Only the position RNG is created
+at cycle construction; the other four streams are created on first use. Used
+pack streams retain their objects and are reseeded at the original boundaries.
+An initial-solid/below-world rejection therefore allocates no pack RNGs, and
+skipped selection/restriction paths do not create their unused streams.
 Standardizing surrounding Nether chunks also makes the natural mob
 population feeding vanilla's mob cap more consistent between equivalent runs.
 
@@ -160,10 +215,15 @@ both RNG standardization and Seed Debug Logging to be enabled.
 ### Initial Fortress Opportunity Protection
 
 `FortressSpawnProtectionState` reserves eight initial fortress-table **pack
-selections**, shared by all referencing chunks of that fortress. Its key is the
+selections** for the first activated fortress only, shared by all referencing
+chunks of that fortress. Its key is the
 generated structure-start chunk in the Nether world. State is saved in
 `DIM-1/data/zsg_rooms_fortress_opportunities.dat`; ordinary unload/reload does
-not replenish it. A fresh race/reset world starts with fresh state.
+not replenish it. `FirstFortress` records the first start granted a cycle, not
+the first fortress advancement or first successfully spawned pack. A fresh
+race/reset world starts with fresh state. Older saves with one recorded fortress
+retain its allowance; saves with multiple entries and no activation order close
+protection conservatively rather than granting another window.
 
 `SpawnHelperMixin` still evaluates the original cap predicate exactly once.
 When it denies a Nether monster cycle, a generated fortress reference with
@@ -180,6 +240,7 @@ another fortress during a bypassed pack. Cap-admitted packs retain vanilla
 cross-boundary behavior. All remaining predicates and the original population
 runner stay in place, so successful mobs count toward the global population.
 After eight selections, the exception ends, not natural fortress spawning.
+Other fortresses never receive their own protected window in that world.
 
 For reproducible allowance allocation, `ServerChunkManagerFortressMixin`
 snapshots the eligible, already-ticking fortress chunks after vanilla's shuffle.
@@ -189,6 +250,17 @@ random block ticks, and never loads chunks or creates an additional spawn pass.
 The mapping lasts until the end of that tick, including when the eighth
 opportunity is consumed midway through it. Different eligible chunk sets and
 player-dependent checks can still produce different outcomes.
+
+After the first fortress finishes its selection or cycle allowance, a cached
+allowance check skips the holder scan and protection-pass/reference setup.
+The original cap predicate and ordinary standardized RNG still run. During an
+active window, blocked passes allocate their context only after finding a usable
+evaluation; evaluation maps are lazy for cap-admitted neighbouring-origin packs.
+Ordering builds one sorted copy and one direct slot-to-chunk map without
+intermediate position maps. It preserves the previous X/Z order and leaves the
+input list untouched. With debug logging off, diagnostic-only selection lookups
+and Blaze-spawner log argument construction are skipped; functional fortress
+table observations and all vanilla RNG advancement are unchanged.
 
 `MAX_INITIAL_CYCLES = 4096` bounds unsuccessful searches per fortress as well as
 the eight-selection budget. Each admitted referencing chunk evaluation consumes

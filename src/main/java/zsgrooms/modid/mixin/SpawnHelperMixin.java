@@ -375,7 +375,7 @@ public abstract class SpawnHelperMixin {
             BlockPos pos
     ) {
         NaturalSpawnCycle cycle = ACTIVE_CYCLE.get();
-        boolean fortressCandidate = cycle != null
+        boolean fortressCandidate = cycle != null && SeedDebugLog.isEnabled()
                 && zsgRooms$usesFortressSpawnTable(world, structureAccessor, pos);
         if (cycle != null) {
             cycle.setCurrentAttemptFortress(fortressCandidate);

@@ -44,5 +44,11 @@ jobs:
           if [[ "$VERSION" == *-* ]]; then
             RELEASE_FLAGS+=(--prerelease)
           fi
+          NOTES="docs/releases/$VERSION.md"
+          if [[ -f "$NOTES" ]]; then
+            RELEASE_FLAGS+=(--notes-file "$NOTES")
+          else
+            RELEASE_FLAGS+=(--generate-notes)
+          fi
           gh release create "$GITHUB_REF_NAME" "$JAR" "$JAR.sha256" \
-            --generate-notes --title "ZSG Rooms $VERSION" "${RELEASE_FLAGS[@]}"
+            --title "ZSG Rooms $VERSION" "${RELEASE_FLAGS[@]}"

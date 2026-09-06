@@ -5,27 +5,19 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.chunk.WorldChunk;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToLongFunction;
 
 public final class FortressSpawnOrder {
     private static final ThreadLocal<FortressSpawnOrder> ACTIVE = new ThreadLocal<FortressSpawnOrder>();
     private final ServerWorld world;
-    private final Map<Long, WorldChunk> targets = new HashMap<Long, WorldChunk>();
+    private final Map<Long, WorldChunk> targets;
 
     private FortressSpawnOrder(ServerWorld world, List<WorldChunk> chunks) {
         this.world = world;
-        List<ChunkPos> positions = new ArrayList<ChunkPos>();
-        Map<Long, WorldChunk> byPosition = new HashMap<Long, WorldChunk>();
-        for (WorldChunk chunk : chunks) {
-            positions.add(chunk.getPos());
-            byPosition.put(chunk.getPos().toLong(), chunk);
-        }
-        for (Map.Entry<Long, Long> entry : orderedTargets(positions).entrySet()) {
-            this.targets.put(entry.getKey(), byPosition.get(entry.getValue()));
-        }
+        this.targets = orderedTargets(chunks, chunk -> chunk.getPos().toLong());
     }
 
     public static void prepare(ServerWorld world, List<WorldChunk> chunks) {
@@ -36,12 +28,17 @@ public final class FortressSpawnOrder {
     }
 
     // Reassign only eligible monster-spawn slots; leave vanilla chunk ticking order untouched.
-    static Map<Long, Long> orderedTargets(List<ChunkPos> slots) {
-        List<ChunkPos> sorted = new ArrayList<ChunkPos>(slots);
-        sorted.sort(Comparator.comparingInt((ChunkPos pos) -> pos.x).thenComparingInt(pos -> pos.z));
-        Map<Long, Long> result = new HashMap<Long, Long>();
+    static <T> Map<Long, T> orderedTargets(List<T> slots, ToLongFunction<T> position) {
+        List<T> sorted = new ArrayList<T>(slots);
+        sorted.sort((left, right) -> {
+            long a = position.applyAsLong(left);
+            long b = position.applyAsLong(right);
+            int xOrder = Integer.compare(ChunkPos.getPackedX(a), ChunkPos.getPackedX(b));
+            return xOrder != 0 ? xOrder : Integer.compare(ChunkPos.getPackedZ(a), ChunkPos.getPackedZ(b));
+        });
+        Map<Long, T> result = new HashMap<Long, T>();
         for (int i = 0; i < slots.size(); i++) {
-            result.put(slots.get(i).toLong(), sorted.get(i).toLong());
+            result.put(position.applyAsLong(slots.get(i)), sorted.get(i));
         }
         return result;
     }

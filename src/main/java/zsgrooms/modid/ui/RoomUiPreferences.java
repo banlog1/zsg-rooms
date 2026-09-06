@@ -25,6 +25,8 @@ public final class RoomUiPreferences {
     }
 
     private static final Path CONFIG_PATH = Paths.get("config", "zsg-rooms-ui.txt");
+    private static final Path HUD_CONFIG_PATH = Paths.get("config", "zsg-rooms-hud.properties");
+    private static final MatchHudPreferences MATCH_HUD = MatchHudPreferences.load(HUD_CONFIG_PATH);
     private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair.txt");
     private static final Path SEED_DEBUG_CONFIG_PATH = Paths.get("config", "zsg-rooms-seed-debug.txt");
     private static final Path NETHER_WARMUP_CONFIG_PATH = Paths.get("config", "zsg-rooms-nether-warmup.txt");
@@ -38,6 +40,14 @@ public final class RoomUiPreferences {
 
     public static HudPosition getHudPosition() {
         return hudPosition;
+    }
+
+    static MatchHudPreferences getMatchHud() {
+        return MATCH_HUD;
+    }
+
+    static void saveMatchHud() {
+        MATCH_HUD.save(HUD_CONFIG_PATH);
     }
 
     public static void setHudPosition(HudPosition position) {
