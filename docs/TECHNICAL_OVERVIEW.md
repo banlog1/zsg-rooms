@@ -62,7 +62,9 @@ Important message types are:
 | `seed_change` | Client to host | Records a new-seed vote. |
 | `seed_change_vote` | Host to guests | Announces an individual vote. |
 | `seed_change_ready` | Host to guests | Announces unanimous agreement. |
-| `complete_run` | Winner to host | Reports End exit portal completion. The Worker binds the message to the guest's socket identity. |
+| `complete_run` | Finisher to host | JSON v2 value: race ID, monotonic portal-entry milliseconds, and display-only IGT. The Worker binds the guest identity. |
+| `finish_clock_probe` | Host to guests | Nonce for a host-clock offset measurement. |
+| `finish_clock_reply` | Guest to host | Nonce and guest receive/send timestamps; never forwarded to other guests. |
 | `forfeit` | Client to host | Concedes the current match. |
 | `match_result` | Host/Worker to guests | Carries winner and reason separated by a tab. |
 | `leave_room` | Client to host | Removes a room member. |
@@ -78,6 +80,7 @@ sending host-only controls such as `start`, `filter`, `snapshot`, or
 
 - Room name, host, maximum players, and player UUID/profile state.
 - Seed, normalized filter, game rules, and `inGame` state.
+- A random `raceId` renewed for every launch, including relaunches of the same seed.
 - Chat history.
 - Progress values and labels.
 - Ready-player set and synchronized-start release state.
@@ -127,6 +130,67 @@ before an intentional room reset. The mod also disables the debug overlay
 before generation.
 
 ## Relay Connection Lifecycle
+
+### Close-Finish Timing
+
+`RaceFinishArbiter` implements the shared relay/direct-socket finish policy.
+`RoomFinishTiming` drives it from the host client tick. During an active world,
+the host sends three initial probes one second apart, then one every ten
+seconds. Replies are handled on the network reader threads to avoid render
+queue latency in the clock measurement. The Worker only forwards these small
+application messages; they are separate from its automatic keepalive responses
+and do not create snapshots or storage writes.
+
+Given host send/receive times t0/t3 and guest receive/send times t1/t2:
+
+- Guest-minus-host offset: `((t1 - t0) + (t2 - t3)) / 2`.
+- Network RTT: `(t3 - t0) - (t2 - t1)`.
+- Estimated host-clock portal entry: `guestEntry - offset`.
+
+The lowest-RTT of up to eight samples no older than 60 seconds is used. Samples
+are cleared on reconnect/readmission. Uncertainty includes half that RTT,
+two milliseconds for timestamp granularity, and a 100 ppm clock-drift allowance
+since the sample. This is a conservative estimate, not proof of symmetric
+network paths or an absolute clock-accuracy guarantee.
+
+The first accepted report opens a fixed two-second collection window only if
+another current room member has already reached the dragon-defeated milestone
+(progress stage 8). Otherwise it is eligible for immediate finalization on the
+next host client tick. Departed players and reset progress do not enable the
+window. Late advancement packets cannot reopen a finalized result. Reports
+are deduplicated per player; modern reports for other race IDs are rejected.
+Once collected, corrected entry timestamps determine the winner. The draw
+margin is strictly less than 50 ms between the earliest two timestamps, not
+the sum of their uncertainty intervals. Exactly 50 ms selects the earlier
+finisher, even if measurement uncertainty is larger. This policy cannot
+guarantee the physical entry order under asymmetric latency. Unavailable
+timing still produces an unresolved draw between competing reports.
+Uncertainty remains in use for validating reported timestamps. Finalization happens once
+through the existing `finishMatch`/`match_result` path. New race IDs discard
+pending decisions. Local world resets do not restart the room race clock.
+
+`EndExitTimeCaptureMixin` captures integrated-server time at the first
+`ServerPlayNetworkHandler.sendPacket(Packet)` invocation in
+`ServerPlayerEntity.changeDimension(ServerWorld)`, guarded to End -> Overworld.
+In vanilla 1.16.1 this is the `GAME_WON` packet. The client consumes the captured
+time when handling that packet, preserving the existing completion and IGT
+workflow. Without a matching local capture it falls back to packet handling
+time, so external Minecraft servers do not get the same capture guarantee.
+
+Limits: this trusts client-reported timestamps, as existing completion reports
+already trust the client. It is not anti-cheat. Reports delayed beyond the
+collection window cannot overturn results; corrected reports over ten seconds
+old are rejected. Legacy reports lack race identity and comparable clocks;
+they are accepted conservatively but cannot provide stale-race protection.
+Update all racers and deploy the new relay whitelist before relying on timing.
+The Minecraft packet-only fallback retains its existing immediate completion.
+
+Tests: `RaceFinishArbiterTest` covers offsets, packet-order inversion, IGT
+independence, asymmetry, missing/stale samples, duplicates, invalid reports,
+deadline expiry, reconnects, and new-race isolation. Run relay forwarding tests
+with `node --test relay/scripts/finish-timing.test.mjs` from the repository root.
+
+### Connection Handling
 
 `SimpleWebSocketClient` implements the client-side RFC 6455 upgrade and frame
 handling without a runtime WebSocket dependency.

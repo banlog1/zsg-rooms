@@ -86,6 +86,15 @@ public class RoomSocketTransport {
         return server != null && server.isRunning();
     }
 
+    public static synchronized void tickFinishTiming() {
+        if (server != null && server.isRunning()) {
+            RoomServer current = server;
+            current.finishTiming.tick(current.roomName,
+                    (type, value) -> current.broadcast(type, current.roomName, current.hostName, value),
+                    current::finishAndBroadcast);
+        }
+    }
+
     public static synchronized boolean isConnected() {
         return client != null && client.isRunning();
     }
@@ -113,6 +122,15 @@ public class RoomSocketTransport {
 
     private static void applyLine(String line) {
         Map<String, String> message = RoomProtocol.decode(line);
+        if ("finish_clock_probe".equals(message.get("type"))) {
+            long received = RaceFinishArbiter.now();
+            String reply = RaceFinishArbiter.reply(message.get("value"), received, RaceFinishArbiter.now());
+            RoomClient current = client;
+            if (reply != null && current != null) {
+                current.send("finish_clock_reply", current.roomName, current.playerName, reply);
+            }
+            return;
+        }
         if ("error".equals(message.get("type"))) {
             status = message.get("value");
             return;
@@ -180,6 +198,7 @@ public class RoomSocketTransport {
     }
 
     private static class RoomServer {
+        private final RoomFinishTiming finishTiming = new RoomFinishTiming();
         private final String roomName;
         private final String hostName;
         private final ServerSocket serverSocket;
@@ -241,10 +260,20 @@ public class RoomSocketTransport {
             }
 
             String player = sender.getPlayerName();
-            runOnClientThread(() -> handleClientAction(sender, type, player, value));
+            if ("finish_clock_reply".equals(type)) {
+                if (sender.isAccepted()) {
+                    this.finishTiming.receiveReply(player, value, RaceFinishArbiter.now());
+                }
+                return;
+            }
+            long received = RaceFinishArbiter.now();
+            runOnClientThread(() -> handleClientAction(sender, type, player, value, received));
         }
 
-        private void handleClientAction(ClientHandler sender, String type, String player, String value) {
+        private void handleClientAction(ClientHandler sender, String type, String player, String value, long received) {
+            if ("forfeit".equals(type) && this.finishTiming.hasPendingFinish()) {
+                return;
+            }
             if ("join_room".equals(type)) {
                 Room room = ZsgRooms.getRoom(this.roomName);
                 if (room == null || room.isFull() || room.getPlayer(player) != null) {
@@ -256,6 +285,7 @@ public class RoomSocketTransport {
                     return;
                 }
                 ZsgRooms.applyRoomAction(type, this.roomName, player, value);
+                this.finishTiming.forgetPlayer(player);
                 sender.markAccepted();
                 sender.send(RoomProtocol.encode("welcome", this.roomName, this.hostName, player));
                 broadcastSnapshot();
@@ -280,7 +310,7 @@ public class RoomSocketTransport {
                 return;
             }
             if ("complete_run".equals(type)) {
-                finishAndBroadcast(player, ZsgRooms.completionReason(value));
+                this.finishTiming.submit(this.roomName, player, value, false, received);
                 return;
             }
             if ("world_ready".equals(type)) {
@@ -331,6 +361,9 @@ public class RoomSocketTransport {
             if (!this.roomName.equals(room) || !this.hostName.equals(player)) {
                 return;
             }
+            if ("forfeit".equals(type) && this.finishTiming.hasPendingFinish()) {
+                return;
+            }
             if ("start".equals(type)) {
                 requestAndLaunchExactSeed();
             } else if ("filter".equals(type)) {
@@ -351,7 +384,7 @@ public class RoomSocketTransport {
                     requestAndLaunchExactSeed();
                 }
             } else if ("complete_run".equals(type)) {
-                finishAndBroadcast(player, ZsgRooms.completionReason(value));
+                this.finishTiming.submit(this.roomName, player, value, true);
             } else if ("world_ready".equals(type)) {
                 handleWorldReady(player, value);
             } else {

@@ -10,6 +10,7 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.util.Formatting;
 import zsgrooms.modid.net.RoomSocketTransport;
 import zsgrooms.modid.net.RoomWebSocketTransport;
+import zsgrooms.modid.net.RaceFinishArbiter;
 import zsgrooms.modid.history.RunHistoryTracker;
 import zsgrooms.modid.ui.MatchHud;
 import zsgrooms.modid.ui.SynchronizedStartScreen;
@@ -62,7 +63,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         if (game == null || !game.getIsInGame() || !game.isSynchronizedStartReleased()) {
             return;
         }
-        String raceKey = roomName + "|" + game.getSeed();
+        String raceKey = roomName + "|" + game.getRaceId() + "|" + game.getSeed();
         if (!raceKey.equals(advancementRaceKey)) {
             REPORTED_ADVANCEMENTS.clear();
             advancementRaceKey = raceKey;
@@ -80,15 +81,15 @@ public class ZsgRoomsClient implements ClientModInitializer {
         if (game == null || !game.getIsInGame() || !game.isSynchronizedStartReleased()) {
             return;
         }
-        String raceKey = roomName + "|" + game.getSeed();
+        String raceKey = roomName + "|" + game.getRaceId() + "|" + game.getSeed();
         if (raceKey.equals(completedRaceKey)) {
             return;
         }
         completedRaceKey = raceKey;
         long completedIgt = SpeedRunIgtBridge.currentInGameTimeMilliseconds();
-        String time = completedIgt > 0L ? SpeedRunIgtBridge.formatMilliseconds(completedIgt) : "";
         RunHistoryTracker.completeRun(game, completedIgt);
-        String result = time.isEmpty() ? "Beat the seed" : "Beat the seed in " + time + " IGT";
+        String result = RaceFinishArbiter.completion(game.getRaceId(),
+                EndExitTimeCapture.consume(MinecraftClient.getInstance()), completedIgt);
         sendRoomAction("complete_run", roomName, result);
     }
 
@@ -108,6 +109,8 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
         wasInGame = inGame;
         tickSynchronizedStart(client, roomName, game);
+        RoomWebSocketTransport.tickFinishTiming();
+        RoomSocketTransport.tickFinishTiming();
         ZsgInGameActions.tick(client);
     }
 

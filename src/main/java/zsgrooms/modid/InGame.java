@@ -34,6 +34,7 @@ public class InGame {
     private boolean netherEntryWarmup;
     private boolean disablePauseWorldSaves;
     private boolean synchronizedStartReleased;
+    private String raceId = "";
 
     private boolean loadingScreenVisible;
     private final Set<String> readyPlayers;
@@ -107,6 +108,7 @@ public class InGame {
     }
 
     public void startGame() {
+        this.raceId = java.util.UUID.randomUUID().toString();
         this.isInGame = true;
         this.loadingScreenVisible = false;
         this.synchronizedStartReleased = false;
@@ -123,6 +125,14 @@ public class InGame {
         this.synchronizedStartReleased = false;
         this.readyPlayers.clear();
         this.sharedChatMessages.add("Game ended");
+    }
+
+    public String getRaceId() {
+        return raceId;
+    }
+
+    public void restoreRaceId(String raceId) {
+        this.raceId = raceId == null ? "" : raceId;
     }
 
     public synchronized boolean markPlayerReady(String playerName) {

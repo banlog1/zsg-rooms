@@ -65,6 +65,13 @@ The mod sends WebSocket protocol heartbeats and performs its own bounded
 reconnect attempts. The Worker stores room ownership, maximum-player state, the
 latest room snapshot, and reconnect metadata.
 
+Close-finish clock synchronization also uses `finish_clock_probe` (host to
+guests) and `finish_clock_reply` (guest to host, with the socket-bound identity).
+These are application messages, not automatic heartbeat responses. They are
+forwarded without storage writes. Deploy this Worker update along with the
+matching mod before using close-finish compensation; older Workers discard
+`finish_clock_reply`, leaving guest clock measurements unavailable.
+
 ## Commands
 
 ```powershell
@@ -72,5 +79,6 @@ npm.cmd run dev       # local Wrangler server
 npm.cmd run deploy    # deploy the Worker
 npm.cmd run smoke -- https://your-relay.workers.dev
 node --check src/index.js
+node --test scripts/finish-timing.test.mjs
 npm.cmd audit
 ```

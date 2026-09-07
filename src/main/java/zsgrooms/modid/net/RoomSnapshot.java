@@ -18,6 +18,7 @@ public class RoomSnapshot {
     public int protocolVersion = 1;
     public String roomName = "";
     public String seed = "";
+    public String raceId = "";
     public String hostName = "";
     public String filter = "room";
     public int maxPlayers = 8;
@@ -57,6 +58,7 @@ public class RoomSnapshot {
             }
         }
         if (game != null) {
+            snapshot.raceId = game.getRaceId();
             snapshot.filter = ZsgSeedBridge.normalizeSeedType(game.targetStructure);
             snapshot.finishGoal = game.getFinishGoal();
             snapshot.inGame = game.getIsInGame();

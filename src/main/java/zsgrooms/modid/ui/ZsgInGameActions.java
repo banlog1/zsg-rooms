@@ -83,7 +83,9 @@ public class ZsgInGameActions {
         }
 
         String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
-        if (localPlayerName(client).equals(winner) && isExitPortalResult(result)
+        if ((localPlayerName(client).equals(winner) && isExitPortalResult(result)
+                || zsgrooms.modid.net.RaceFinishArbiter.UNRESOLVED_REASON.equals(result)
+                && client.currentScreen instanceof CreditsScreen)
                 && !isReadyForOverworldResult(client)) {
             pendingWinner = winner;
             pendingReason = result;
@@ -188,12 +190,13 @@ public class ZsgInGameActions {
     private static void displayMatchResult(MinecraftClient client, String winner, String result) {
         String localName = localPlayerName(client);
         boolean localVictory = localName.equals(winner);
-        String title = localVictory ? "Victory!" : winner + " Wins!";
+        boolean draw = zsgrooms.modid.net.RaceFinishArbiter.UNRESOLVED_REASON.equals(result);
+        String title = draw ? "Draw!" : localVictory ? "Victory!" : winner + " Wins!";
         MutableText titleText = new LiteralText(title).formatted(
-                localVictory ? Formatting.GOLD : Formatting.RED);
+                draw ? Formatting.YELLOW : localVictory ? Formatting.GOLD : Formatting.RED);
         MutableText subtitleText = new LiteralText(matchResultSubtitle(result)).formatted(
                 isExitPortalResult(result) ? Formatting.GREEN : Formatting.YELLOW);
-        MutableText winnerText = new LiteralText("Winner: ").formatted(Formatting.GRAY)
+        MutableText winnerText = new LiteralText(draw ? "Result: " : "Winner: ").formatted(Formatting.GRAY)
                 .append(new LiteralText(winner).formatted(Formatting.GOLD));
         client.inGameHud.setTitles(null, null, 5, 80, 15);
         client.inGameHud.setTitles(titleText, null, -1, -1, -1);

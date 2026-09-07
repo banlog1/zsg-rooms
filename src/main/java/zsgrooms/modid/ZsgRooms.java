@@ -303,7 +303,7 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	public static String completionReason(String value) {
-		return value == null || value.trim().isEmpty() ? "Beat the seed" : value.trim();
+		return zsgrooms.modid.net.RaceFinishArbiter.reason(value);
 	}
 
 	public static void changeRoomFilter(String roomName, String seedType) {
@@ -518,6 +518,7 @@ public class ZsgRooms implements ModInitializer {
 		ACTIVE_ROOMS.put(snapshot.roomName, room);
 
 		InGame game = new InGame(snapshot.seed, snapshot.roomName, InGame.SeedType.FIXED, snapshot.inGame);
+		game.restoreRaceId(snapshot.raceId);
 		game.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(snapshot.filter);
 		game.setFinishGoal(snapshot.finishGoal);
 		game.setCheatsAllowed(snapshot.cheatsAllowed);

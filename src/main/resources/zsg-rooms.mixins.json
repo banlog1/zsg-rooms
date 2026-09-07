@@ -11,6 +11,7 @@
 		"EntityRandomAccessor",
 		"EnderDragonFightBenchmarkMixin",
 		"EnderDragonFightAccessor",
+		"EndExitTimeCaptureMixin",
 		"EyeOfEnderEntityMixin",
 		"FireSpreadMixin",
 		"GameCompletionMixin",
