@@ -6,7 +6,8 @@ server starts for the race world.
 
 The room setup offers four starting presets:
 
-- **Standard ZSG Rooms:** every room rule is enabled except Allow Cheats.
+- **Standard ZSG Rooms:** every room rule is enabled except Allow Cheats and
+  the opt-in Reduce Zero-Cycle Fly-Aways assist.
 - **Standard - Vanilla Barters:** the standard preset with Increase Piglin
   Barter Rates disabled.
 - **Regular Verifiable ZSG:** every room modification is disabled.
@@ -31,6 +32,11 @@ seed:
 - Piglin barters use one deterministic global barter sequence.
 - Eye of Ender break rolls use an independent deterministic global eye
   sequence. Extra mob kills or barters do not change the eye sequence.
+- Opening dragon holding-pattern target-height rolls use an independent event
+  sequence, retaining vanilla's full `[0, 20)` block offset above the path node.
+  This applies only while the dragon's age is below 1,300 ticks, independently
+  of the perch grace period. It does not standardize path selection, strafe
+  decisions, terrain-derived node heights, or the entire flight trajectory.
 - Vanilla fortress Blaze spawners use independent per-spawner delay and
   candidate-position sequences. Collision, nearby-Blaze limits, activation
   range, and all other normal spawn checks still apply.
@@ -122,6 +128,34 @@ scheduling. Disabling RNG standardization leaves the vanilla paths in use.
 
 Seed Debug Logging reports `[ZSG-Rooms/WoodLight]` discovery, activation, and
 release times, without logging exact seeds. No relay messages are added.
+
+## Reduce Zero-Cycle Fly-Aways
+
+An opt-in gameplay assist, disabled by every preset, including both Standard
+presets and Regular Verifiable ZSG. Changing it selects Custom.
+
+During the first 1,300 dragon ticks (about 65 seconds at 20 TPS), this limits the
+holding-pattern target's random vertical offset above its path node to `[0, 15)`
+blocks instead of vanilla's `[0, 20)`. This is a starting value for playtesting,
+intended to reduce height-related opening fly-aways, not a measured guarantee
+of fewer fly-aways for every setup. Terrain still determines the base node height.
+
+With RNG standardization on, it scales the same deterministic opening-height
+sequence. With RNG standardization off, it scales vanilla's random roll instead.
+With both off, the original roll is returned unchanged. The native RNG advances
+once in every mode. Only newly chosen targets inside the opening window are
+affected; existing targets are not rewritten when the window ends.
+
+The assist changes a flight-AI input. It does not freeze the dragon, alter
+movement physics, alter target-reaching/collision checks, force a perch, or change
+dragon spawn timing. Strafe/landing/takeoff height rolls and the normal 1,300-tick
+perch grace remain untouched. Matching event indexes give matching height rolls,
+not guaranteed identical flight paths or successful zero cycles.
+
+The host rule is synchronized through room snapshots and applied at world launch.
+Older snapshots default to Off. All runners need the new mod version for matching
+behavior; older clients ignore this field. The relay forwards it unchanged and
+does not need new worker code.
 
 ## Spawn Near Filter Structure
 

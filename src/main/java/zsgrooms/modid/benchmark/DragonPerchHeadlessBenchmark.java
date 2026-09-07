@@ -169,6 +169,7 @@ public final class DragonPerchHeadlessBenchmark {
             log("Comparison: {} versus {}", this.modes[0].label, this.modes[1].label);
             log("Each trial begins at synthetic End entry and uses vanilla EnderDragonFight dragon creation.");
             prepareEndArena();
+            DragonOpeningHeightCheck.run(this.world);
             createBenchmarkPlayer();
             startMode(this.modes[0]);
         }

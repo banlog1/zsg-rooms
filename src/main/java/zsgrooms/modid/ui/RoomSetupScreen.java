@@ -46,6 +46,7 @@ public class RoomSetupScreen extends Screen {
     private RoomRulePreset rulePreset;
     private boolean allowCheats;
     private boolean rngStandardization;
+    private boolean reduceZeroCycleFlyAways;
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
@@ -143,7 +144,7 @@ public class RoomSetupScreen extends Screen {
                     this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                     this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
                     this.minimumNearbyAnimals, this.netherEntryWarmup,
-                    this.disablePauseWorldSaves, this.rulePreset));
+                    this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.rulePreset));
         });
         this.gameRulesButton.active = this.createMode;
         this.addButton(this.gameRulesButton);
@@ -173,7 +174,7 @@ public class RoomSetupScreen extends Screen {
                         this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron,
                         this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
                         this.minimumNearbyAnimals, this.netherEntryWarmup,
-                        this.removeNaturalStriderJockeys, this.disablePauseWorldSaves);
+                        this.removeNaturalStriderJockeys, this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -315,9 +316,10 @@ public class RoomSetupScreen extends Screen {
             boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
-            boolean disablePauseWorldSaves, RoomRulePreset rulePreset) {
+            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, RoomRulePreset rulePreset) {
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
+        this.reduceZeroCycleFlyAways = reduceZeroCycleFlyAways;
         this.boostedBarters = boostedBarters;
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
@@ -338,6 +340,7 @@ public class RoomSetupScreen extends Screen {
         }
         this.allowCheats = preset.allowsCheats();
         this.rngStandardization = preset.standardizesRng();
+        this.reduceZeroCycleFlyAways = preset.reducesZeroCycleFlyAways();
         this.boostedBarters = preset.boostsBarters();
         this.minimumBastionIron = preset.guaranteesBastionIron();
         this.removeBastionZombifiedPiglins = preset.removesBastionZombifiedPiglins();

@@ -66,8 +66,9 @@ runtime injection behavior cannot be proven by the unit tests alone.
 `runPerchBenchmark` launches a headless development server and runs paired
 trials from dragon age zero until the dragon actually perches. Each pair uses
 the same initial dragon RNG, stationary fountain player, crystal count, End
-terrain, and starting pose. It compares fully vanilla behavior with the current
-1,300-tick vanilla grace period followed by deterministic perch decisions.
+terrain, and starting pose. It compares fully vanilla behavior with current RNG
+standardization: deterministic opening target heights and a 1,300-tick vanilla
+perch-roll grace period followed by deterministic perch decisions.
 
 ```powershell
 # Default: 10 paired trials with all 10 crystals alive
@@ -95,6 +96,30 @@ simulated ticks, and larger samples may take a long time. Its run directory is
 run after reviewing Mojang's EULA. The no-grace override exists only inside the
 benchmark process; normal `RngStandardization.configure(...)` calls restore the
 production 1,300-tick grace.
+
+### Opening Dragon Heights
+
+`HoldingPatternPhaseMixin` redirects the single `Random.nextFloat()` invocation
+in Minecraft 1.16.1's `HoldingPatternPhase.method_6842`, which selects a path
+target's vertical offset. No method overwrite, shared RNG reseeding, or changes
+to `serverTick` target-reaching thresholds are involved.
+
+`RngStandardization.nextDragonOpeningHeightRoll` always consumes one native
+float. Before dragon age 1,300, standardization substitutes an event-indexed
+`dragon_opening_height` / `global` roll. Its own counter resets on `configure`
+and is isolated from perch, mob, barter, eye, gravel, and Unbreaking channels.
+The separate `reduceZeroCycleFlyAways` rule scales the result by 0.75, so vanilla's
+subsequent multiplication by 20 produces an offset below 15 blocks. Either rule
+can be used independently. At age 1,300 or later, the original float is returned.
+The opening-height window is independent of the benchmark's test-only perch
+grace override. A target already chosen is not changed at that boundary.
+
+The property-gated perch benchmark now runs `DragonOpeningHeightCheck` before
+its normal trials. It checks actual target selection, horizontal target identity,
+and native RNG advancement in all four rule combinations at ages 0, 1299, and
+1300. This is a hook correctness check, not a measured zero-cycle success rate.
+The existing live-flight benchmark's RNG-on mode now includes opening heights;
+its comparisons no longer isolate only the perch-roll change.
 
 ### Portal Wood-Lighting Standardization
 

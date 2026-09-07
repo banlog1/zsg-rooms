@@ -14,12 +14,14 @@ public class RoomGameRulesScreenTest {
 
     @Test
     public void narrowScreensStackRuleGroups() {
-        assertFalse(RoomGameRulesScreen.useTwoColumns(420, 300));
+        assertFalse(RoomGameRulesScreen.useTwoColumns(420, 450));
     }
 
     @Test
     public void veryShortScreensPreferColumnsToAvoidVerticalOverflow() {
         assertTrue(RoomGameRulesScreen.useTwoColumns(420, 180));
+        assertTrue(RoomGameRulesScreen.useTwoColumns(420, 240));
+        assertTrue(RoomGameRulesScreen.useTwoColumns(420, 300));
     }
 
     @Test

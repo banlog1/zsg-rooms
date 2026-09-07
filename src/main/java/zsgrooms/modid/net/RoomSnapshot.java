@@ -25,6 +25,7 @@ public class RoomSnapshot {
     public boolean inGame;
     public boolean cheatsAllowed;
     public boolean rngStandardized;
+    public boolean reduceZeroCycleFlyAways;
     public boolean boostedBarters;
     public boolean minimumBastionIron;
     public boolean removeBastionZombifiedPiglins;
@@ -61,6 +62,7 @@ public class RoomSnapshot {
             snapshot.inGame = game.getIsInGame();
             snapshot.cheatsAllowed = game.areCheatsAllowed();
             snapshot.rngStandardized = game.isRngStandardized();
+            snapshot.reduceZeroCycleFlyAways = game.reducesZeroCycleFlyAways();
             snapshot.boostedBarters = game.areBartersBoosted();
             snapshot.minimumBastionIron = game.hasMinimumBastionIron();
             snapshot.removeBastionZombifiedPiglins = game.removesBastionZombifiedPiglins();

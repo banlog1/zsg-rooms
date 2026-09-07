@@ -24,6 +24,7 @@ public class InGame {
     public int finishGoal;
     private boolean cheatsAllowed;
     private boolean rngStandardized;
+    private boolean reduceZeroCycleFlyAways;
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
@@ -246,6 +247,14 @@ public class InGame {
 
     public void setRngStandardized(boolean rngStandardized) {
         this.rngStandardized = rngStandardized;
+    }
+
+    public boolean reducesZeroCycleFlyAways() {
+        return reduceZeroCycleFlyAways;
+    }
+
+    public void setReduceZeroCycleFlyAways(boolean reduceZeroCycleFlyAways) {
+        this.reduceZeroCycleFlyAways = reduceZeroCycleFlyAways;
     }
 
     public boolean areBartersBoosted() {

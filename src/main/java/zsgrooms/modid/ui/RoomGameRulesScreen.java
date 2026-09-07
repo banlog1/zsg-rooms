@@ -18,6 +18,8 @@ public class RoomGameRulesScreen extends Screen {
     private static final int CONTROL_GAP = 4;
     private static final int PRESET_ARROW_WIDTH = 24;
     private static final int PRESET_LABEL_WIDTH = 280;
+    private static final int RACE_RULE_COUNT = 6;
+    private static final int WORLD_RULE_COUNT = 5;
 
     private final RoomSetupScreen parent;
     private final List<RuleRow> ruleRows = new ArrayList<RuleRow>();
@@ -33,6 +35,7 @@ public class RoomGameRulesScreen extends Screen {
 
     private boolean allowCheats;
     private boolean rngStandardization;
+    private boolean reduceZeroCycleFlyAways;
     private boolean boostedBarters;
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
@@ -46,11 +49,12 @@ public class RoomGameRulesScreen extends Screen {
             boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
-            boolean disablePauseWorldSaves, RoomRulePreset preset) {
+            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, RoomRulePreset preset) {
         super(new LiteralText("Room Game Rules"));
         this.parent = parent;
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
+        this.reduceZeroCycleFlyAways = reduceZeroCycleFlyAways;
         this.boostedBarters = boostedBarters;
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
@@ -132,7 +136,7 @@ public class RoomGameRulesScreen extends Screen {
             int rowTop = groupTop + 11;
             int rowGap = singleColumnRowGap(rowTop, buttonHeight);
             addRaceRules(this.firstGroupX, rowTop, this.groupWidth, buttonHeight, rowGap);
-            this.secondGroupHeaderY = rowTop + rowGap * 5;
+            this.secondGroupHeaderY = rowTop + rowGap * RACE_RULE_COUNT;
             addWorldRules(
                     this.secondGroupX,
                     this.secondGroupHeaderY + 10,
@@ -164,8 +168,8 @@ public class RoomGameRulesScreen extends Screen {
                 "Standardize Race RNG",
                 "Makes supported mob drops, piglin barters, gravel flint and Unbreaking rolls, "
                         + "Eye of Ender breaks, Blaze spawners, portal wood lighting, world spawn, and later dragon "
-                        + "perches deterministic "
-                        + "from the shared seed. Dragon perches remain vanilla for the first 65 seconds.",
+                        + "perches deterministic from the shared seed. Opening dragon target heights use "
+                        + "vanilla's full range. Perch rolls remain vanilla for the first 1,300 dragon ticks.",
                 x, y + rowGap, width, height,
                 () -> this.rngStandardization,
                 () -> this.rngStandardization = !this.rngStandardization,
@@ -193,6 +197,16 @@ public class RoomGameRulesScreen extends Screen {
                 x, y + rowGap * 4, width, height,
                 () -> this.minimumNearbyAnimals,
                 () -> this.minimumNearbyAnimals = !this.minimumNearbyAnimals,
+                false);
+        addRuleRow(
+                "Reduce Zero-Cycle Fly-Aways",
+                "Lowers the random holding-pattern target-height offset from 0-20 to 0-15 blocks "
+                        + "during the first 1,300 dragon ticks. Intended to reduce opening fly-aways; "
+                        + "does not guarantee a zero cycle or hold the dragon in place. Independent of "
+                        + "RNG standardization; enabling both also makes the rolls repeatable.",
+                x, y + rowGap * 5, width, height,
+                () -> this.reduceZeroCycleFlyAways,
+                () -> this.reduceZeroCycleFlyAways = !this.reduceZeroCycleFlyAways,
                 false);
     }
 
@@ -369,7 +383,7 @@ public class RoomGameRulesScreen extends Screen {
                 this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                 this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
                 this.minimumNearbyAnimals, this.netherEntryWarmup,
-                this.disablePauseWorldSaves, this.preset);
+                this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.preset);
         this.client.openScreen(this.parent);
     }
 
@@ -379,6 +393,7 @@ public class RoomGameRulesScreen extends Screen {
         }
         this.allowCheats = this.preset.allowsCheats();
         this.rngStandardization = this.preset.standardizesRng();
+        this.reduceZeroCycleFlyAways = this.preset.reducesZeroCycleFlyAways();
         this.boostedBarters = this.preset.boostsBarters();
         this.minimumBastionIron = this.preset.guaranteesBastionIron();
         this.removeBastionZombifiedPiglins = this.preset.removesBastionZombifiedPiglins();
@@ -429,7 +444,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private int panelHeight() {
-        return Math.min(300, this.height - 12);
+        return Math.min(useTwoColumns(panelWidth(), this.height) ? 300 : 390, this.height - 12);
     }
 
     private int panelY() {
@@ -446,12 +461,12 @@ public class RoomGameRulesScreen extends Screen {
 
     private int twoColumnRowGap(int rowTop, int buttonHeight) {
         int available = actionY() - rowTop - buttonHeight - 5;
-        return Math.max(buttonHeight + 1, Math.min(28, available / 4));
+        return Math.max(buttonHeight + 1, Math.min(28, available / (RACE_RULE_COUNT - 1)));
     }
 
     private int singleColumnRowGap(int rowTop, int buttonHeight) {
         int available = actionY() - rowTop - 10 - buttonHeight;
-        return Math.max(8, Math.min(24, available / 9));
+        return Math.max(8, Math.min(24, available / (RACE_RULE_COUNT + WORLD_RULE_COUNT - 1)));
     }
 
     private boolean isCompact() {
@@ -459,7 +474,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     static boolean useTwoColumns(int panelWidth, int screenHeight) {
-        return panelWidth >= 540 || screenHeight < 210;
+        return panelWidth >= 540 || screenHeight < 370;
     }
 
     static RoomRulePreset presetAfterRuleToggle(

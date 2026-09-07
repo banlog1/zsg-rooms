@@ -162,6 +162,7 @@ public class GameLogicTest {
         game.setFinishGoal(3);
         game.setCheatsAllowed(true);
         game.setRngStandardized(true);
+        game.setReduceZeroCycleFlyAways(true);
         game.setBoostedBarters(true);
         game.setMinimumBastionIron(true);
         game.setRemoveBastionZombifiedPiglins(true);
@@ -191,6 +192,7 @@ public class GameLogicTest {
         assertEquals(3, decoded.finishGoal);
         assertTrue(decoded.cheatsAllowed);
         assertTrue(decoded.rngStandardized);
+        assertTrue(decoded.reduceZeroCycleFlyAways);
         assertTrue(decoded.boostedBarters);
         assertTrue(decoded.minimumBastionIron);
         assertTrue(decoded.removeBastionZombifiedPiglins);
@@ -217,6 +219,7 @@ public class GameLogicTest {
         assertEquals(3, appliedGame.getFinishGoal());
         assertTrue(appliedGame.areCheatsAllowed());
         assertTrue(appliedGame.isRngStandardized());
+        assertTrue(appliedGame.reducesZeroCycleFlyAways());
         assertTrue(appliedGame.areBartersBoosted());
         assertTrue(appliedGame.hasMinimumBastionIron());
         assertTrue(appliedGame.removesBastionZombifiedPiglins());
@@ -236,8 +239,24 @@ public class GameLogicTest {
                 "{\"protocolVersion\":1,\"roomName\":\"legacy-room\"}");
 
         assertFalse(snapshot.disablePauseWorldSaves);
+        assertFalse(snapshot.reduceZeroCycleFlyAways);
         assertTrue(ZsgRooms.applyRoomSnapshot(snapshot.toJson()));
         assertFalse(ZsgRooms.getGame("legacy-room").disablesPauseWorldSaves());
+        assertFalse(ZsgRooms.getGame("legacy-room").reducesZeroCycleFlyAways());
+    }
+
+    @Test
+    public void flyAwayAssistIsOptInAndRoomCreationKeepsItIndependentFromRng() {
+        for (RoomRulePreset preset : RoomRulePreset.values()) {
+            assertFalse(preset.reducesZeroCycleFlyAways());
+        }
+        ZsgRooms.createRoom("assisted-room", 2, 1, "manual:123", "Host",
+                false, false, false, false, false, false, false, false, false, false, true);
+        InGame game = ZsgRooms.getGame("assisted-room");
+        assertFalse(game.isRngStandardized());
+        assertTrue(game.reducesZeroCycleFlyAways());
+        RoomSnapshot snapshot = RoomSnapshot.capture(ZsgRooms.getRoom("assisted-room"), game);
+        assertTrue(snapshot.reduceZeroCycleFlyAways);
     }
 
     @Test

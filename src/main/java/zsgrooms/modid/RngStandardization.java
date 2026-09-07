@@ -12,15 +12,18 @@ import java.util.Random;
 
 public final class RngStandardization {
     private static final int DRAGON_PERCH_GRACE_TICKS = 1300;
+    private static final int DRAGON_OPENING_HEIGHT_TICKS = 1300;
     private static final Map<String, Long> MOB_DROP_COUNTS = new HashMap<String, Long>();
     private static final Map<String, Long> UNBREAKING_COUNTS = new HashMap<String, Long>();
     private static volatile boolean enabled;
     private static volatile boolean boostedBarters;
+    private static volatile boolean reduceZeroCycleFlyAways;
     private static volatile int dragonPerchGraceTicks = DRAGON_PERCH_GRACE_TICKS;
     private static long barterCount;
     private static long eyeBreakCount;
     private static long gravelFlintCount;
     private static long dragonPerchCount;
+    private static long dragonOpeningHeightCount;
     private static long configurationGeneration;
 
     private RngStandardization() {
@@ -31,14 +34,20 @@ public final class RngStandardization {
     }
 
     public static synchronized void configure(boolean standardize, boolean boostBarters) {
+        configure(standardize, boostBarters, false);
+    }
+
+    public static synchronized void configure(boolean standardize, boolean boostBarters, boolean reduceFlyAways) {
         enabled = standardize;
         boostedBarters = boostBarters;
+        reduceZeroCycleFlyAways = reduceFlyAways;
         MOB_DROP_COUNTS.clear();
         UNBREAKING_COUNTS.clear();
         barterCount = 0L;
         eyeBreakCount = 0L;
         gravelFlintCount = 0L;
         dragonPerchCount = 0L;
+        dragonOpeningHeightCount = 0L;
         configurationGeneration++;
         dragonPerchGraceTicks = DRAGON_PERCH_GRACE_TICKS;
         BlazeSpawnerStandardization.reset();
@@ -65,6 +74,23 @@ public final class RngStandardization {
 
     public static boolean areBartersBoosted() {
         return boostedBarters;
+    }
+
+    public static float nextDragonOpeningHeightRoll(Random vanillaRandom, int dragonAge, long worldSeed) {
+        // Always advance the native stream once; do not reseed any other flight decisions.
+        float result = vanillaRandom.nextFloat();
+        if (dragonAge < 0 || dragonAge >= DRAGON_OPENING_HEIGHT_TICKS) {
+            return result;
+        }
+        if (enabled) {
+            result = new Random(nextDragonOpeningHeightSeed(worldSeed)).nextFloat();
+        }
+        // Vanilla multiplies this roll by 20. The optional assist restricts that offset to [0, 15).
+        return reduceZeroCycleFlyAways ? result * 0.75F : result;
+    }
+
+    static synchronized long nextDragonOpeningHeightSeed(long worldSeed) {
+        return eventSeed(worldSeed, "dragon_opening_height", "global", dragonOpeningHeightCount++);
     }
 
     public static synchronized long getConfigurationGeneration() {

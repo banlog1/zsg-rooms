@@ -17,6 +17,16 @@ public abstract class HoldingPatternPhaseMixin extends AbstractPhase {
         super(dragon);
     }
 
+    @Redirect(method = "method_6842", at = @At(value = "INVOKE",
+            target = "Ljava/util/Random;nextFloat()F"))
+    private float zsgRooms$standardizeOpeningHeight(Random vanillaRandom) {
+        if (dragon.world instanceof ServerWorld) {
+            return RngStandardization.nextDragonOpeningHeightRoll(
+                    vanillaRandom, dragon.age, ((ServerWorld) dragon.world).getSeed());
+        }
+        return vanillaRandom.nextFloat();
+    }
+
     @Redirect(
             method = "method_6841",
             at = @At(

@@ -49,6 +49,10 @@ public enum RoomRulePreset {
         return this.rngStandardization;
     }
 
+    public boolean reducesZeroCycleFlyAways() {
+        return false;
+    }
+
     public boolean boostsBarters() {
         return this.boostedBarters;
     }
