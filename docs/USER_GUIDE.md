@@ -199,30 +199,31 @@ The result shows:
 - `Final IGT: <time>` when SpeedRunIGT returned a time.
 - `Seed completed` when SpeedRunIGT is unavailable.
 
-Relay and direct-socket rooms compare **real-time portal entry**, not finishing
-IGT or the order packets reach the host. The integrated server records entry
-just before sending Minecraft's completion event. Small clock probes measure
-each guest's clock offset relative to the host, independently of system clock
-dates. If another current player has already reported `Free the End`, the host
-waits two seconds after the first completion report for close finishes.
-Otherwise the result is finalized on the next host client tick without that
-wait. An unusually delayed dragon-defeat report can therefore bypass the
-close-finish window; the normal dragon-death sequence is not a delivery guarantee.
+Relay and direct-socket rooms compare **local elapsed race duration**, not
+absolute portal-entry times, IGT, or packet arrival order. ZSG Rooms starts its
+own monotonic clock on the first simulation tick after the local waiting gate
+releases and stops it at the integrated-server End exit event. A guest whose
+start message arrives later does not have that initial network wait added to
+their race duration. Pauses, lag, dimension loading, and individual world
+resets after starting remain part of elapsed time. They do not restart the clock.
 
-When the earliest two corrected entry times differ by less than 50 milliseconds,
-the result is `Draw!`. Exactly 50 milliseconds or more produces a winner;
-high ping does not widen this margin. This is a race policy, not a guarantee
-of measurement accuracy: network asymmetry can still affect close ordering.
-Missing clock measurements still make competing finishes unresolved rather
-than inventing an ordering. IGT is shown but never used to rank them.
-Reports arriving after the two-second window cannot change the result, so this
-does not guarantee fairness during long stalls or disconnects. It does not
-change start synchronization or compensate for a player's game running slowly.
+The lower duration wins, compared at nanosecond precision. Only exactly equal
+recorded durations produce `Draw!`; there is no 50 ms margin. Nanosecond storage
+does not mean start/event capture is physically accurate to a nanosecond. IGT
+remains display/history-only, and is never used as a fallback race clock.
 
-All players should use the updated mod, and the relay must be updated too.
-Older clients cannot supply comparable timestamps; competing legacy reports
-are treated as timing-uncertain rather than automatically losing to the host.
-The legacy Minecraft packet-only fallback does not perform this arbitration.
+If another current player has already reported `Free the End`, the host waits
+two seconds after the first completion report for close finishes. Otherwise
+the result is finalized on the next host client tick without that wait. A late
+dragon-defeat report can bypass this window, and finish reports arriving after
+the window cannot change the result. Long stalls/disconnects can still matter.
+
+All players must use the elapsed-time version; older completion formats are
+rejected rather than compared using incompatible clocks. A missing local
+start/finish capture produces an explicit warning and no completion submission.
+This requires a local integrated-server world. Existing relay Workers already
+forward the new completion payload without a deployment. The legacy Minecraft
+packet-only fallback does not perform multi-player finish arbitration.
 
 After about 90 client ticks, every player returns to the room lobby.
 

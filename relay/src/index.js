@@ -8,7 +8,6 @@ const GUEST_ACTIONS = new Set([
   "seed_change",
   "forfeit",
   "complete_run",
-  "finish_clock_reply",
   "progress",
   "reset_run",
   "advancement",

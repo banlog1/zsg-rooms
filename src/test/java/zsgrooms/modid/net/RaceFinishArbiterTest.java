@@ -11,32 +11,85 @@ class RaceFinishArbiterTest {
 
     private RaceFinishArbiter race() {
         RaceFinishArbiter arbiter = new RaceFinishArbiter();
-        arbiter.beginRace(RACE, 0L);
+        arbiter.beginRace(RACE);
         return arbiter;
     }
 
-    private void sample(RaceFinishArbiter arbiter, String player, long offset, long sent,
-                        long outbound, long processing, long inbound) {
-        String probe = arbiter.probe(sent);
-        String reply = RaceFinishArbiter.reply(probe, sent + outbound + offset,
-                sent + outbound + offset + processing);
-        arbiter.receiveReply(player, reply, sent + outbound + processing + inbound);
+    private String finish(long elapsedNanos) {
+        return RaceFinishArbiter.completion(RACE, elapsedNanos, 10000L);
     }
 
-    private String finish(long time) {
-        return RaceFinishArbiter.completion(RACE, time, 10000L);
+    @Test
+    void laterPacketCanWinWithALowerDurationRegardlessOfIgt() {
+        RaceFinishArbiter arbiter = race();
+        assertTrue(arbiter.submit("Host", RaceFinishArbiter.completion(RACE, 600000000000L, 1L), 1000L, true));
+        assertTrue(arbiter.submit("Guest", finish(599950000000L), 1800L, true));
+        assertNull(arbiter.poll(2999L));
+        RaceFinishArbiter.Decision result = arbiter.poll(3000L);
+        assertEquals("Guest", result.winner);
+        assertEquals("Beat the seed in 00:10.000 IGT", result.reason);
+        assertNull(arbiter.poll(4000L));
+    }
+
+    @Test
+    void oneNanosecondDifferenceWinsAndOnlyExactEqualityDraws() {
+        long duration = 600000000000L;
+        for (long gap : new long[] {0L, 1L, 49999999L, 50000000L, 50000001L}) {
+            for (boolean reverse : new boolean[] {false, true}) {
+                RaceFinishArbiter arbiter = race();
+                String first = reverse ? "Slower" : "Faster";
+                String second = reverse ? "Faster" : "Slower";
+                arbiter.submit(first, finish(duration + (reverse ? gap : 0L)), 1000L, true);
+                arbiter.submit(second, finish(duration + (reverse ? 0L : gap)), 1200L, true);
+                assertEquals(gap == 0L ? "Draw" : "Faster", arbiter.poll(3000L).winner);
+            }
+        }
+    }
+
+    @Test
+    void tiesBetweenSlowerPlayersDoNotMakeTheWinnerDraw() {
+        RaceFinishArbiter arbiter = race();
+        arbiter.submit("A", finish(100L), 1000L, true);
+        arbiter.submit("B", finish(200L), 1100L, true);
+        arbiter.submit("C", finish(200L), 1200L, true);
+        assertEquals("A", arbiter.poll(3000L).winner);
+    }
+
+    @Test
+    void nanosecondsRemainExactAtMaximumSupportedDuration() {
+        long elapsed = RaceFinishArbiter.MAX_ELAPSED_NANOS - 1L;
+        String payload = finish(elapsed);
+        assertTrue(payload.contains("\"elapsedNanos\":\"" + elapsed + "\""));
+        RaceFinishArbiter arbiter = race();
+        assertTrue(arbiter.submit("A", finish(elapsed + 1L), 1000L, true));
+        assertTrue(arbiter.submit("B", payload, 1100L, true));
+        assertEquals("B", arbiter.poll(3000L).winner);
+    }
+
+    @Test
+    void missingOrMalformedIgtDoesNotAffectWinner() {
+        for (String extra : new String[] {"", ",\"igt\":0", ",\"igt\":-1", ",\"igt\":null",
+                ",\"igt\":\"paused\"", ",\"igt\":{}", ",\"igt\":1.5", ",\"igt\":9223372036854775807"}) {
+            RaceFinishArbiter arbiter = race();
+            String payload = "{\"version\":3,\"raceId\":\"race-one\",\"elapsedNanos\":\"100\"" + extra + "}";
+            assertTrue(arbiter.submit("A", payload, 1000L, true));
+            arbiter.submit("B", finish(101L), 1100L, true);
+            RaceFinishArbiter.Decision decision = arbiter.poll(3000L);
+            assertEquals("A", decision.winner);
+            assertEquals("Beat the seed", decision.reason);
+        }
     }
 
     @Test
     void uncontestedFinishDoesNotWaitForCollectionWindow() {
         RaceFinishArbiter arbiter = race();
-        assertTrue(arbiter.submit("Host", finish(5000L), true, 5000L, false));
+        assertTrue(arbiter.submit("Host", finish(100L), 5000L, false));
         assertEquals("Host", arbiter.poll(5000L).winner);
-        assertFalse(arbiter.submit("Guest", finish(4900L), false, 5100L, true));
+        assertFalse(arbiter.submit("Guest", finish(90L), 5100L, true));
     }
 
     @Test
-    void anotherCurrentPlayersDragonMilestoneEnablesCollection() {
+    void dragonMilestoneEnablesWindowAndResetOrDepartureDisablesIt() {
         String room = "finish-dragon-readiness";
         ZsgRooms.createRoom(room, 3, 1, "manual:123", "Host");
         ZsgRooms.applyRoomAction("join_room", room, "Guest", "");
@@ -46,7 +99,12 @@ class RaceFinishArbiterTest {
         game.setPlayerProgress("Guest", 7);
         assertFalse(RoomFinishTiming.hasOtherDragonFinisher(game, ZsgRooms.getRoom(room), "Host"));
         ZsgRooms.trackAdvancement(room, "Guest", "minecraft:end/kill_dragon\tFree the End");
-        assertTrue(RoomFinishTiming.hasOtherDragonFinisher(game, ZsgRooms.getRoom(room), "Host"));
+        boolean contested = RoomFinishTiming.hasOtherDragonFinisher(game, ZsgRooms.getRoom(room), "Host");
+        assertTrue(contested);
+        RaceFinishArbiter arbiter = race();
+        arbiter.submit("Host", finish(100L), 1000L, contested);
+        assertNull(arbiter.poll(2999L));
+        assertEquals("Host", arbiter.poll(3000L).winner);
         ZsgRooms.applyRoomAction("reset_run", room, "Guest", "");
         assertFalse(RoomFinishTiming.hasOtherDragonFinisher(game, ZsgRooms.getRoom(room), "Host"));
         game.setPlayerProgress("Departed", 8);
@@ -54,178 +112,59 @@ class RaceFinishArbiterTest {
     }
 
     @Test
-    void guestWhoEnteredFirstWinsEvenWhenHostReportArrivesFirst() {
+    void duplicatesCannotChangeDurationOrExtendDeadline() {
         RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 1000000L, 1000L, 20L, 0L, 20L);
-        assertTrue(arbiter.submit("Host", RaceFinishArbiter.completion(RACE, 5100L, 1000L), true, 5100L));
-        assertTrue(arbiter.submit("Guest", finish(1005000L), false, 5500L));
-        assertNull(arbiter.poll(7099L));
-        RaceFinishArbiter.Decision result = arbiter.poll(7100L);
-        assertEquals("Guest", result.winner);
-        assertEquals("Beat the seed in 00:10.000 IGT", result.reason);
-        assertNull(arbiter.poll(8000L));
-    }
-
-    @Test
-    void guestArrivalOrderAndUnrelatedClockOriginsDoNotChooseWinner() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "A", -5000000L, 1000L, 15L, 0L, 15L);
-        sample(arbiter, "B", 9000000L, 1100L, 10L, 0L, 10L);
-        arbiter.submit("B", finish(9005100L), false, 5130L);
-        arbiter.submit("A", finish(-4995000L), false, 5800L);
-        assertEquals("A", arbiter.poll(7130L).winner);
-    }
-
-    @Test
-    void hostCanWinDespiteLaterDeliveryOfItsReport() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 200000L, 1000L, 20L, 0L, 20L);
-        arbiter.submit("Guest", finish(205200L), false, 5230L);
-        arbiter.submit("Host", finish(5000L), true, 5300L);
-        assertEquals("Host", arbiter.poll(7230L).winner);
-    }
-
-    @Test
-    void probeProcessingDelayIsExcludedFromRtt() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 10000L, 1000L, 20L, 900L, 20L);
-        arbiter.submit("Host", finish(5100L), true, 5100L);
-        arbiter.submit("Guest", finish(15000L), false, 5500L);
-        assertEquals("Guest", arbiter.poll(7100L).winner);
-    }
-
-    @Test
-    void lowestRecentRttSampleAvoidsInflatingUncertaintyFromOneLagSpike() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 10000L, 1000L, 10L, 0L, 10L);
-        sample(arbiter, "Guest", 10000L, 2000L, 400L, 0L, 400L);
-        arbiter.submit("Host", finish(5100L), true, 5100L);
-        arbiter.submit("Guest", finish(15000L), false, 5500L);
-        assertEquals("Guest", arbiter.poll(7100L).winner);
-    }
-
-    @Test
-    void correctedTimesWithinOneTickAreADrawEvenOnAnAsymmetricPath() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 10000L, 1000L, 20L, 0L, 180L);
-        arbiter.submit("Host", finish(5050L), true, 5050L);
-        arbiter.submit("Guest", finish(15000L), false, 5500L);
-        assertEquals("Draw", arbiter.poll(7050L).winner);
-    }
-
-    @Test
-    void drawMarginIsStrictlyBelow50MillisecondsRegardlessOfRtt() {
-        for (long rtt : new long[] {20L, 400L}) {
-            for (long gap : new long[] {0L, 49L, 50L, 51L, 120L}) {
-                RaceFinishArbiter arbiter = race();
-                sample(arbiter, "Guest", 10000L, 1000L, rtt / 2L, 0L, rtt / 2L);
-                arbiter.submit("Host", finish(5000L + gap), true, 5000L + gap);
-                arbiter.submit("Guest", finish(15000L), false, 5500L);
-                assertEquals(gap < 50L ? "Draw" : "Guest", arbiter.poll(8000L).winner,
-                        "RTT=" + rtt + ", gap=" + gap);
-            }
-        }
-    }
-
-    @Test
-    void identicalTimesAreADrawNotAnArrivalOrderTieBreak() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 10000L, 1000L, 10L, 0L, 10L);
-        arbiter.submit("Host", finish(5000L), true, 5000L);
-        arbiter.submit("Guest", finish(15000L), false, 5010L);
-        assertEquals(RaceFinishArbiter.UNRESOLVED_REASON, arbiter.poll(7000L).reason);
-    }
-
-    @Test
-    void missingOrExpiredMeasurementsDoNotGiveHostAnAutomaticWin() {
-        for (boolean expired : new boolean[] {false, true}) {
-            RaceFinishArbiter arbiter = race();
-            if (expired) {
-                sample(arbiter, "Guest", 10000L, 1000L, 10L, 0L, 10L);
-            }
-            arbiter.submit("Host", finish(70000L), true, 70000L);
-            arbiter.submit("Guest", finish(79000L), false, 70100L);
-            assertEquals("Draw", arbiter.poll(72000L).winner);
-        }
-    }
-
-    @Test
-    void legacyReportIsConservativeAndNeverParsedAsAnIgtRanking() {
-        RaceFinishArbiter arbiter = race();
-        arbiter.submit("Host", finish(5000L), true, 5000L);
-        assertTrue(arbiter.submit("Guest", "Beat the seed in 00:01.000 IGT", false, 5100L));
-        assertEquals("Draw", arbiter.poll(7000L).winner);
-    }
-
-    @Test
-    void aSingleCompletionStillEndsTheRace() {
-        RaceFinishArbiter arbiter = race();
-        arbiter.submit("Guest", finish(5000L), false, 6000L);
-        assertEquals("Guest", arbiter.poll(8000L).winner);
-    }
-
-    @Test
-    void duplicatesCannotChangeTimestampOrExtendDeadline() {
-        RaceFinishArbiter arbiter = race();
-        assertTrue(arbiter.submit("Host", finish(5000L), true, 5000L));
-        assertFalse(arbiter.submit("Host", finish(2000L), true, 6500L));
-        assertNotNull(arbiter.poll(7000L));
-        assertFalse(arbiter.submit("Other", finish(4900L), true, 7100L));
+        assertTrue(arbiter.submit("Host", finish(100L), 5000L, true));
+        assertFalse(arbiter.submit("Host", finish(1L), 6500L, true));
+        assertTrue(arbiter.submit("Guest", finish(90L), 6600L, true));
+        assertEquals("Guest", arbiter.poll(7000L).winner);
+        assertFalse(arbiter.submit("Other", finish(1L), 7100L, true));
     }
 
     @Test
     void latePacketsCannotChangeResultEvenBeforePollRuns() {
         RaceFinishArbiter arbiter = race();
-        arbiter.submit("Host", finish(5000L), true, 5000L);
-        assertFalse(arbiter.submit("Guest", finish(4900L), false, 7000L));
+        arbiter.submit("Host", finish(100L), 5000L, true);
+        assertFalse(arbiter.submit("Guest", finish(90L), 7000L, true));
         assertEquals("Host", arbiter.poll(8000L).winner);
     }
 
     @Test
-    void newLaunchDiscardsPendingFinishAndRejectsOldRaceReports() {
+    void newRaceDiscardsPendingFinishAndRejectsOldReports() {
         RaceFinishArbiter arbiter = race();
-        arbiter.submit("Host", finish(5000L), true, 5000L);
-        arbiter.beginRace("race-two", 6000L);
+        arbiter.submit("Host", finish(100L), 5000L, true);
+        arbiter.beginRace("race-two");
         assertFalse(arbiter.hasPendingFinish());
-        assertFalse(arbiter.submit("Host", finish(5000L), true, 6100L));
+        assertFalse(arbiter.submit("Host", finish(100L), 6100L, true));
         assertNull(arbiter.poll(8000L));
-        assertTrue(arbiter.submit("Host", RaceFinishArbiter.completion("race-two", 9000L, 0L), true, 9000L));
+        assertTrue(arbiter.submit("Host", RaceFinishArbiter.completion("race-two", 100L, 0L), 9000L, true));
         assertEquals("Beat the seed", arbiter.poll(11000L).reason);
     }
 
     @Test
-    void malformedFutureAndExcessivelyOldReportsAreRejected() {
+    void sameRaceRefreshDoesNotDiscardPendingReports() {
         RaceFinishArbiter arbiter = race();
-        assertFalse(arbiter.submit("Host", "{}", true, 5000L));
-        assertFalse(arbiter.submit("Host", "garbage", true, 5000L));
-        assertFalse(arbiter.submit("Host", null, true, 5000L));
-        assertFalse(arbiter.submit("Host", finish(10000L), true, 5000L));
-        assertFalse(arbiter.submit("Host", finish(-100L), true, 5000L));
-        assertFalse(arbiter.submit("Host", finish(1000L), true, 15000L));
+        arbiter.submit("Host", finish(100L), 1000L, true);
+        arbiter.beginRace(RACE);
+        assertEquals("Host", arbiter.poll(3000L).winner);
+    }
+
+    @Test
+    void malformedMissingImpossibleAndOldFormatReportsAreRejected() {
+        RaceFinishArbiter arbiter = race();
+        for (String value : new String[] {null, "garbage", "{}", "[]", "Beat the seed",
+                "{\"version\":2,\"raceId\":\"race-one\",\"entered\":100}",
+                "{\"version\":3,\"raceId\":\"race-one\"}",
+                "{\"version\":3,\"elapsedNanos\":\"100\"}",
+                finish(-1L), finish(RaceFinishArbiter.MAX_ELAPSED_NANOS + 1L)}) {
+            assertFalse(arbiter.submit("Host", value, 1000L, true), value);
+        }
+        for (String elapsed : new String[] {"null", "true", "[]", "{}", "1.5", "\"1.5\"", "1e3",
+                "\"NaN\"", "\"9223372036854775808\""}) {
+            String value = "{\"version\":3,\"raceId\":\"race-one\",\"elapsedNanos\":" + elapsed + "}";
+            assertFalse(arbiter.submit("Host", value, 1000L, true), value);
+        }
         assertFalse(arbiter.hasPendingFinish());
-    }
-
-    @Test
-    void unrecognizedAndDuplicateClockRepliesCannotReplaceGoodMeasurement() {
-        RaceFinishArbiter arbiter = race();
-        String probe = arbiter.probe(1000L);
-        arbiter.receiveReply("Guest", RaceFinishArbiter.reply(probe, 11020L, 11020L), 1040L);
-        arbiter.receiveReply("Guest", RaceFinishArbiter.reply(probe, 999999L, 999999L), 1041L);
-        arbiter.receiveReply("Guest", "{\"nonce\":99,\"received\":0,\"sent\":0}", 1050L);
-        arbiter.submit("Host", finish(5100L), true, 5100L);
-        arbiter.submit("Guest", finish(15000L), false, 5500L);
-        assertEquals("Guest", arbiter.poll(7100L).winner);
-    }
-
-    @Test
-    void reconnectClearsOldClockOrigin() {
-        RaceFinishArbiter arbiter = race();
-        sample(arbiter, "Guest", 10000L, 1000L, 1L, 0L, 1L);
-        arbiter.resetClocks();
-        sample(arbiter, "Guest", -10000L, 2000L, 20L, 0L, 20L);
-        arbiter.submit("Host", finish(5100L), true, 5100L);
-        arbiter.submit("Guest", finish(-5000L), false, 5500L);
-        assertEquals("Guest", arbiter.poll(7100L).winner);
     }
 
     @Test
@@ -235,9 +174,7 @@ class RaceFinishArbiterTest {
         InGame game = ZsgRooms.getGame(room);
         game.startGame();
         String first = game.getRaceId();
-        assertFalse(first.isEmpty());
-        String snapshot = ZsgRooms.createRoomSnapshot(room);
-        assertTrue(ZsgRooms.applyRoomSnapshot(snapshot));
+        assertTrue(ZsgRooms.applyRoomSnapshot(ZsgRooms.createRoomSnapshot(room)));
         game = ZsgRooms.getGame(room);
         assertEquals(first, game.getRaceId());
         game.startGame();
@@ -246,7 +183,8 @@ class RaceFinishArbiterTest {
 
     @Test
     void completionPayloadFitsExistingPacketLimitAndKeepsDisplayReason() {
-        String value = RaceFinishArbiter.completion("12345678-1234-1234-1234-123456789abc", Long.MIN_VALUE, 754567L);
+        String value = RaceFinishArbiter.completion("12345678-1234-1234-1234-123456789abc",
+                RaceFinishArbiter.MAX_ELAPSED_NANOS, 754567L);
         assertTrue(value.length() < 256);
         assertEquals("Beat the seed in 12:34.567 IGT", ZsgRooms.completionReason(value));
         assertEquals("Beat the seed", ZsgRooms.completionReason("Beat the seed"));

@@ -3,44 +3,40 @@ package zsgrooms.modid;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import zsgrooms.modid.net.RaceFinishArbiter;
 
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
-
-/** Carries the local integrated server's portal event time across to the client packet handler. */
+/** Bridges the synchronized start gate and integrated-server completion into a local duration. */
 public final class EndExitTimeCapture {
-    private static final AtomicReference<Entry> CAPTURED = new AtomicReference<Entry>();
+    private static final LocalRaceClock CLOCK = new LocalRaceClock();
 
     private EndExitTimeCapture() {
     }
 
+    public static void arm(InGame game, MinecraftClient client) {
+        if (game != null && client != null && client.player != null) {
+            CLOCK.arm(game.getRaceId(), client.getServer(), client.player.getUuid());
+        }
+    }
+
+    public static void onResumedTick(MinecraftServer server) {
+        CLOCK.onResumedTick(server, System.nanoTime());
+    }
+
+    public static void tickClient(InGame game, MinecraftClient client, boolean awaitingStart) {
+        if (game == null || !game.getIsInGame()) {
+            CLOCK.clear();
+        } else if (!awaitingStart && client != null && client.player != null) {
+            CLOCK.bindWorld(game.getRaceId(), client.getServer(), client.player.getUuid());
+        }
+    }
+
     public static void capture(ServerPlayerEntity player) {
         if (!player.server.isDedicated()) {
-            CAPTURED.set(new Entry(player.server, player.getUuid(), RaceFinishArbiter.now()));
+            CLOCK.capture(player.server, player.getUuid(), System.nanoTime());
         }
     }
 
-    public static long consume(MinecraftClient client) {
-        long now = RaceFinishArbiter.now();
-        Entry entry = CAPTURED.getAndSet(null);
-        if (entry != null && client != null && client.getServer() == entry.server
-                && client.player != null && client.player.getUuid().equals(entry.player)
-                && now >= entry.time && now - entry.time <= 10000L) {
-            return entry.time;
-        }
-        return now;
-    }
-
-    private static final class Entry {
-        final MinecraftServer server;
-        final UUID player;
-        final long time;
-
-        Entry(MinecraftServer server, UUID player, long time) {
-            this.server = server;
-            this.player = player;
-            this.time = time;
-        }
+    public static long consume(MinecraftClient client, String raceId) {
+        return client == null || client.player == null ? -1L
+                : CLOCK.consume(raceId, client.getServer(), client.player.getUuid());
     }
 }

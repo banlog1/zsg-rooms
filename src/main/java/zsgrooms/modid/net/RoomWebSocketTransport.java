@@ -106,8 +106,7 @@ public class RoomWebSocketTransport {
     public static synchronized void tickFinishTiming() {
         if (connection != null && connection.host && connection.isOpen()) {
             RelayConnection current = connection;
-            current.finishTiming.tick(current.roomName,
-                    (type, value) -> current.send(type, current.playerName, value), current::finishAndBroadcast);
+            current.finishTiming.tick(current.roomName, current::finishAndBroadcast);
         }
     }
 
@@ -400,7 +399,7 @@ public class RoomWebSocketTransport {
             } else if ("advancement".equals(type)) {
                 handleAdvancement(player, value);
             } else if ("complete_run".equals(type)) {
-                this.finishTiming.submit(this.roomName, player, value, true);
+                this.finishTiming.submit(this.roomName, player, value);
             } else if ("forfeit".equals(type)) {
                 finishForfeit(player);
             } else if ("leave_room".equals(type)) {
@@ -418,7 +417,6 @@ public class RoomWebSocketTransport {
 
         private void handleGuestAction(String type, String player, String value, long received) {
             if ("join_room".equals(type)) {
-                this.finishTiming.forgetPlayer(player);
                 Room room = ZsgRooms.getRoom(this.roomName);
                 if (room != null && room.getPlayer(player) != null) {
                     sendSnapshot();
@@ -456,7 +454,7 @@ public class RoomWebSocketTransport {
                 return;
             }
             if ("complete_run".equals(type)) {
-                this.finishTiming.submit(this.roomName, player, value, false, received);
+                this.finishTiming.submit(this.roomName, player, value, received);
                 return;
             }
             if ("forfeit".equals(type)) {
@@ -680,26 +678,7 @@ public class RoomWebSocketTransport {
             }
             Map<String, String> decoded = RoomProtocol.decode(message);
             String type = decoded.get("type");
-            if ("finish_clock_reply".equals(type)) {
-                if (this.host) {
-                    this.finishTiming.receiveReply(decoded.get("player"), decoded.get("value"), RaceFinishArbiter.now());
-                }
-                return;
-            }
-            if ("finish_clock_probe".equals(type)) {
-                if (!this.host) {
-                    long received = RaceFinishArbiter.now();
-                    String reply = RaceFinishArbiter.reply(decoded.get("value"), received, RaceFinishArbiter.now());
-                    if (reply != null) {
-                        send("finish_clock_reply", this.playerName, reply);
-                    }
-                }
-                return;
-            }
             if ("welcome".equals(type)) {
-                if (this.host) {
-                    this.finishTiming.reconnect();
-                }
                 this.welcomed = true;
                 CountDownLatch latch = this.welcomeLatch;
                 if (latch != null) {

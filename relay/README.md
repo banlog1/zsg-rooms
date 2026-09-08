@@ -65,12 +65,13 @@ The mod sends WebSocket protocol heartbeats and performs its own bounded
 reconnect attempts. The Worker stores room ownership, maximum-player state, the
 latest room snapshot, and reconnect metadata.
 
-Close-finish clock synchronization also uses `finish_clock_probe` (host to
-guests) and `finish_clock_reply` (guest to host, with the socket-bound identity).
-These are application messages, not automatic heartbeat responses. They are
-forwarded without storage writes. Deploy this Worker update along with the
-matching mod before using close-finish compensation; older Workers discard
-`finish_clock_reply`, leaving guest clock measurements unavailable.
+Finish reports use the existing `complete_run` action. The v3 value carries
+the race ID and local elapsed nanoseconds as a decimal string, plus optional
+display-only IGT. The Worker forwards this value unchanged and binds the sender
+to the socket identity. No finish-clock probes, offset calculations, or extra
+periodic messages are needed. Existing Workers that forward `complete_run`
+already support the new payload; the source whitelist no longer accepts the
+obsolete clock replies. All racing clients must use the elapsed-time version.
 
 ## Commands
 

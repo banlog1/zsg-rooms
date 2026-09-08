@@ -84,7 +84,7 @@ public class ZsgInGameActions {
 
         String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
         if ((localPlayerName(client).equals(winner) && isExitPortalResult(result)
-                || zsgrooms.modid.net.RaceFinishArbiter.UNRESOLVED_REASON.equals(result)
+                || zsgrooms.modid.net.RaceFinishArbiter.DRAW_REASON.equals(result)
                 && client.currentScreen instanceof CreditsScreen)
                 && !isReadyForOverworldResult(client)) {
             pendingWinner = winner;
@@ -190,7 +190,7 @@ public class ZsgInGameActions {
     private static void displayMatchResult(MinecraftClient client, String winner, String result) {
         String localName = localPlayerName(client);
         boolean localVictory = localName.equals(winner);
-        boolean draw = zsgrooms.modid.net.RaceFinishArbiter.UNRESOLVED_REASON.equals(result);
+        boolean draw = zsgrooms.modid.net.RaceFinishArbiter.DRAW_REASON.equals(result);
         String title = draw ? "Draw!" : localVictory ? "Victory!" : winner + " Wins!";
         MutableText titleText = new LiteralText(title).formatted(
                 draw ? Formatting.YELLOW : localVictory ? Formatting.GOLD : Formatting.RED);

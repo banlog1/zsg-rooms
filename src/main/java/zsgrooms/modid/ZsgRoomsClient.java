@@ -86,10 +86,20 @@ public class ZsgRoomsClient implements ClientModInitializer {
             return;
         }
         completedRaceKey = raceKey;
+        MinecraftClient client = MinecraftClient.getInstance();
+        long elapsedNanos = EndExitTimeCapture.consume(client, game.getRaceId());
         long completedIgt = SpeedRunIgtBridge.currentInGameTimeMilliseconds();
         RunHistoryTracker.completeRun(game, completedIgt);
-        String result = RaceFinishArbiter.completion(game.getRaceId(),
-                EndExitTimeCapture.consume(MinecraftClient.getInstance()), completedIgt);
+        if (elapsedNanos < 0L) {
+            ZsgRooms.LOGGER.warn("Race completion not submitted: local start or End-exit timing is unavailable");
+            if (client != null && client.inGameHud != null) {
+                client.inGameHud.getChatHud().addMessage(new LiteralText(
+                        "[ZSG Room] Seed completed, but local race timing is unavailable. Result not submitted.")
+                        .formatted(Formatting.RED));
+            }
+            return;
+        }
+        String result = RaceFinishArbiter.completion(game.getRaceId(), elapsedNanos, completedIgt);
         sendRoomAction("complete_run", roomName, result);
     }
 
@@ -109,6 +119,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
         wasInGame = inGame;
         tickSynchronizedStart(client, roomName, game);
+        EndExitTimeCapture.tickClient(game, client, awaitingSynchronizedStart);
         RoomWebSocketTransport.tickFinishTiming();
         RoomSocketTransport.tickFinishTiming();
         ZsgInGameActions.tick(client);
@@ -148,6 +159,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
         client.execute(() -> {
             if (client.currentScreen instanceof SynchronizedStartScreen) {
+                EndExitTimeCapture.arm(ZsgRooms.getGame(roomName), client);
                 client.openScreen(null);
                 if (client.mouse != null) {
                     client.mouse.lockCursor();

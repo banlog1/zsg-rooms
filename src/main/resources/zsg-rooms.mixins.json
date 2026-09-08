@@ -18,6 +18,7 @@
 		"GameMenuScreenMixin",
 		"HoldingPatternPhaseMixin",
 		"IntegratedServerPauseSaveMixin",
+		"IntegratedServerRaceClockMixin",
 		"ItemStackUnbreakingMixin",
 		"LavaIgnitionMixin",
 		"LivingEntityDropMixin",
