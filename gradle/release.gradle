@@ -1,0 +1,84 @@
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+// Build the companion separately first. Stage only explicitly named, validated artifacts.
+tasks.register('stageRelease', Sync) {
+    dependsOn tasks.named('build')
+    def coreJar = file("build/libs/zsg-rooms-${project.version}.jar")
+    def viewerJar = file("replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}.jar")
+    def viewerSources = file("replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}-sources.jar")
+    def destination = layout.buildDirectory.dir('release')
+    from(coreJar, viewerJar, viewerSources)
+    into(destination)
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        [coreJar, viewerJar, viewerSources].each { artifact ->
+            if (!artifact.isFile()) throw new GradleException("Build both mods before staging: missing ${artifact.name}")
+        }
+        [[coreJar, 'zsg-rooms', project.version.toString(), 'CC0-1.0'],
+         [viewerJar, 'zsg-replay-viewer', replayViewerVersion.toString(), 'GPL-3.0-or-later']].each { specification ->
+            new ZipFile(specification[0]).withCloseable { zip ->
+                def metadata = zip.getEntry('fabric.mod.json')
+                if (metadata == null) throw new GradleException('Missing mod metadata')
+                def mod = zip.getInputStream(metadata).withCloseable { new JsonSlurper().parse(it, 'UTF-8') }
+                if (mod.id != specification[1] || mod.version != specification[2] || mod.license != specification[3]) {
+                    throw new GradleException("Artifact metadata mismatch: ${specification[0].name}")
+                }
+                if (mod.id == 'zsg-replay-viewer' && mod.depends.replaymod != '1.16.1-2.6.27') {
+                    throw new GradleException('Update release instructions when changing ReplayMod compatibility')
+                }
+                if (mod.id == 'zsg-rooms' && (mod.depends.replaymod || mod.depends.'zsg-replay-viewer')) {
+                    throw new GradleException('Playback mods must remain optional for racing')
+                }
+                def entries = zip.entries().toList()*.name
+                if (!entries.any { it.startsWith('LICENSE') }
+                        || entries.any { it.startsWith('com/replaymod/') || it.contains('replaymod-1.16.1-2.6.27.jar') }) {
+                    throw new GradleException("Missing license or bundled ReplayMod: ${specification[0].name}")
+                }
+            }
+        }
+        new ZipFile(viewerSources).withCloseable { zip ->
+            if (zip.getEntry('LICENSE') == null || zip.getEntry('zsgrooms/replayviewer/ReplayViewer.java') == null) {
+                throw new GradleException('Companion source archive must include its source and license')
+            }
+        }
+    }
+
+    doLast {
+        def hash = { File artifact ->
+            def digest = MessageDigest.getInstance('SHA-256')
+            artifact.withInputStream { stream ->
+                byte[] buffer = new byte[8192]
+                int count
+                while ((count = stream.read(buffer)) != -1) digest.update(buffer, 0, count)
+            }
+            digest.digest().encodeHex().toString()
+        }
+        File output = destination.get().asFile
+        // Older installed updaters accept any .sha256 asset. Publish exactly one, for the core.
+        new File(output, coreJar.name + '.sha256').setText("${hash(coreJar)}  ${coreJar.name}\n", 'UTF-8')
+        new File(output, 'release-details.md').setText("""## Downloads And Compatibility
+
+- **${coreJar.name}**: racing and optional recording. ReplayMod and the viewer companion are not required.
+- **${viewerJar.name}**: optional custom playback controls. Requires Minecraft 1.16.1, Fabric Loader 0.19.3 or newer, and **ReplayMod 1.16.1-2.6.27**, installed separately from [ReplayMod's official downloads](https://www.replaymod.com/download/).
+- **${viewerSources.name}**: companion source and GPL-3.0-or-later license; not an installable mod. Complete source and build scripts are in this release's tagged source archive. The core retains its CC0-1.0 license.
+
+The in-game updater updates **ZSG Rooms only**. Install/update the companion and ReplayMod manually; neither is automatically added to your mods folder.
+
+Recording is off by default. Enable it under Settings > Replays. First-use setup downloads checksum-verified recording libraries separately. When ReplayMod is installed, turn its Record Singleplayer, Record Server, and Automatic Recording options OFF before confirming coexistence in ZSG settings. Saved replays appear in ReplayMod's Replay Viewer.
+
+Recorded IGT/RTA require SpeedRunIGT during capture; missing timing data is shown as unavailable. Multi-player replay switching currently uses manually shared recordings, not automatic uploads.
+
+### Companion SHA-256
+
+```text
+${hash(viewerJar)}  ${viewerJar.name}
+${hash(viewerSources)}  ${viewerSources.name}
+```
+
+Only the core checksum is a separate .sha256 attachment, to preserve compatibility with older core updaters.
+""", 'UTF-8')
+    }
+}

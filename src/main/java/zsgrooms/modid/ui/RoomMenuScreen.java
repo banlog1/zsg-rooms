@@ -69,7 +69,7 @@ public class RoomMenuScreen extends Screen {
             this.renderTooltip(matrices, new LiteralText("Recent Runs"), mouseX, mouseY);
         }
         if (this.settingsButton != null && this.settingsButton.isHovered()) {
-            this.renderTooltip(matrices, new LiteralText("HUD Settings"), mouseX, mouseY);
+            this.renderTooltip(matrices, new LiteralText("Settings"), mouseX, mouseY);
         }
     }
 

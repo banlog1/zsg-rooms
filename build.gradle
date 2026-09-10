@@ -5,6 +5,14 @@ plugins {
 
 loom {
 	runs {
+		replayPrototype {
+			client()
+			name = "Replay Recording Prototype"
+			runDir = "run/replay-prototype"
+			vmArg "-Dzsgrooms.replayPrototype.smokeTest=${project.findProperty('replaySmoke') ?: false}"
+			vmArg "-Dzsgrooms.replayPrototype.smokeEnd=${project.findProperty('replayEnd') ?: 'quit'}"
+			vmArg "-Dzsgrooms.replayPrototype.smokeResets=${project.findProperty('replayResets') ?: 0}"
+		}
 		perchBenchmark {
 			server()
 			name = "Dragon Perch Benchmark"
@@ -32,6 +40,10 @@ loom {
 version = project.mod_version
 group = project.maven_group
 
+def viewerProperties = new Properties()
+file('replay-viewer/gradle.properties').withInputStream { viewerProperties.load(it) }
+ext.replayViewerVersion = project.findProperty('viewer_version') ?: viewerProperties.getProperty('viewer_version')
+
 repositories {
 	// Local libs folder for FSG-Mod and other JARs
 	flatDir { dirs 'libs' }
@@ -49,9 +61,52 @@ dependencies {
 
 	// FSG-Mod: Drop JAR in libs/ folder, it will be picked up automatically
 	modCompileOnly fileTree(dir: 'libs', include: '*.jar')
+	if (project.findProperty('replayTimer') == 'true') {
+		modRuntimeOnly fileTree(dir: 'libs', include: 'SpeedRunIGT-*.jar')
+	}
+	if (project.findProperty('replayAtum') == 'true') {
+		modRuntimeOnly fileTree(dir: 'libs', include: '*.jar')
+	}
+	if (project.hasProperty('replayPlaybackFile')) {
+		modRuntimeOnly files('replay-prototype/build/reference/replaymod-1.16.1-2.6.27.jar')
+		if (project.findProperty('replayViewer') == 'true') {
+			modRuntimeOnly files("replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}.jar")
+		}
+		if (project.findProperty('replayPlaybackMods') == 'true') {
+			modRuntimeOnly fileTree(dir: 'run/replay-playback-test/reference-mods', include: '*.jar',
+					excludes: (project.findProperty('replayPlaybackExclude') ?: '').split(',').findAll { !it.isEmpty() })
+		}
+	}
 
 	testImplementation "org.junit.jupiter:junit-jupiter:5.10.2"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+// Test-only viewer driver; neither it nor ReplayMod is packaged in the ZSG release.
+if (project.hasProperty('replayPlaybackFile')) {
+	sourceSets {
+		replayPlaybackTest {
+			compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath + sourceSets.main.runtimeClasspath
+			runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+		}
+	}
+	loom {
+		mods {
+			'zsg-rooms' { sourceSet sourceSets.main }
+			'zsg-replay-playback-test' { sourceSet sourceSets.replayPlaybackTest }
+		}
+		runs {
+			replayPlaybackTest {
+				client()
+				source sourceSets.replayPlaybackTest
+				runDir 'run/replay-playback-test'
+				vmArg "-Dzsgrooms.replayPlaybackFile=${project.property('replayPlaybackFile')}"
+				vmArg "-Dzsgrooms.replayPlaybackEnd=${project.findProperty('replayPlaybackEnd') ?: 118000}"
+				vmArg "-Dzsgrooms.replayViewerSmoke=${project.findProperty('replayViewerSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayRaceSmoke=${project.findProperty('replayRaceSmoke') ?: false}"
+			}
+		}
+	}
 }
 
 // Copy FSG-Mod JAR to run/mods so Fabric Loader can detect it at runtime
@@ -67,9 +122,14 @@ task copyFsgModToRunMods {
 }
 
 build.dependsOn copyFsgModToRunMods
+apply from: 'gradle/release.gradle'
 runClient.dependsOn copyFsgModToRunMods
 
 processResources {
+	dependsOn gradle.includedBuild('zsg-replay-library-probe').task(':writerBundle')
+	from('replay-prototype/build/writer-bundle') {
+		into 'assets/zsg-rooms/replay'
+	}
 	def version = project.version
 	inputs.property "version", version
 
@@ -95,6 +155,37 @@ tasks.named('runWoodLightingTest') {
 		if (!log.exists() || log.lastModified() < testStartedAt
 				|| !log.text.contains('[WoodLightTest] PASS:') || log.text.contains('[WoodLightTest] FAIL')) {
 			throw new GradleException('Wood lighting integration test did not pass; see run/perch-benchmark/logs/latest.log')
+		}
+	}
+}
+
+tasks.named('runReplayPrototype') {
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+	}
+	doLast {
+		if (project.findProperty('replaySmoke') == 'true') {
+			def log = file('run/replay-prototype/logs/latest.log')
+			if (!log.exists() || log.lastModified() < testStartedAt
+					|| !log.text.contains('[ReplaySmoke] PASS:') || log.text.contains('[ReplaySmoke] FAIL:')
+					|| log.text.contains('[ReplayPrototype] Recording stopped:')) {
+				throw new GradleException('Replay capture smoke test failed; see run/replay-prototype/logs/latest.log')
+			}
+		}
+	}
+}
+
+tasks.matching { it.name == 'runReplayPlaybackTest' }.configureEach {
+	doFirst { ext.testStartedAt = System.currentTimeMillis() }
+	doLast {
+		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true') {
+			def marker = project.findProperty('replayRaceSmoke') == 'true' ? '[ReplayRaceSmoke] PASS:' : '[ReplayViewerSmoke] PASS:'
+			def log = file('run/replay-playback-test/logs/latest.log')
+			if (!log.exists() || log.lastModified() < testStartedAt
+					|| !log.text.contains(marker)
+					|| log.text.contains('[ReplayPlaybackTest] Failed')) {
+				throw new GradleException('Replay viewer smoke failed; see replay-playback-test/logs/latest.log')
+			}
 		}
 	}
 }

@@ -1,0 +1,199 @@
+import groovy.json.JsonOutput
+import java.security.MessageDigest
+
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = 'https://jitpack.io'
+        content { includeGroupByRegex 'com\\.github\\..*' }
+    }
+}
+
+configurations {
+    replayLibraries {
+        canBeConsumed = false
+        canBeResolved = true
+    }
+}
+
+dependencies {
+    replayLibraries 'com.github.ReplayMod:ReplayStudio:06978a304fc023ed9cfe48ccc7c5f32d8d499460'
+    // OpenNBT declares unrelocated Guava as provided. Supply its exact requested
+    // version here rather than borrowing classes from Minecraft's loader.
+    replayLibraries 'com.google.guava:guava:21.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// The fixture sees the library at compile time, but the test/application loader
+// does not. Only the explicitly isolated URLClassLoader can load it at runtime.
+sourceSets {
+    fixture {
+        compileClasspath = configurations.replayLibraries
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 8
+}
+
+dependencyLocking {
+    lockAllConfigurations()
+}
+
+tasks.register('fixtureJar', Jar) {
+    from sourceSets.fixture.output
+    archiveBaseName = 'zsg-replay-probe-fixture'
+}
+
+tasks.register('writerJar', Jar) {
+    from(sourceSets.fixture.output) {
+        include 'zsgrooms/replayprobe/ReplayStudioWriter.class'
+    }
+    from('../LICENSE')
+    archiveFileName = 'zsg-replay-writer.jar'
+}
+
+def sha256 = { File file ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    file.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int count
+        while ((count = stream.read(buffer)) != -1) {
+            digest.update(buffer, 0, count)
+        }
+    }
+    digest.digest().encodeHex().toString()
+}
+
+// Ship only our adapter and a pinned download manifest, never the external libraries.
+tasks.register('writerBundle') {
+    dependsOn tasks.named('writerJar')
+    inputs.files(configurations.replayLibraries)
+    inputs.file(tasks.named('writerJar').flatMap { it.archiveFile })
+    inputs.file('gradle/verification-metadata.xml')
+    outputs.dir(layout.buildDirectory.dir('writer-bundle'))
+    doLast {
+        File destination = layout.buildDirectory.dir('writer-bundle').get().asFile
+        destination.mkdirs()
+        File writer = tasks.named('writerJar').get().archiveFile.get().asFile
+        copy { from writer; into destination }
+        def verified = new groovy.xml.XmlSlurper().parse(file('gradle/verification-metadata.xml'))
+        def artifacts = configurations.replayLibraries.resolvedConfiguration.resolvedArtifacts.collect { artifact ->
+            def id = artifact.moduleVersion.id
+            def component = verified.components.component.find {
+                it.@group.text() == id.group && it.@name.text() == id.name && it.@version.text() == id.version
+            }
+            String expected = component.artifact.find { it.@name.text() == artifact.file.name }.sha256.@value.text()
+            if (!expected || sha256(artifact.file) != expected) {
+                throw new GradleException('Replay dependency differs from pinned checksum: ' + id)
+            }
+            String repository = id.group.startsWith('com.github.') ? 'https://jitpack.io/' : 'https://repo.maven.apache.org/maven2/'
+            [file: artifact.file.name, sha256: expected,
+             url: repository + id.group.replace('.', '/') + '/' + id.name + '/' + id.version + '/' + artifact.file.name]
+        }.sort { it.file }
+        artifacts.add([file: writer.name, sha256: sha256(writer), url: 'resource:/assets/zsg-rooms/replay/' + writer.name])
+        new File(destination, 'libraries.json').text = JsonOutput.prettyPrint(JsonOutput.toJson([artifacts: artifacts])) + '\n'
+    }
+}
+
+tasks.register('prepareReplayLibraries', Sync) {
+    from configurations.replayLibraries
+    into layout.buildDirectory.dir('replay-libraries')
+    doLast {
+        def artifacts = configurations.replayLibraries.resolvedConfiguration.resolvedArtifacts
+                .collect { artifact ->
+                    [coordinate: artifact.moduleVersion.id.toString(),
+                     file: artifact.file.name, sha256: sha256(artifact.file)]
+                }.sort { it.coordinate }
+        new File(destinationDir, 'artifacts.json').text = JsonOutput.prettyPrint(
+                JsonOutput.toJson([artifacts: artifacts])) + '\n'
+    }
+}
+
+def referenceJar = layout.buildDirectory.file('reference/replaymod-1.16.1-2.6.27.jar')
+tasks.register('prepareLiveLibraries', Sync) {
+    description = 'Prepares the external prototype writer and libraries; does not install them into Minecraft.'
+    dependsOn tasks.named('fixtureJar'), tasks.named('prepareReplayLibraries')
+    from layout.buildDirectory.dir('replay-libraries')
+    from tasks.named('fixtureJar')
+    into layout.buildDirectory.dir('live-libraries')
+}
+
+tasks.register('inspectRecording', JavaExec) {
+    description = 'Checks packet ordering and content of a live replay smoke recording.'
+    dependsOn tasks.named('fixtureJar')
+    classpath = files(tasks.named('fixtureJar')) + configurations.replayLibraries
+    mainClass = 'zsgrooms.replayprobe.ReplayCaptureInspector'
+    doFirst {
+        def replay = project.findProperty('replayFile')
+        if (!replay) throw new GradleException('Specify -PreplayFile=<absolute smoke recording path>')
+        args replay
+        args project.findProperty('replayDiagnose') == 'true' ? 'diagnose' : (project.findProperty('replayResets') ?: 0)
+    }
+}
+
+tasks.register('fetchReplayModReference') {
+    description = 'Downloads and verifies ReplayMod for classpath tests only; never installs or runs it.'
+    doLast {
+        File target = referenceJar.get().asFile
+        String expected = '92479881ab274e1f067171b1300b435b7b6831adf0fc86c806c915713c938f55'
+        if (!target.exists()) {
+            if (gradle.startParameter.offline) {
+                throw new GradleException('ReplayMod reference is not cached; run fetchReplayModReference online first')
+            }
+            target.parentFile.mkdirs()
+            File partial = new File(target.parentFile, target.name + '.part')
+            try {
+                def connection = new URI('https://www.replaymod.com/download/download_new.php?version=1.16.1-2.6.27')
+                        .toURL().openConnection()
+                connection.connectTimeout = 30000
+                connection.readTimeout = 90000
+                connection.inputStream.withCloseable { input ->
+                    partial.withOutputStream { output -> output << input }
+                }
+                if (sha256(partial) != expected) {
+                    throw new GradleException('ReplayMod reference checksum mismatch')
+                }
+                java.nio.file.Files.move(partial.toPath(), target.toPath())
+            } finally {
+                java.nio.file.Files.deleteIfExists(partial.toPath())
+            }
+        }
+        if (sha256(target) != expected) {
+            throw new GradleException('ReplayMod reference checksum mismatch')
+        }
+    }
+}
+
+tasks.withType(Test).configureEach {
+    dependsOn tasks.named('fixtureJar'), tasks.named('prepareReplayLibraries')
+    inputs.files(tasks.named('fixtureJar')).withPropertyName('isolatedFixture')
+    inputs.files(configurations.replayLibraries).withPropertyName('isolatedLibraries')
+    maxHeapSize = '768m'
+    doFirst {
+        systemProperty 'replay.probe.fixture', tasks.named('fixtureJar').get().archiveFile.get().asFile.absolutePath
+        systemProperty 'replay.probe.libraries', layout.buildDirectory.dir('replay-libraries').get().asFile.absolutePath
+    }
+    testLogging { events 'passed', 'skipped', 'failed' }
+}
+
+test {
+    useJUnitPlatform { excludeTags 'coexistence' }
+}
+
+tasks.register('coexistenceTest', Test) {
+    description = 'Checks isolated library loading while the real ReplayMod JAR supplies competing classes.'
+    dependsOn tasks.named('fetchReplayModReference')
+    inputs.file(referenceJar).withPropertyName('replayModReference')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'coexistence' }
+    doFirst {
+        systemProperty 'replay.probe.reference', referenceJar.get().asFile.absolutePath
+    }
+}

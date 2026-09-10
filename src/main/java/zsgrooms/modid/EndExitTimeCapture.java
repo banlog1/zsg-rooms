@@ -13,12 +13,17 @@ public final class EndExitTimeCapture {
 
     public static void arm(InGame game, MinecraftClient client) {
         if (game != null && client != null && client.player != null) {
+            Room room = ZsgRooms.getActiveRoom();
+            zsgrooms.modid.replay.ReplayPrototype.armRace(game.getRaceId(), room != null && room.getPlayerCount() == 1);
             CLOCK.arm(game.getRaceId(), client.getServer(), client.player.getUuid());
         }
     }
 
     public static void onResumedTick(MinecraftServer server) {
-        CLOCK.onResumedTick(server, System.nanoTime());
+        LocalRaceClock.Start start = CLOCK.onResumedTick(server, System.nanoTime());
+        if (start != null) {
+            zsgrooms.modid.replay.ReplayPrototype.raceStarted(start.raceId, start.player, start.nanos);
+        }
     }
 
     public static void tickClient(InGame game, MinecraftClient client, boolean awaitingStart) {

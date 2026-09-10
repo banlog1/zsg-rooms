@@ -148,18 +148,23 @@ public final class UpdateManager {
 
     private static UpdateRelease fetchLatestRelease() throws Exception {
         JsonObject root = new JsonParser().parse(new String(requestBytes(configuredApi(), 1024 * 1024), StandardCharsets.UTF_8)).getAsJsonObject();
+        return parseRelease(root);
+    }
+
+    static UpdateRelease parseRelease(JsonObject root) throws IOException {
         String version = cleanVersion(string(root, "tag_name"));
         String releaseUrl = string(root, "html_url");
         JsonArray assets = root.getAsJsonArray("assets");
         JsonObject jarAsset = null;
         String checksumUrl = null;
+        String jarName = "zsg-rooms-" + version + ".jar";
         if (assets != null) {
             for (JsonElement element : assets) {
                 JsonObject asset = element.getAsJsonObject();
                 String name = string(asset, "name");
-                if (name.endsWith(".sha256")) {
+                if (name.equals(jarName + ".sha256")) {
                     checksumUrl = string(asset, "browser_download_url");
-                } else if (name.startsWith("zsg-rooms-") && name.endsWith(".jar") && !name.contains("sources")) {
+                } else if (name.equals(jarName)) {
                     jarAsset = asset;
                 }
             }

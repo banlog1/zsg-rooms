@@ -1,4 +1,4 @@
-name: Release Mod
+name: Release Mods
 
 on:
   push:
@@ -18,20 +18,21 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: "21"
+          distribution: microsoft
+          java-version: "25"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build release JAR
+      - name: Build and stage release artifacts
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           chmod +x gradlew
+          ./gradlew -p replay-prototype clean build fetchReplayModReference
           ./gradlew clean test build -Pmod_version="$VERSION"
-          JAR="build/libs/zsg-rooms-$VERSION.jar"
-          sha256sum "$JAR" > "$JAR.sha256"
+          ./gradlew -p replay-viewer clean build
+          ./gradlew stageRelease -Pmod_version="$VERSION"
 
       - name: Publish GitHub release
         env:
@@ -39,16 +40,18 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          JAR="build/libs/zsg-rooms-$VERSION.jar"
           RELEASE_FLAGS=()
           if [[ "$VERSION" == *-* ]]; then
             RELEASE_FLAGS+=(--prerelease)
           fi
-          NOTES="docs/releases/$VERSION.md"
-          if [[ -f "$NOTES" ]]; then
-            RELEASE_FLAGS+=(--notes-file "$NOTES")
+          NOTES="build/release/notes.md"
+          if [[ -f "docs/releases/$VERSION.md" ]]; then
+            cp "docs/releases/$VERSION.md" "$NOTES"
           else
-            RELEASE_FLAGS+=(--generate-notes)
+            gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$GITHUB_REF_NAME" --jq '.body' > "$NOTES"
           fi
-          gh release create "$GITHUB_REF_NAME" "$JAR" "$JAR.sha256" \
-            --title "ZSG Rooms $VERSION" "${RELEASE_FLAGS[@]}"
+          printf '\n\n' >> "$NOTES"
+          cat build/release/release-details.md >> "$NOTES"
+          gh release create "$GITHUB_REF_NAME" build/release/*.jar build/release/*.sha256 \
+            --title "ZSG Rooms $VERSION" --notes-file "$NOTES" "${RELEASE_FLAGS[@]}"

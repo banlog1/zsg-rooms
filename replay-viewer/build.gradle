@@ -1,0 +1,30 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.20'
+}
+
+version = project.viewer_version
+group = 'zsgrooms'
+repositories { mavenCentral() }
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.16.1'
+    mappings 'net.fabricmc:yarn:1.16.1+build.21:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.19.3'
+    modImplementation files('../replay-prototype/build/reference/replaymod-1.16.1-2.6.27.jar')
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach { options.release = 8 }
+test { useJUnitPlatform() }
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand(version: project.version) }
+}
+jar { from('LICENSE') }
+sourcesJar { from('LICENSE') }

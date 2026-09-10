@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "zsg-replay-viewer",
+  "version": "${version}",
+  "name": "ZSG Replay Viewer",
+  "description": "Optional speedrun playback controls for ReplayMod 1.16.1-2.6.27.",
+  "environment": "client",
+  "license": "GPL-3.0-or-later",
+  "contact": { "sources": "https://github.com/banlog1/zsg-rooms/tree/main/replay-viewer" },
+  "entrypoints": { "client": ["zsgrooms.replayviewer.ReplayViewer"] },
+  "mixins": ["zsg-replay-viewer.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "1.16.1",
+    "java": ">=8",
+    "replaymod": "1.16.1-2.6.27"
+  }
+}

@@ -46,6 +46,12 @@
 		"TitleScreenMixin",
 		"WoodLightingWorldMixin"
 	],
+	"client": [
+		"ReplayAtumResetMixin",
+		"ReplayClientDisconnectMixin",
+		"ReplayConnectionMixin",
+		"ReplayWorldChangeMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},

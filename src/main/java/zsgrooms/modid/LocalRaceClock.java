@@ -24,10 +24,24 @@ final class LocalRaceClock {
         finishElapsedNanos = null;
     }
 
-    synchronized void onResumedTick(Object server, long nowNanos) {
+    synchronized Start onResumedTick(Object server, long nowNanos) {
         if (!raceId.isEmpty() && !started && this.server == server) {
             startNanos = nowNanos;
             started = true;
+            return new Start(raceId, player, startNanos);
+        }
+        return null;
+    }
+
+    static final class Start {
+        final String raceId;
+        final UUID player;
+        final long nanos;
+
+        private Start(String raceId, UUID player, long nanos) {
+            this.raceId = raceId;
+            this.player = player;
+            this.nanos = nanos;
         }
     }
 

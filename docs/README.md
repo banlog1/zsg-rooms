@@ -21,6 +21,21 @@ future-facing UI that do not yet have complete gameplay logic.
 - [Relay deployment](../relay/README.md): deploying the Cloudflare Worker and
   Durable Object.
 
+## Design Proposals
+
+These documents cover planned work and opt-in development prototypes, not
+finished player-facing features.
+
+- [Replay foundation decision](REPLAY_FOUNDATION.md): selected playback and file
+  infrastructure, inspected versions, integration boundaries, and remaining
+  compatibility checks.
+- [Replay development prototype](../replay-prototype/README.md): isolated library
+  tests, opt-in live recording, automated capture checks, and remaining limits.
+- [Replay viewer companion](../replay-viewer/README.md): optional bottom playback
+  controls, camera modes, setup, and in-game UI checks.
+- [Multi-player replay coordination](REPLAY_COORDINATION.md): planned race-time
+  manifests, manual sharing, and switching between racers' recordings.
+
 ## Supported Baseline
 
 - Minecraft 1.16.1

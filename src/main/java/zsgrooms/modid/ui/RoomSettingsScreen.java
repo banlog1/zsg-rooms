@@ -24,8 +24,11 @@ public class RoomSettingsScreen extends Screen {
         int row = tiny ? 15 : compact ? 20 : 28;
         int left = panelX + 16;
 
-        this.addButton(new ButtonWidget(left, y, panelWidth() - 32, buttonHeight,
+        int navigationWidth = (panelWidth() - 36) / 2;
+        this.addButton(new ButtonWidget(left, y, navigationWidth, buttonHeight,
                 new LiteralText("Match HUD..."), button -> this.client.openScreen(new MatchHudSettingsScreen(this))));
+        this.addButton(new ButtonWidget(left + navigationWidth + 4, y, navigationWidth, buttonHeight,
+                new LiteralText("Replays..."), button -> this.client.openScreen(new ReplaySettingsScreen(this))));
         int preferenceY = y + row + (compact ? 0 : 6);
         this.addButton(new ButtonWidget(left, preferenceY, panelWidth() - 32, buttonHeight, rpRepairText(), button -> {
             RoomUiPreferences.setRuinedPortalChestRepairEnabled(

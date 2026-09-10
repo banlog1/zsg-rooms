@@ -15,6 +15,7 @@ import zsgrooms.modid.BastionIronGuarantee;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
+import zsgrooms.modid.replay.ReplayPrototype;
 
 public class ZsgInGameActions {
     private static final String EXIT_PORTAL_RESULT = "Beat the seed";
@@ -188,6 +189,7 @@ public class ZsgInGameActions {
     }
 
     private static void displayMatchResult(MinecraftClient client, String winner, String result) {
+        ReplayPrototype.stopRecording();
         String localName = localPlayerName(client);
         boolean localVictory = localName.equals(winner);
         boolean draw = zsgrooms.modid.net.RaceFinishArbiter.DRAW_REASON.equals(result);
@@ -219,6 +221,7 @@ public class ZsgInGameActions {
         if (client == null || roomName == null) {
             return;
         }
+        ReplayPrototype.stopRecording();
         if (client.world != null) {
             client.world.disconnect();
             client.disconnect(new SaveLevelScreen(new LiteralText("Returning to room")));

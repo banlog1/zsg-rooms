@@ -11,3 +11,7 @@ pluginManagement {
 
 // Should match your modid
 rootProject.name = 'zsg-rooms'
+
+includeBuild('replay-prototype') {
+    name = 'zsg-replay-library-probe'
+}

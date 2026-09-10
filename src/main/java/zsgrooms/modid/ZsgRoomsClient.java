@@ -34,6 +34,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        zsgrooms.modid.replay.ReplayPrototype.initialize();
         ClientSidePacketRegistry.INSTANCE.register(ZsgRoomNetworking.ROOM_ACTION, (context, buffer) -> {
             String action = buffer.readString(64);
             String roomName = buffer.readString(64);
@@ -89,6 +90,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         MinecraftClient client = MinecraftClient.getInstance();
         long elapsedNanos = EndExitTimeCapture.consume(client, game.getRaceId());
         long completedIgt = SpeedRunIgtBridge.currentInGameTimeMilliseconds();
+        zsgrooms.modid.replay.ReplayPrototype.raceFinished(game.getRaceId(), elapsedNanos, completedIgt);
         RunHistoryTracker.completeRun(game, completedIgt);
         if (elapsedNanos < 0L) {
             ZsgRooms.LOGGER.warn("Race completion not submitted: local start or End-exit timing is unavailable");

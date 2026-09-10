@@ -11,6 +11,28 @@ class LocalRaceClockTest {
     private final UUID player = new UUID(0L, 1L);
     private final Object server = new Object();
 
+    @Test
+    void replayStartMarkerUsesExactClockInstantOncePerRaceNotPerWorld() {
+        LocalRaceClock clock = new LocalRaceClock();
+        assertNull(clock.onResumedTick(server, 1L));
+        clock.arm("first", server, player);
+        assertNull(clock.onResumedTick(new Object(), 2L));
+        LocalRaceClock.Start start = clock.onResumedTick(server, 123L);
+        assertEquals("first", start.raceId);
+        assertEquals(player, start.player);
+        assertEquals(123L, start.nanos);
+        assertNull(clock.onResumedTick(server, 124L));
+        Object replacement = new Object();
+        clock.bindWorld("first", replacement, player);
+        assertNull(clock.onResumedTick(replacement, 200L));
+        clock.capture(replacement, player, 300L);
+        assertEquals(300L - start.nanos, clock.consume("first", replacement, player));
+        clock.arm("second", replacement, player);
+        assertEquals("second", clock.onResumedTick(replacement, 400L).raceId);
+        clock.clear();
+        assertNull(clock.onResumedTick(replacement, 500L));
+    }
+
     private long measured(long start, long finish) {
         LocalRaceClock clock = new LocalRaceClock();
         clock.arm("race", server, player);
