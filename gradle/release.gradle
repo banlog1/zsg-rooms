@@ -59,26 +59,25 @@ tasks.register('stageRelease', Sync) {
         File output = destination.get().asFile
         // Older installed updaters accept any .sha256 asset. Publish exactly one, for the core.
         new File(output, coreJar.name + '.sha256').setText("${hash(coreJar)}  ${coreJar.name}\n", 'UTF-8')
-        new File(output, 'release-details.md').setText("""## Downloads And Compatibility
+        new File(output, 'release-details.md').setText("""## Downloads
 
-- **${coreJar.name}**: racing and optional recording. ReplayMod and the viewer companion are not required.
-- **${viewerJar.name}**: optional custom playback controls. Requires Minecraft 1.16.1, Fabric Loader 0.19.3 or newer, and **ReplayMod 1.16.1-2.6.27**, installed separately from [ReplayMod's official downloads](https://www.replaymod.com/download/).
-- **${viewerSources.name}**: companion source and GPL-3.0-or-later license; not an installable mod. Complete source and build scripts are in this release's tagged source archive. The core retains its CC0-1.0 license.
+- **${coreJar.name}**: the main mod. ReplayMod is not required for racing or recording.
+- **${viewerJar.name}**: optional playback controls. Install alongside [ReplayMod **1.16.1-2.6.27**](https://www.replaymod.com/download/), on Minecraft 1.16.1 with Fabric Loader 0.19.3+.
+- **${viewerSources.name}**: viewer source, not an installable mod. GPL-3.0-or-later; the core remains CC0-1.0. Full build scripts are in the tagged source archive.
 
-The in-game updater updates **ZSG Rooms only**. Install/update the companion and ReplayMod manually; neither is automatically added to your mods folder.
+Enable recording under **Settings > Replays**. If ReplayMod is installed, disable its Record Singleplayer, Record Server, and Automatic Recording options first. SpeedRunIGT is needed during recording for RTA/IGT data. Player switching currently uses manually shared files.
 
-Recording is off by default. Enable it under Settings > Replays. First-use setup downloads checksum-verified recording libraries separately. When ReplayMod is installed, turn its Record Singleplayer, Record Server, and Automatic Recording options OFF before confirming coexistence in ZSG settings. Saved replays appear in ReplayMod's Replay Viewer.
+The in-game updater updates the core only. Install the viewer and ReplayMod separately. [Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
 
-Recorded IGT/RTA require SpeedRunIGT during capture; missing timing data is shown as unavailable. Multi-player replay switching currently uses manually shared recordings, not automatic uploads.
-
-### Companion SHA-256
+<details>
+<summary>Companion SHA-256</summary>
 
 ```text
 ${hash(viewerJar)}  ${viewerJar.name}
 ${hash(viewerSources)}  ${viewerSources.name}
 ```
 
-Only the core checksum is a separate .sha256 attachment, to preserve compatibility with older core updaters.
+</details>
 """, 'UTF-8')
     }
 }
