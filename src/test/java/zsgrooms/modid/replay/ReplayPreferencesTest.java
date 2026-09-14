@@ -12,6 +12,20 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReplayPreferencesTest {
     @TempDir Path temp;
 
+    @Test void performanceModeDefaultsOffAndPersistsIndependently() throws Exception {
+        Path file = temp.resolve("performance.properties");
+        assertFalse(ReplayPreferences.load(file).performanceMode);
+        new ReplayPreferences(true, "", true, "", false, true).save(file);
+        ReplayPreferences loaded = ReplayPreferences.load(file);
+        assertTrue(loaded.performanceMode);
+        assertTrue(loaded.enabled);
+        assertFalse(loaded.showRecordingHud);
+        new ReplayPreferences(true, "", true, "", true, false).save(file);
+        assertFalse(ReplayPreferences.load(file).performanceMode);
+        Files.write(file, "enabled=true\n".getBytes(StandardCharsets.UTF_8));
+        assertFalse(ReplayPreferences.load(file).performanceMode);
+    }
+
     @Test void recordingBadgeDefaultsVisibleAndCanBeHiddenWithoutDisablingCapture() throws Exception {
         Path file = temp.resolve("badge.properties");
         assertTrue(ReplayPreferences.load(file).showRecordingHud);

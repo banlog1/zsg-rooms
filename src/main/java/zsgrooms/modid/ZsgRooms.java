@@ -9,7 +9,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import zsgrooms.modid.benchmark.DragonPerchHeadlessBenchmark;
 import zsgrooms.modid.benchmark.WoodLightingHeadlessTest;
+import zsgrooms.modid.benchmark.SharedNetherEntryHeadlessTest;
 import zsgrooms.modid.net.RoomSnapshot;
+import zsgrooms.modid.seedbank.SeedBankProfile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,10 +34,12 @@ public class ZsgRooms implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> PauseWorldSaveControl.configure(false));
 		ServerLifecycleEvents.SERVER_STOPPED.register(WoodLightingStandardization::stop);
+		ServerLifecycleEvents.SERVER_STOPPED.register(SharedNetherEntry::stop);
 		ServerTickEvents.START_WORLD_TICK.register(WoodLightingStandardization::tick);
 		ServerTickEvents.END_SERVER_TICK.register(RuinedPortalChestRepair::tick);
 		DragonPerchHeadlessBenchmark.register();
 		WoodLightingHeadlessTest.register();
+		SharedNetherEntryHeadlessTest.register();
 		ZsgRoomNetworking.registerServer();
 	}
 
@@ -128,6 +132,17 @@ public class ZsgRooms implements ModInitializer {
 			boolean removeBastionZombifiedPiglins, boolean spawnNearFilterStructure,
 			boolean minimumNearbyAnimals, boolean netherEntryWarmup, boolean removeNaturalStriderJockeys,
 			boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways) {
+		createRoom(roomName, maxPlayers, finishGoal, seedType, hostName, cheatsAllowed, rngStandardized,
+				boostedBarters, minimumBastionIron, removeBastionZombifiedPiglins, spawnNearFilterStructure,
+				minimumNearbyAnimals, netherEntryWarmup, removeNaturalStriderJockeys, disablePauseWorldSaves,
+				reduceZeroCycleFlyAways, false);
+	}
+
+	public static void createRoom(String roomName, int maxPlayers, int finishGoal, String seedType, String hostName,
+			boolean cheatsAllowed, boolean rngStandardized, boolean boostedBarters, boolean minimumBastionIron,
+			boolean removeBastionZombifiedPiglins, boolean spawnNearFilterStructure,
+			boolean minimumNearbyAnimals, boolean netherEntryWarmup, boolean removeNaturalStriderJockeys,
+			boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry) {
 		String seed = ZsgSeedBridge.pendingSeedForSpecification(seedType);
 		Player host = new Player(cleanPlayerName(hostName), true, true);
 		Room room = new Room(roomName, seed, host, Math.max(2, maxPlayers));
@@ -147,6 +162,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setSpawnNearFilterStructure(spawnNearFilterStructure);
 		game.setMinimumNearbyAnimals(minimumNearbyAnimals);
 		game.setNetherEntryWarmup(netherEntryWarmup);
+		game.setSharedNetherEntry(sharedNetherEntry);
 		game.setDisablePauseWorldSaves(disablePauseWorldSaves);
 		game.setPlayerProgress(host.getName(), 0, "Starting");
 		ACTIVE_GAMES.put(roomName, game);
@@ -380,6 +396,10 @@ public class ZsgRooms implements ModInitializer {
 		}
 
 		String seed = game.getSeed();
+		if (SeedBankProfile.find(game.targetStructure) != null
+				&& (seed == null || ZsgSeedBridge.extractMinecraftSeed(seed).startsWith("pending-"))) {
+			return false;
+		}
 		boolean pendingLocalSeed = seed != null
 				&& ZsgSeedBridge.extractMinecraftSeed(seed).startsWith("pending-")
 				&& !ZsgSeedBridge.isFsgFilterSeedType(game.targetStructure);
@@ -531,6 +551,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setSpawnNearFilterStructure(snapshot.spawnNearFilterStructure);
 		game.setMinimumNearbyAnimals(snapshot.minimumNearbyAnimals);
 		game.setNetherEntryWarmup(snapshot.netherEntryWarmup);
+		game.setSharedNetherEntry(snapshot.sharedNetherEntry);
 		game.setDisablePauseWorldSaves(snapshot.disablePauseWorldSaves);
 		game.restoreSynchronizedStart(snapshot.readyPlayers, snapshot.synchronizedStartReleased);
 		game.replacePlayerProgress(snapshot.progress);
@@ -699,7 +720,8 @@ public class ZsgRooms implements ModInitializer {
 	}
 
 	private void onServerStarted(MinecraftServer server) {
-		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()) {
+		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()
+				|| SharedNetherEntryHeadlessTest.isEnabled() || Boolean.getBoolean("zsgrooms.filterProbe")) {
 			return;
 		}
 		Room room = getActiveRoom();
@@ -726,6 +748,7 @@ public class ZsgRooms implements ModInitializer {
 				removeNaturalStriderJockeys);
 		StructureSpawnProximity.configure(spawnNearFilterStructure, minimumNearbyAnimals,
 				game == null ? "" : game.targetStructure);
+		SharedNetherEntry.configure(server, game != null && game.hasSharedNetherEntry());
 		StructureSpawnProximity.prepare(server.getOverworld());
 		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}, boosted barters: {}, minimum bastion iron: {}, no bastion zombified piglins: {}, near filter structure spawn: {}, minimum nearby animals: {}, Nether entry warmup: {}, pause world saves disabled: {}, reduced zero-cycle fly-aways: {}",
 				cheatsAllowed, rngStandardized, boostedBarters, minimumBastionIron,

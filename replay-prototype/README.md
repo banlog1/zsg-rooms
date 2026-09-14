@@ -169,6 +169,18 @@ The `?` tooltip gives scope/playback information. Status updates include install
 recording, saving, saved, missing libraries, and ReplayMod confirmation. Setup controls are
 locked while libraries are being checked or a recording is active/finalizing.
 
+**Performance Mode** is a local, persisted, default-off Recording option, locked
+while recording or saving. It suppresses byte-identical synthetic full player
+metadata snapshots before packet decoding, queueing, and writer compression, and
+allocates equipment-update lists only on changes. Snapshots are still inspected
+each active client tick without reading or clearing the live tracker's dirty
+flags. The cache resets for a new player/world, and committed server metadata
+updates for the player invalidate it. Movement/rotation/velocity frequency and
+incoming packets are unchanged. It does not filter terrain, sounds, entities,
+milestones, or timers. Savings need measurement on representative recordings.
+Run the capture smoke test with `-PreplayPerformance=true` to exercise this mode;
+omit that property to exercise the original path.
+
 Choices persist in `config/zsg-rooms-replay.properties` inside the instance's game
 directory. Setup's **Use Minecraft Folder & Set Up** restores automatic setup,
 including when an earlier prototype saved a custom folder. Blank override means

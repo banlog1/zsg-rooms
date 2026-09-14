@@ -18,6 +18,7 @@ public final class ReplaySettingsScreen extends Screen {
     private TextFieldWidget directory;
     private CheckboxWidget recording;
     private CheckboxWidget coexistence;
+    private CheckboxWidget performance;
     private ButtonWidget browse;
     private ButtonWidget check;
     private ButtonWidget automatic;
@@ -39,6 +40,7 @@ public final class ReplaySettingsScreen extends Screen {
         int half = (contentWidth - 6) / 2;
         recording = null;
         coexistence = null;
+        performance = null;
         browse = null;
         check = null;
         automatic = null;
@@ -75,7 +77,7 @@ public final class ReplaySettingsScreen extends Screen {
                 }
             }));
         } else {
-            recording = this.addButton(new CheckboxWidget(left, 80, contentWidth, 20,
+            recording = this.addButton(new CheckboxWidget(left, 74, contentWidth, 20,
                     new LiteralText("Record Local Worlds"), preferences.enabled) {
                 @Override
                 public void onPress() {
@@ -85,7 +87,7 @@ public final class ReplaySettingsScreen extends Screen {
                 }
             });
             boolean installed = FabricLoader.getInstance().isModLoaded("replaymod");
-            coexistence = this.addButton(new CheckboxWidget(left, 104, contentWidth, 20,
+            coexistence = this.addButton(new CheckboxWidget(left, 96, contentWidth, 20,
                     new LiteralText(installed ? "ReplayMod recorder disabled" : "ReplayMod not installed"),
                     preferences.replayModRecordingDisabled) {
                 @Override
@@ -95,16 +97,23 @@ public final class ReplaySettingsScreen extends Screen {
                     refresh();
                 }
             });
-            this.addButton(new ButtonWidget(left, 128, half, 20, new LiteralText("Open Recordings"),
+            this.addButton(new ButtonWidget(left, 118, half, 20, new LiteralText("Open Recordings"),
                     b -> ReplayPrototype.openRecordings()));
-            stop = this.addButton(new ButtonWidget(left + half + 6, 128, half, 20, new LiteralText("Stop Recording"),
+            stop = this.addButton(new ButtonWidget(left + half + 6, 118, half, 20, new LiteralText("Stop Recording"),
                     b -> ReplayPrototype.stopRecording()));
-            this.addButton(new ReplayMenuButton(left, 152, contentWidth, 20,
+            this.addButton(new ReplayMenuButton(left, 140, contentWidth, 20,
                     new LiteralText("Solo Replay Testing"), b -> this.client.openScreen(new ReplayTestSettingsScreen(this))));
-            this.addButton(new CheckboxWidget(left, 178, contentWidth, 20,
+            this.addButton(new CheckboxWidget(left, 162, contentWidth, 20,
                     new LiteralText("Show Recording Indicator"), preferences.showRecordingHud) {
                 @Override public void onPress() {
                     ReplayPrototype.configureHud(!ReplayPrototype.getPreferences().showRecordingHud);
+                    refresh();
+                }
+            });
+            performance = this.addButton(new CheckboxWidget(left, 184, contentWidth, 20,
+                    new LiteralText("Performance Mode"), preferences.performanceMode) {
+                @Override public void onPress() {
+                    ReplayPrototype.configurePerformance(!ReplayPrototype.getPreferences().performanceMode);
                     refresh();
                 }
             });
@@ -132,6 +141,7 @@ public final class ReplaySettingsScreen extends Screen {
         if (check != null) check.active = available;
         if (automatic != null) automatic.active = available;
         if (recording != null) recording.active = available;
+        if (performance != null) performance.active = available;
         if (coexistence != null) coexistence.active = available && FabricLoader.getInstance().isModLoaded("replaymod");
         if (stop != null) stop.active = ReplayPrototype.isRecording();
     }
@@ -158,6 +168,10 @@ public final class ReplaySettingsScreen extends Screen {
                     ? "Default: this Minecraft instance's zsgrooms/replay-libraries. First setup downloads verified libraries from JitPack and Maven Central. Blank override uses automatic setup. Custom folders must contain the writer and all dependencies."
                     : "Record Local Worlds starts automatic library setup on first use (internet required). Wait until ready, then enter a local world. The REC badge confirms recording. Room results, returning to the room, and quitting to title save automatically to replay_recordings. Playback: ReplayMod Replay Viewer. Client HUD overlays are not recorded.";
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(text), Math.min(280, this.width - 32)), mouseX, mouseY);
+        } else if (performance != null && performance.isHovered()) {
+            this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
+                    "Skips unchanged player metadata. Keeps full-rate movement, terrain, entities, sounds and timers. Choose before recording; file-size savings vary."),
+                    Math.min(280, this.width - 32)), mouseX, mouseY);
         } else if (coexistence != null && coexistence.isHovered()) {
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
                     "Confirmation only. ReplayMod settings must have Record Singleplayer, Record Server and Automatic Recording OFF."),

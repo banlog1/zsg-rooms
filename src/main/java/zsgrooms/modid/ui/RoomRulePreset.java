@@ -81,6 +81,10 @@ public enum RoomRulePreset {
         return this.netherEntryWarmup;
     }
 
+    public boolean sharesNetherEntry() {
+        return false;
+    }
+
     public boolean disablesPauseWorldSaves() {
         return this.disablePauseWorldSaves;
     }

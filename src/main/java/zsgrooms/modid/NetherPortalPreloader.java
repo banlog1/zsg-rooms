@@ -57,7 +57,10 @@ public final class NetherPortalPreloader {
             return;
         }
 
-        ChunkPos center = projectedNetherChunk(player.getX(), player.getZ());
+        ChunkPos center = SharedNetherEntry.preloadCenter(player);
+        if (center == null) {
+            center = projectedNetherChunk(player.getX(), player.getZ());
+        }
         Warmup warmup = WARMUPS.get(playerId);
         if (warmup == null || warmup.world != nether || !warmup.center.equals(center)) {
             if (warmup != null) {

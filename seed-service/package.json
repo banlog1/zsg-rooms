@@ -1,0 +1,9 @@
+{
+  "name": "zsg-rooms-seed-service",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "publish": "node scripts/publish-bank.mjs"
+  }
+}

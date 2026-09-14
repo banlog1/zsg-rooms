@@ -32,6 +32,7 @@ public class InGame {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean sharedNetherEntry;
     private boolean disablePauseWorldSaves;
     private boolean synchronizedStartReleased;
     private String raceId = "";
@@ -317,6 +318,14 @@ public class InGame {
 
     public boolean hasNetherEntryWarmup() {
         return netherEntryWarmup;
+    }
+
+    public boolean hasSharedNetherEntry() {
+        return sharedNetherEntry;
+    }
+
+    public void setSharedNetherEntry(boolean sharedNetherEntry) {
+        this.sharedNetherEntry = sharedNetherEntry;
     }
 
     public void setNetherEntryWarmup(boolean netherEntryWarmup) {

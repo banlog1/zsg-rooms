@@ -1,6 +1,8 @@
 package zsgrooms.modid;
 
 import net.minecraft.client.MinecraftClient;
+import zsgrooms.modid.seedbank.SeedBankClient;
+import zsgrooms.modid.seedbank.SeedBankProfile;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -109,6 +111,8 @@ public class ZsgSeedBridge {
             return "zsg";
         }
         String normalized = seedType.trim().toLowerCase(Locale.ROOT);
+        SeedBankProfile bank = SeedBankProfile.find(normalized);
+        if (bank != null) return bank.specification;
         if (normalized.startsWith("manual:")) {
             return "manual";
         }
@@ -148,6 +152,8 @@ public class ZsgSeedBridge {
 
     public static String seedTypeLabel(String seedType) {
         String normalized = normalizeSeedType(seedType);
+        SeedBankProfile bank = SeedBankProfile.find(normalized);
+        if (bank != null) return bank.label;
         if (FSG_FILTER_LABELS.containsKey(normalized)) {
             return FSG_FILTER_LABELS.get(normalized);
         }
@@ -218,6 +224,7 @@ public class ZsgSeedBridge {
 
     public static String fetchSeedForRoom(String roomName, String structureType) {
         String seedType = normalizeSeedType(structureType);
+        if (SeedBankProfile.find(seedType) != null) return pendingSeedForSpecification(seedType);
         logToFile("=== ZSG-Rooms Seed Detection ===");
         logToFile("Room: " + roomName + ", Seed Type: " + seedTypeLabel(seedType));
 
@@ -289,6 +296,13 @@ public class ZsgSeedBridge {
 
     public static CompletableFuture<String> requestExactSeedForRoom(String roomName, String structureType) {
         String seedType = normalizeSeedType(structureType);
+        SeedBankProfile bank = SeedBankProfile.find(seedType);
+        if (bank != null) {
+            return SeedBankClient.request(bank).thenApply(seed -> {
+                lastSeedSource = "zsg-rooms-seed-bank";
+                return buildSeedForStructure(seed, bank.specification, 4);
+            });
+        }
         if (!isFsgFilterSeedType(seedType)) {
             CompletableFuture<String> seed = new CompletableFuture<String>();
             try {

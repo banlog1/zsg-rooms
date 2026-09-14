@@ -1,0 +1,16 @@
+{
+  "name": "zsg-rooms-seeds-local",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": false,
+  "d1_databases": [{
+    "binding": "BANK",
+    "database_name": "zsg-rooms-seeds-local",
+    "database_id": "00000000-0000-0000-0000-000000000000"
+  }],
+  "ratelimits": [{
+    "name": "SEED_REQUESTS",
+    "namespace_id": "1026",
+    "simple": { "limit": 60, "period": 60 }
+  }]
+}

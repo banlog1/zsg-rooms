@@ -131,6 +131,13 @@ Set this up **before entering the world**. Enabling recording in an already
 loaded world, or entering before setup finishes, does not start capture midway
 through that world. Enter another world after setup is ready.
 
+**Performance Mode** in the Recording tab is optional and defaults OFF. Select
+it before recording starts. It skips identical synthetic player-metadata updates
+and avoids empty equipment-update lists, while keeping full-rate movement,
+terrain, entities, sounds, and timers. It does not reduce recording distance or
+apply stronger compression. File-size and CPU savings depend on the run; no
+fixed reduction is guaranteed. Leave it off to use the original recording path.
+
 ### Save And Watch
 
 - Room recordings save automatically when a victory, loss, draw, or forfeit

@@ -26,6 +26,12 @@ future-facing UI that do not yet have complete gameplay logic.
 These documents cover planned work and opt-in development prototypes, not
 finished player-facing features.
 
+- [Offline custom filter bank](OFFLINE_FILTER_BANK.md): acceptance criteria,
+  private seed generation, independent verification and timing interpretation.
+- [Filter source research](FILTER_RESEARCH.md): public ZSG implementation,
+  reusable libraries, limitations and the proposed staged search architecture.
+- [Custom filter investigation](CUSTOM_FILTER.md): preliminary search and legacy
+  terrain probes.
 - [Replay foundation decision](REPLAY_FOUNDATION.md): selected playback and file
   infrastructure, inspected versions, integration boundaries, and remaining
   compatibility checks.
@@ -37,6 +43,9 @@ finished player-facing features.
   manifests, manual sharing, and switching between racers' recordings.
 
 ## Supported Baseline
+
+Operator seed generation: [Model-only seed finder](MODEL_SEED_FINDER.md),
+including acceptance proxies, pinned standalone dependencies and calibration tests.
 
 - Minecraft 1.16.1
 - Fabric Loader 0.19.3+

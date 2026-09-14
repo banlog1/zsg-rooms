@@ -59,3 +59,20 @@ config/
 # optional local development mods
 
 libs/SpeedRunIGT-*.jar
+
+# generated mod copies, recordings and local tooling
+
+zsg-rooms-*.jar
+zsg-rooms-*.zip
+zsg-replay-viewer-*.jar
+*.mcpr
+*.mcpr.*
+*.bak
+*.tmp
+/dist/
+/releases/
+.codex/
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*

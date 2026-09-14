@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "zsg-filter-probe",
+  "version": "1.0.0",
+  "name": "ZSG Filter Terrain Probe",
+  "environment": "server",
+  "mixins": ["zsg-filter-probe.mixins.json"],
+  "entrypoints": {
+    "main": ["zsgrooms.modid.filter.FilterTerrainProbe"]
+  },
+  "depends": {
+    "zsg-rooms": "*"
+  }
+}

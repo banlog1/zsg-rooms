@@ -145,7 +145,7 @@ public final class ReplayPrototype {
 
     public static boolean configure(boolean enabled, String directory, boolean replayModRecordingDisabled) {
         if (!canConfigure()) return false;
-        ReplayPreferences next = new ReplayPreferences(enabled, directory, replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud);
+        ReplayPreferences next = new ReplayPreferences(enabled, directory, replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, preferences.performanceMode);
         try {
             next.resolveLibraries(gameDirectory);
             next.save(preferencesFile);
@@ -185,7 +185,7 @@ public final class ReplayPrototype {
         if (!canConfigure()) return false;
         try {
             ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                    preferences.replayModRecordingDisabled, group, preferences.showRecordingHud);
+                    preferences.replayModRecordingDisabled, group, preferences.showRecordingHud, preferences.performanceMode);
             next.save(preferencesFile);
             preferences = next;
             return true;
@@ -205,7 +205,15 @@ public final class ReplayPrototype {
 
     public static boolean configureHud(boolean visible) {
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                preferences.replayModRecordingDisabled, preferences.soloTestGroup, visible);
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, visible, preferences.performanceMode);
+        try { next.save(preferencesFile); preferences = next; return true; }
+        catch (java.io.IOException error) { return false; }
+    }
+
+    public static boolean configurePerformance(boolean enabled) {
+        if (!canConfigure()) return false;
+        ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, enabled);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
@@ -410,6 +418,9 @@ public final class ReplayPrototype {
                         }
                         long timestamp = session.timestamp();
                         if (!session.buffer.commit(submitted, timestamp)) return;
+                        if (session.trackedState != null && packet instanceof EntityTrackerUpdateS2CPacket) {
+                            session.trackedState.observe((EntityTrackerUpdateS2CPacket) packet);
+                        }
                         if (worldChanging) {
                             session.manifest.closeInterval(timestamp);
                             session.worldChanging = true;
@@ -461,6 +472,7 @@ public final class ReplayPrototype {
                 session.player = player;
                 if (session.selfId == -1) session.selfId = player.getEntityId();
                 session.equipment = new ItemStack[SLOTS.length];
+                if (session.trackedState != null) session.trackedState.reset();
                 capture(session, new PlayerSpawnS2CPacket(player), false);
                 if (session.buffer.isOpen()) {
                     session.manifest.openInterval(session.timestamp(), session.worldIndex,
@@ -470,16 +482,18 @@ public final class ReplayPrototype {
             capture(session, new EntityPositionS2CPacket(player), false);
             capture(session, new EntitySetHeadYawS2CPacket(player, (byte) (player.headYaw * 256.0F / 360.0F)), false);
             capture(session, new EntityVelocityUpdateS2CPacket(player), false);
-            capture(session, copyTrackedState(player.getEntityId(), player.getDataTracker()), false);
-            List<Pair<EquipmentSlot, ItemStack>> changed = new ArrayList<>();
+            EntityTrackerUpdateS2CPacket tracked = copyTrackedState(player.getEntityId(), player.getDataTracker(), session.trackedState);
+            if (tracked != null) capture(session, tracked, false);
+            List<Pair<EquipmentSlot, ItemStack>> changed = session.trackedState == null ? new ArrayList<>() : null;
             for (int i = 0; i < SLOTS.length; i++) {
                 ItemStack stack = player.getEquippedStack(SLOTS[i]);
                 if (session.equipment[i] == null || !ItemStack.areEqual(stack, session.equipment[i])) {
                     session.equipment[i] = stack.copy();
+                    if (changed == null) changed = new ArrayList<>();
                     changed.add(Pair.of(SLOTS[i], session.equipment[i]));
                 }
             }
-            if (!changed.isEmpty()) capture(session, new EntityEquipmentUpdateS2CPacket(player.getEntityId(), changed), false);
+            if (changed != null && !changed.isEmpty()) capture(session, new EntityEquipmentUpdateS2CPacket(player.getEntityId(), changed), false);
             if (player.handSwinging && (session.swingTicks <= 0 || player.handSwingTicks < session.swingTicks)) {
                 capture(session, new EntityAnimationS2CPacket(player,
                         player.preferredHand == net.minecraft.util.Hand.OFF_HAND ? 3 : 0), false);
@@ -491,13 +505,22 @@ public final class ReplayPrototype {
     }
 
     public static EntityTrackerUpdateS2CPacket copyTrackedState(int id, DataTracker tracker) throws java.io.IOException {
+        return copyTrackedState(id, tracker, null);
+    }
+
+    static EntityTrackerUpdateS2CPacket copyTrackedState(int id, DataTracker tracker, ReplayTrackedState cache) throws java.io.IOException {
         PacketByteBuf snapshot = new PacketByteBuf(Unpooled.buffer());
         try {
             // The normal full-update constructor clears dirty flags on the live tracker.
             snapshot.writeVarInt(id);
             DataTracker.entriesToPacket(tracker.getAllEntries(), snapshot);
+            if (cache != null && cache.unchanged(snapshot)) return null;
             EntityTrackerUpdateS2CPacket packet = new EntityTrackerUpdateS2CPacket();
             packet.read(snapshot);
+            if (cache != null) {
+                snapshot.readerIndex(0);
+                cache.remember(snapshot, packet);
+            }
             return packet;
         } finally {
             snapshot.release();
@@ -574,6 +597,7 @@ public final class ReplayPrototype {
         private volatile boolean writerReady;
         private boolean worldChanging = true;
         private ClientPlayerEntity player;
+        private final ReplayTrackedState trackedState = preferences.performanceMode ? new ReplayTrackedState() : null;
         private ItemStack[] equipment;
         private int swingTicks;
 

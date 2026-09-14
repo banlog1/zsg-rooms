@@ -45,6 +45,9 @@ Windows PowerShell:
 Build outputs are under `build/libs/`. Development instance files, logs, worlds,
 and configuration are under `run/` and are ignored by Git.
 
+The custom filter's offline terrain probe and its current limitations are documented
+in [Custom Filter Work](CUSTOM_FILTER.md). It is not a selectable room filter yet.
+
 ## Test Layout
 
 JUnit 5 tests are under `src/test/java`. Existing tests cover domain behavior,
@@ -169,6 +172,32 @@ failure, including Minecraft errors that otherwise return exit code zero. The
 fixtures cover both direct lava ignition and existing-fire spread, translated
 positions, staggered starts, extra native attempts, difficulty changes, and a
 `doFireTick` pause. Normal launches do not enable this test or its synthetic players.
+
+### Shared First Nether Entry
+
+`SharedNetherEntry` captures the original spawn before proximity relocation in
+`ZsgRooms.onServerStarted`. `SharedNetherEntryState` persists the projected
+reference and consumed player UUIDs in `zsg_rooms_nether_entry.dat`.
+`SharedNetherEntryMixin` injects immediately before the first `PortalForcer.usePortal`
+invocation in `ServerPlayerEntity.changeDimension`, after coordinate scaling.
+Only portal-contact Overworld-to-Nether transfers are redirected. Successful
+returns from the method consume the first entry; failed transfers do not.
+`SharedNetherPortalMixin` redirects only `Random.nextInt(int)` in `createPortal`,
+advancing vanilla's RNG once and substituting the isolated first-entry roll.
+Server shutdown clears transient server references. No relay deployment is
+needed: the relay forwards room snapshot fields without a rule allowlist.
+
+```powershell
+.\gradlew.bat test --tests zsgrooms.modid.SharedNetherEntryTest
+.\gradlew.bat runNetherEntryTest
+```
+
+The opt-in headless test uses the disposable `run/perch-benchmark` world and its
+existing EULA setting. It tests actual portal creation and dimension transfer,
+compares frame blocks/axis after restoring a Nether terrain fixture between
+attempts, and checks persisted consumption, preload targets, later/return travel,
+non-portal travel and disabled fallback. It is not a performance benchmark or
+a cross-machine/modpack compatibility guarantee. A fresh PASS marker is required.
 
 ### Nether Natural Spawn Standardization
 

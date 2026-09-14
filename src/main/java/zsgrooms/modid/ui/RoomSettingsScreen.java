@@ -29,7 +29,9 @@ public class RoomSettingsScreen extends Screen {
                 new LiteralText("Match HUD..."), button -> this.client.openScreen(new MatchHudSettingsScreen(this))));
         this.addButton(new ButtonWidget(left + navigationWidth + 4, y, navigationWidth, buttonHeight,
                 new LiteralText("Replays..."), button -> this.client.openScreen(new ReplaySettingsScreen(this))));
-        int preferenceY = y + row + (compact ? 0 : 6);
+        this.addButton(new ButtonWidget(left, y + row, panelWidth() - 32, buttonHeight,
+                new LiteralText("Seed Bank..."), button -> this.client.openScreen(new SeedBankSettingsScreen(this))));
+        int preferenceY = y + row * 2 + (compact ? 0 : 6);
         this.addButton(new ButtonWidget(left, preferenceY, panelWidth() - 32, buttonHeight, rpRepairText(), button -> {
             RoomUiPreferences.setRuinedPortalChestRepairEnabled(
                     !RoomUiPreferences.isRuinedPortalChestRepairEnabled());

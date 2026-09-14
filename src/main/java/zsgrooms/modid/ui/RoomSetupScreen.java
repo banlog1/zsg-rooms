@@ -26,6 +26,9 @@ public class RoomSetupScreen extends Screen {
             "zsgjungletemple",
             "zsgjungletempleop",
             "rpseedbank",
+            "rooms-temple-v5",
+            "rooms-village-v5",
+            "rooms-shipwreck-v5",
             "random",
             "room",
             "manual"
@@ -54,6 +57,7 @@ public class RoomSetupScreen extends Screen {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean sharedNetherEntry;
     private boolean disablePauseWorldSaves;
     private boolean roomCodeVisible;
     private boolean helpVisible;
@@ -144,7 +148,7 @@ public class RoomSetupScreen extends Screen {
                     this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                     this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
                     this.minimumNearbyAnimals, this.netherEntryWarmup,
-                    this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.rulePreset));
+                    this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.sharedNetherEntry, this.rulePreset));
         });
         this.gameRulesButton.active = this.createMode;
         this.addButton(this.gameRulesButton);
@@ -174,7 +178,8 @@ public class RoomSetupScreen extends Screen {
                         this.allowCheats, this.rngStandardization, this.boostedBarters, this.minimumBastionIron,
                         this.removeBastionZombifiedPiglins, this.spawnNearFilterStructure,
                         this.minimumNearbyAnimals, this.netherEntryWarmup,
-                        this.removeNaturalStriderJockeys, this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways);
+                        this.removeNaturalStriderJockeys, this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways,
+                        this.sharedNetherEntry);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -316,7 +321,8 @@ public class RoomSetupScreen extends Screen {
             boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
-            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, RoomRulePreset rulePreset) {
+            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
+            RoomRulePreset rulePreset) {
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
         this.reduceZeroCycleFlyAways = reduceZeroCycleFlyAways;
@@ -327,6 +333,7 @@ public class RoomSetupScreen extends Screen {
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
+        this.sharedNetherEntry = sharedNetherEntry;
         this.disablePauseWorldSaves = disablePauseWorldSaves;
         this.rulePreset = rulePreset == null ? RoomRulePreset.CUSTOM : rulePreset;
         if (this.gameRulesButton != null) {
@@ -348,6 +355,7 @@ public class RoomSetupScreen extends Screen {
         this.spawnNearFilterStructure = preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = preset.warmsNetherEntry();
+        this.sharedNetherEntry = preset.sharesNetherEntry();
         this.disablePauseWorldSaves = preset.disablesPauseWorldSaves();
     }
 

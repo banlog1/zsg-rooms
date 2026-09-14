@@ -16,6 +16,7 @@ import net.minecraft.world.gen.ChunkRandom;
 import net.minecraft.world.gen.chunk.ChunkGenerator;
 import net.minecraft.world.gen.chunk.StructureConfig;
 import net.minecraft.world.gen.feature.StructureFeature;
+import zsgrooms.modid.seedbank.SeedBankProfile;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,14 +66,15 @@ public final class StructureSpawnProximity {
     public static synchronized void prepare(ServerWorld world) {
         preparedSpawn = false;
         StructureFeature<?> structure = structureForFilter(filterId);
-        if ((!enabled && !minimumNearbyAnimalsEnabled) || world == null || structure == null) {
+        boolean preparePools = SurfaceLavaPoolGuarantee.needsPreparation(world, filterId);
+        if ((!enabled && !minimumNearbyAnimalsEnabled && !preparePools) || world == null || structure == null) {
             return;
         }
 
         BlockPos originalSpawn = world.getSpawnPos();
         SpawnCacheKey cacheKey = new SpawnCacheKey(world.getSeed(), filterId);
         BlockPos cachedSpawn = SPAWN_CACHE.get(cacheKey);
-        if (cachedSpawn != null && !minimumNearbyAnimalsEnabled) {
+        if (cachedSpawn != null && !minimumNearbyAnimalsEnabled && !preparePools) {
             BlockPos refreshedSpawn = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
                     new BlockPos(cachedSpawn.getX(), 0, cachedSpawn.getZ()));
             if (isSafeSpawn(world, refreshedSpawn)) {
@@ -99,6 +101,9 @@ public final class StructureSpawnProximity {
         BlockPos target = located.pos;
         long locateMillis = elapsedMillis(locateStarted);
 
+        if (preparePools) {
+            SurfaceLavaPoolGuarantee.ensure(world, target, filterId);
+        }
         if (minimumNearbyAnimalsEnabled) {
             StructureAnimalGuarantee.ensure(world, target, filterId);
         }
@@ -255,6 +260,8 @@ public final class StructureSpawnProximity {
     static String structureKeyForFilter(String selectedFilter) {
         String normalized = ZsgSeedBridge.normalizeSeedType(selectedFilter);
         if ("zsg".equals(normalized) || "zsgop".equals(normalized)) return "buried_treasure";
+        SeedBankProfile bank = SeedBankProfile.find(normalized);
+        if (bank != null) return bank.structure;
         if ("zsgvillage".equals(normalized) || "zsgvillageop".equals(normalized)) return "village";
         if ("zsgshipwreck".equals(normalized) || "zsgshipwreckop".equals(normalized)) return "shipwreck";
         if ("zsgtemple".equals(normalized) || "zsgtempleop".equals(normalized)) return "desert_pyramid";

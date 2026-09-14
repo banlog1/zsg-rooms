@@ -12,6 +12,7 @@ loom {
 			vmArg "-Dzsgrooms.replayPrototype.smokeTest=${project.findProperty('replaySmoke') ?: false}"
 			vmArg "-Dzsgrooms.replayPrototype.smokeEnd=${project.findProperty('replayEnd') ?: 'quit'}"
 			vmArg "-Dzsgrooms.replayPrototype.smokeResets=${project.findProperty('replayResets') ?: 0}"
+			vmArg "-Dzsgrooms.replayPrototype.smokePerformance=${project.findProperty('replayPerformance') ?: false}"
 		}
 		perchBenchmark {
 			server()
@@ -31,6 +32,14 @@ loom {
 			name = "Wood Lighting Integration Test"
 			runDir = "run/perch-benchmark"
 			vmArg "-Dzsgrooms.woodLightingTest=true"
+			programArg "--port=0"
+			programArg "nogui"
+		}
+		netherEntryTest {
+			server()
+			name = "Shared Nether Entry Integration Test"
+			runDir = "run/perch-benchmark"
+			vmArg "-Dzsgrooms.netherEntryTest=true"
 			programArg "--port=0"
 			programArg "nogui"
 		}
@@ -146,6 +155,11 @@ test {
 	useJUnitPlatform()
 }
 
+// Developer-only terrain probe. It is not included in the release JAR or run during races.
+if (project.hasProperty('filterProbe')) {
+	apply from: 'gradle/filter-probe.gradle'
+}
+
 tasks.named('runWoodLightingTest') {
 	doFirst {
 		ext.testStartedAt = System.currentTimeMillis()
@@ -155,6 +169,17 @@ tasks.named('runWoodLightingTest') {
 		if (!log.exists() || log.lastModified() < testStartedAt
 				|| !log.text.contains('[WoodLightTest] PASS:') || log.text.contains('[WoodLightTest] FAIL')) {
 			throw new GradleException('Wood lighting integration test did not pass; see run/perch-benchmark/logs/latest.log')
+		}
+	}
+}
+
+tasks.named('runNetherEntryTest') {
+	doFirst { ext.testStartedAt = System.currentTimeMillis() }
+	doLast {
+		def log = file('run/perch-benchmark/logs/latest.log')
+		if (!log.exists() || log.lastModified() < testStartedAt
+				|| !log.text.contains('[NetherEntryTest] PASS:') || log.text.contains('[NetherEntryTest] FAIL')) {
+			throw new GradleException('Shared Nether entry test did not pass; see run/perch-benchmark/logs/latest.log')
 		}
 	}
 }

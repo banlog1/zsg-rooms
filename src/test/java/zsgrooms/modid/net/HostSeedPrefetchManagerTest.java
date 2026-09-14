@@ -103,6 +103,24 @@ public class HostSeedPrefetchManagerTest {
         assertFalse(manager.getStatus().contains("987654321"));
     }
 
+    @Test
+    public void bankAliasesReusePrivatePrefetchAndChangingBankDiscardsTheOldResult() {
+        FakeRequester requester = new FakeRequester();
+        HostSeedPrefetchManager manager = new HostSeedPrefetchManager(requester);
+        manager.prefetch("room", "rooms-temple-v5");
+        manager.prefetch("room", "ZSG Rooms Desert Temple");
+        assertEquals(1, requester.requests.size());
+        manager.prefetch("room", "rooms-village-v5");
+        requester.requests.get(0).complete("111|structure:rooms-temple-v5|iron:4");
+        assertEquals(HostSeedPrefetchManager.STATUS_PREPARING, manager.getStatus());
+        requester.requests.get(1).complete("222|structure:rooms-village-v5|iron:4");
+        assertEquals(HostSeedPrefetchManager.STATUS_READY, manager.getStatus());
+        assertFalse(manager.getStatus().contains("222"));
+        assertEquals("222|structure:rooms-village-v5|iron:4", manager.consumeOrRequest("room", "rooms-village-v5").join());
+        manager.onSeedConsumed("room", "rooms-village-v5");
+        assertEquals(3, requester.requests.size());
+    }
+
     private static final class FakeRequester implements HostSeedPrefetchManager.SeedRequester {
         private final List<CompletableFuture<String>> requests = new ArrayList<CompletableFuture<String>>();
 

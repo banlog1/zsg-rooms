@@ -19,7 +19,7 @@ public class RoomGameRulesScreen extends Screen {
     private static final int PRESET_ARROW_WIDTH = 24;
     private static final int PRESET_LABEL_WIDTH = 280;
     private static final int RACE_RULE_COUNT = 6;
-    private static final int WORLD_RULE_COUNT = 5;
+    private static final int WORLD_RULE_COUNT = 6;
 
     private final RoomSetupScreen parent;
     private final List<RuleRow> ruleRows = new ArrayList<RuleRow>();
@@ -43,13 +43,15 @@ public class RoomGameRulesScreen extends Screen {
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
+    private boolean sharedNetherEntry;
     private boolean disablePauseWorldSaves;
 
     public RoomGameRulesScreen(RoomSetupScreen parent, boolean allowCheats, boolean rngStandardization,
             boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
-            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, RoomRulePreset preset) {
+            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
+            RoomRulePreset preset) {
         super(new LiteralText("Room Game Rules"));
         this.parent = parent;
         this.allowCheats = allowCheats;
@@ -62,6 +64,7 @@ public class RoomGameRulesScreen extends Screen {
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
+        this.sharedNetherEntry = sharedNetherEntry;
         this.disablePauseWorldSaves = disablePauseWorldSaves;
         this.preset = preset == null ? RoomRulePreset.CUSTOM : preset;
     }
@@ -254,6 +257,16 @@ public class RoomGameRulesScreen extends Screen {
                 () -> this.disablePauseWorldSaves,
                 () -> this.disablePauseWorldSaves = !this.disablePauseWorldSaves,
                 true);
+        addRuleRow(
+                "Shared First Nether Entry",
+                "Uses the seed's original world spawn as a shared reference for each runner's first "
+                        + "Nether portal destination, independent of where they build their entry portal. "
+                        + "Fresh same-seed resets repeat it. Return trips and later portals use vanilla linking. "
+                        + "Independent of RNG standardization.",
+                x, y + rowGap * 5, width, height,
+                () -> this.sharedNetherEntry,
+                () -> this.sharedNetherEntry = !this.sharedNetherEntry,
+                false);
     }
 
     private void addRuleRow(
@@ -383,7 +396,7 @@ public class RoomGameRulesScreen extends Screen {
                 this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                 this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
                 this.minimumNearbyAnimals, this.netherEntryWarmup,
-                this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.preset);
+                this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.sharedNetherEntry, this.preset);
         this.client.openScreen(this.parent);
     }
 
@@ -401,6 +414,7 @@ public class RoomGameRulesScreen extends Screen {
         this.spawnNearFilterStructure = this.preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = this.preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = this.preset.warmsNetherEntry();
+        this.sharedNetherEntry = this.preset.sharesNetherEntry();
         this.disablePauseWorldSaves = this.preset.disablesPauseWorldSaves();
     }
 

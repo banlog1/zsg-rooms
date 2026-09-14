@@ -88,6 +88,9 @@ final class ReplaySmokeTest {
                 }
                 if (menuTicks < 36) return;
                 if (!ReplayPrototype.isLibraryReady()) return;
+                if (!ReplayPrototype.configurePerformance(Boolean.getBoolean("zsgrooms.replayPrototype.smokePerformance"))) {
+                    throw new IllegalStateException("Cannot configure replay performance mode");
+                }
                 stage = 1;
                 client.options.pauseOnLostFocus = false;
                 client.options.viewDistance = 4;
@@ -138,6 +141,11 @@ final class ReplaySmokeTest {
                 if (ticks == 20) {
                     boolean dirty = client.player.getDataTracker().isDirty();
                     ReplayPrototype.copyTrackedState(client.player.getEntityId(), client.player.getDataTracker());
+                    ReplayTrackedState cache = new ReplayTrackedState();
+                    if (ReplayPrototype.copyTrackedState(client.player.getEntityId(), client.player.getDataTracker(), cache) == null
+                            || ReplayPrototype.copyTrackedState(client.player.getEntityId(), client.player.getDataTracker(), cache) != null) {
+                        throw new IllegalStateException("Metadata cache did not suppress unchanged state");
+                    }
                     if (dirty != client.player.getDataTracker().isDirty()) throw new IllegalStateException("Tracker mutated");
                     onServer(client, player -> {
                         ServerWorld world = player.getServerWorld();

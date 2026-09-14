@@ -1,0 +1,297 @@
+// Legacy real-world checks are an explicit offline calibration harness, never a search backend.
+def calibrationTasks = ['runFilterBank', 'runFilterProbe', 'runFilterVerify', 'runSurfacePoolCalibration']
+gradle.taskGraph.whenReady { graph ->
+	if (project.findProperty('filterCalibration') != 'true' && graph.allTasks.any { it.name in calibrationTasks }) {
+		throw new GradleException('Minecraft filter tasks are calibration-only. Opt in with -PfilterCalibration=true. Production search: scripts/Search-FilterCandidates.ps1')
+	}
+}
+
+sourceSets {
+	filterProbe {
+		compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+		runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+	}
+	filterProbeTest {
+		compileClasspath += sourceSets.filterProbe.output + sourceSets.test.compileClasspath
+		runtimeClasspath += sourceSets.filterProbe.output + sourceSets.test.runtimeClasspath
+	}
+}
+
+tasks.register('filterProbeTest', Test) {
+	testClassesDirs = sourceSets.filterProbeTest.output.classesDirs
+	classpath = sourceSets.filterProbeTest.runtimeClasspath
+	useJUnitPlatform()
+	systemProperty 'zsgrooms.modelParity', project.findProperty('filterModelParity') ?: 'false'
+}
+tasks.named('check') { dependsOn tasks.named('filterProbeTest') }
+
+tasks.register('restorePoolCalibrationServerProperties') {
+	doLast {
+		def test = tasks.named('runSurfacePoolCalibration').get()
+		if (test.ext.has('originalServerProperties')) {
+			file('run/perch-benchmark/server.properties').bytes = test.ext.originalServerProperties
+		}
+	}
+}
+
+tasks.matching { it.name == 'runSurfacePoolCalibration' }.configureEach {
+	finalizedBy tasks.named('restorePoolCalibrationServerProperties')
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+		def config = file('run/perch-benchmark/server.properties')
+		ext.originalServerProperties = config.bytes
+		def properties = new Properties()
+		config.withInputStream { properties.load(it) }
+		// Multiple complete worlds are generated for a test, not a real-time gameplay workload.
+		properties.setProperty('max-tick-time', '-1')
+		config.withOutputStream { properties.store(it, 'Temporary surface-pool calibration settings') }
+	}
+	doLast {
+		def log = file('run/perch-benchmark/logs/latest.log')
+		if (!log.exists() || log.lastModified() < testStartedAt
+				|| !log.text.contains('[SurfacePoolTest] PASS:') || log.text.contains('[SurfacePoolTest] FAIL:')) {
+			throw new GradleException('Surface pool calibration failed; see run/perch-benchmark/logs/latest.log')
+		}
+	}
+}
+
+loom {
+	mods {
+		'zsg-rooms' { sourceSet sourceSets.main }
+		'zsg-filter-probe' { sourceSet sourceSets.filterProbe }
+	}
+	runs {
+		surfacePoolCalibration {
+			server()
+			source sourceSets.filterProbe
+			runDir 'run/perch-benchmark'
+			vmArg '-Dzsgrooms.filterProbe=true'
+			vmArg '-Dzsgrooms.poolCalibration=true'
+			vmArg "-Dzsgrooms.poolCalibration.bank=${file(project.findProperty('poolCalibrationBank') ?: 'run/model-bank/overnight/main/bank.jsonl').absolutePath}"
+			vmArg "-Dzsgrooms.poolCalibration.samples=${project.findProperty('poolCalibrationSamples') ?: '1'}"
+			vmArg "-Dzsgrooms.poolCalibration.onlySample=${project.findProperty('poolCalibrationOnlySample') ?: '0'}"
+			vmArg "-Dzsgrooms.poolCalibration.allowPartial=${project.findProperty('poolCalibrationAllowPartial') ?: 'false'}"
+			vmArg '-Xmx2G'
+			programArg '--port=0'
+			programArg 'nogui'
+		}
+		filterVerify {
+			server()
+			source sourceSets.filterProbe
+			runDir 'run/filter-verify'
+			vmArg '-Dzsgrooms.filterProbe=true'
+			vmArg '-Dzsgrooms.filterVerify=true'
+			vmArg '-Xmx3G'
+			programArg '--port=0'
+			programArg 'nogui'
+		}
+		filterBank {
+			server()
+			source sourceSets.filterProbe
+			runDir 'run/filter-bank'
+			vmArg '-Dzsgrooms.filterProbe=true'
+			vmArg '-Dzsgrooms.filterBank=true'
+			vmArg "-Dzsgrooms.filterCalibration=${project.findProperty('filterCalibration') ?: 'false'}"
+			vmArg "-Dzsgrooms.spawnCalibration=${project.findProperty('spawnCalibration') ?: 'false'}"
+			vmArg "-Dzsgrooms.spawnCalibrationSamples=${project.findProperty('spawnCalibrationSamples') ?: '24'}"
+			vmArg "-Dzsgrooms.spawnCalibrationHoldout=${project.findProperty('spawnCalibrationHoldout') ?: 'false'}"
+			vmArg "-Dzsgrooms.spawnModelExecutable=${file('run/filter-worker/spawn-model.exe').absolutePath}"
+			vmArg "-Dzsgrooms.filterVerifierTest=${project.findProperty('filterVerifierTest') ?: ''}"
+			vmArg "-Dzsgrooms.filterBank.workers=${project.findProperty('filterWorkers') ?: '1'}"
+			vmArg "-Dzsgrooms.filterBank.queue=${project.findProperty('filterQueue') ?: '2'}"
+			vmArg '-Xmx3G'
+			vmArg "-Dzsgrooms.filterBank.type=${project.findProperty('filterType') ?: 'temple'}"
+			vmArg "-Dzsgrooms.filterBank.trials=${project.findProperty('filterTrials') ?: 20}"
+			vmArg "-Dzsgrooms.filterBank.target=${project.findProperty('filterTarget') ?: 3}"
+			vmArg "-Dzsgrooms.filterBank.maxMinutes=${project.findProperty('filterMaxMinutes') ?: 30}"
+			vmArg "-Dzsgrooms.filterBank.searchSeed=${project.findProperty('filterSearchSeed') ?: 1000}"
+			vmArg "-Dzsgrooms.filterBank.predictLoot=${project.findProperty('filterPredictLoot') ?: 'true'}"
+			vmArg "-Dzsgrooms.filterBank.spawnHint=${project.findProperty('filterSpawnHint') ?: 'true'}"
+			vmArg "-Dzsgrooms.filterBank.woodHint=${project.findProperty('filterWoodHint') ?: 'true'}"
+			vmArg "-Dzsgrooms.filterBank.searchMode=${project.findProperty('filterSearchMode') ?: 'staged'}"
+			vmArg "-Dzsgrooms.filterBank.sisters=${project.findProperty('filterSisters') ?: '65536'}"
+			vmArg "-Dzsgrooms.filterBank.predictBastion=${project.findProperty('filterPredictBastion') ?: 'true'}"
+			vmArg "-Dzsgrooms.filterBank.earlyChecks=${project.findProperty('filterEarlyChecks') ?: 'true'}"
+			vmArg "-Dzsgrooms.filterEarlyTest=${project.findProperty('filterEarlyTest') ?: 'false'}"
+			vmArg "-Dzsgrooms.filterLayoutTest=${project.findProperty('filterLayoutTest') ?: 'false'}"
+			programArg '--port=0'
+			programArg 'nogui'
+		}
+		filterProbe {
+			server()
+			source sourceSets.filterProbe
+			runDir 'run/filter-probe'
+			vmArg '-Dzsgrooms.filterProbe=true'
+			vmArg "-Dzsgrooms.filterProbe.candidate=${project.hasProperty('filterCandidate')}"
+			vmArg "-Dzsgrooms.filterProbe.type=${project.findProperty('filterType') ?: 'village'}"
+			vmArg "-Dzsgrooms.filterProbe.x=${project.findProperty('filterX') ?: 0}"
+			vmArg "-Dzsgrooms.filterProbe.z=${project.findProperty('filterZ') ?: 0}"
+			programArg '--port=0'
+			programArg 'nogui'
+		}
+	}
+}
+
+tasks.named('runFilterVerify') {
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+		def source = file(project.findProperty('filterStaging') ?: 'run/filter-bank/bank-staging.json')
+		def staged = new groovy.json.JsonSlurper().parse(source)
+		def index = Integer.parseInt((project.findProperty('filterEntry') ?: '0').toString())
+		if (staged.status != 'NON_EXPORTABLE_DEVELOPMENT' || index < 0 || index >= staged.entries.size()) {
+			throw new GradleException('Select a passing staged entry for independent verification')
+		}
+		def entry = staged.entries[index]
+		if (entry.status != 'VALIDATION_PASS' || Long.parseLong(entry.seed.toString()) == 0L) {
+			throw new GradleException('Fresh-server verification requires a passing, nonzero seed')
+		}
+		def directory = file('run/filter-verify')
+		directory.mkdirs()
+		def eulaFile = file('run/filter-probe/eula.txt')
+		def eula = new Properties()
+		if (eulaFile.exists()) eulaFile.withInputStream { eula.load(it) }
+		if (eula.getProperty('eula') != 'true') throw new GradleException('Accept the development server EULA first')
+		copy { from eulaFile; into directory }
+		new File(directory, 'candidate.json').text = new groovy.json.JsonBuilder(entry).toPrettyString()
+		new File(directory, 'verification.json').text = '{"status":"PENDING"}'
+		def settings = new Properties()
+		settings.setProperty('level-seed', entry.seed.toString())
+		settings.setProperty('level-name', 'verification-' + UUID.randomUUID().toString())
+		settings.setProperty('online-mode', 'false')
+		settings.setProperty('server-ip', '127.0.0.1')
+		settings.setProperty('view-distance', '2')
+		settings.setProperty('max-tick-time', '-1')
+		new File(directory, 'server.properties').withOutputStream { settings.store(it, 'Private offline seed verification') }
+	}
+	doLast {
+		def log = file('run/filter-verify/logs/latest.log')
+		def result = new groovy.json.JsonSlurper().parse(file('run/filter-verify/verification.json'))
+		if (!log.exists() || log.lastModified() < testStartedAt || !log.text.contains('[FilterVerify] COMPLETE:')
+				|| log.text.contains('[FilterVerify] FAIL:') || result.status != 'VERIFIED') {
+			throw new GradleException('Independent seed verification did not pass; inspect run/filter-verify/verification.json')
+		}
+	}
+}
+
+tasks.named('runFilterBank') {
+	if (project.findProperty('spawnCalibration') == 'true' || project.findProperty('filterSpawnHint') != 'false') dependsOn tasks.named('buildFilterStructureWorker')
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+		def directory = file('run/filter-bank')
+		directory.mkdirs()
+		def eulaFile = file('run/filter-probe/eula.txt')
+		def eula = new Properties()
+		if (eulaFile.exists()) eulaFile.withInputStream { eula.load(it) }
+		if (eula.getProperty('eula') != 'true') throw new GradleException('Accept the development server EULA before running the bank generator')
+		copy { from eulaFile; into directory }
+		def settings = new Properties()
+		settings.setProperty('level-seed', '1')
+		settings.setProperty('level-name', 'bootstrap')
+		settings.setProperty('online-mode', 'false')
+		settings.setProperty('server-ip', '127.0.0.1')
+		settings.setProperty('view-distance', '2')
+		settings.setProperty('max-tick-time', '-1')
+		new File(directory, 'server.properties').withOutputStream { settings.store(it, 'Offline filter bootstrap world only') }
+	}
+	doLast {
+		def log = file('run/filter-bank/logs/latest.log')
+		def complete = project.findProperty('spawnCalibration') == 'true' ? '[SpawnCalibration] COMPLETE:' : project.hasProperty('filterVerifierTest') ? '[FilterVerifierTest] COMPLETE:' : project.findProperty('filterEarlyTest') == 'true' ? '[FilterEarly] COMPLETE:' :
+			project.findProperty('filterLayoutTest') == 'true' ? '[FilterLayout] COMPLETE:' : '[FilterBank] COMPLETE:'
+		if (!log.exists() || log.lastModified() < testStartedAt || !log.text.contains(complete)
+				|| log.text.contains('[FilterLayout] FAIL:')
+				|| log.text.contains('[FilterEarly] FAIL:')
+				|| log.text.contains('[FilterBank] FAIL:') || log.text.contains('Encountered an unexpected exception')) {
+			throw new GradleException('Offline bank run failed; inspect run/filter-bank/logs/latest.log')
+		}
+	}
+}
+
+tasks.register('generateFilterCandidate', JavaExec) {
+	dependsOn tasks.named('filterProbeClasses')
+	classpath = sourceSets.filterProbe.runtimeClasspath
+	mainClass = 'zsgrooms.modid.filter.FilterCandidateMain'
+	workingDir = project.projectDir
+	maxHeapSize = '1G'
+	systemProperty 'zsgrooms.filterType', project.findProperty('filterType') ?: 'village'
+	systemProperty 'zsgrooms.filterOp', project.findProperty('filterOp') ?: 'false'
+	systemProperty 'zsgrooms.filterSamples', project.findProperty('filterSamples') ?: '1'
+	systemProperty 'zsgrooms.filterSearchSeed', project.findProperty('filterSearchSeed') ?: '1'
+	systemProperty 'zsgrooms.filterAttempts', project.findProperty('filterAttempts') ?: '100000'
+	systemProperty 'zsgrooms.filterTimeoutMillis', project.findProperty('filterTimeoutMillis') ?: '15000'
+}
+
+tasks.register('buildFilterStructureWorker', Exec) {
+	commandLine 'powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+			file('scripts/Build-FilterWorker.ps1').absolutePath
+}
+
+tasks.register('benchmarkFilterStructures', JavaExec) {
+	dependsOn tasks.named('filterProbeClasses'), tasks.named('buildFilterStructureWorker')
+	classpath = sourceSets.filterProbe.runtimeClasspath
+	mainClass = 'zsgrooms.modid.filter.FilterStructureBenchmark'
+	workingDir = project.projectDir
+	maxHeapSize = '1G'
+	systemProperty 'zsgrooms.filterStructureSamples', project.findProperty('filterStructureSamples') ?: '10000'
+}
+
+tasks.named('runFilterProbe') {
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+		def directory = file('run/filter-probe')
+		directory.mkdirs()
+		new File(directory, 'validation.json').text = new groovy.json.JsonBuilder([
+				formatVersion: 1, status: 'PENDING'
+		]).toPrettyString()
+		def propertiesFile = new File(directory, 'server.properties')
+		def settings = new Properties()
+		if (propertiesFile.exists()) propertiesFile.withInputStream { settings.load(it) }
+		def seed = (project.findProperty('filterSeed') ?: settings.getProperty('level-seed', '1')).toString()
+		def worldName = 'world'
+		if (project.hasProperty('filterCandidate')) {
+			def candidate = new groovy.json.JsonSlurper().parse(new File(directory, 'candidate.json'))
+			if (candidate.formatVersion != 1 || candidate.status != 'PRELIMINARY') {
+				throw new GradleException('Candidate handoff is not a current preliminary result')
+			}
+			seed = candidate.seed.toString()
+			worldName = 'candidate-' + UUID.fromString(candidate.id.toString()).toString()
+			ext.candidateId = candidate.id.toString()
+		} else if (new File(directory, 'world').exists() && settings.getProperty('level-name', 'world') != 'world') {
+			throw new GradleException('Use -PfilterCandidate for the candidate world, or restore server.properties for the original probe world.')
+		}
+		if (Long.parseLong(seed) == 0L) {
+			throw new GradleException('Minecraft 1.16.1 treats server seed 0 as random. Use an explicit nonzero seed for this probe.')
+		}
+		if (!project.hasProperty('filterCandidate') && new File(directory, 'world').exists() && settings.getProperty('level-seed') != seed) {
+			throw new GradleException('Existing probe world has a different seed. Move run/filter-probe/world aside before testing a new seed.')
+		}
+		settings.setProperty('level-seed', seed)
+		settings.setProperty('level-name', worldName)
+		settings.setProperty('online-mode', 'false')
+		settings.setProperty('server-ip', '127.0.0.1')
+		settings.setProperty('view-distance', '2')
+		settings.setProperty('max-tick-time', '-1')
+		propertiesFile.withOutputStream { settings.store(it, 'Disposable ZSG filter terrain probe world') }
+		if (!new File(directory, 'eula.txt').exists()) {
+			def accepted = file('run/perch-benchmark/eula.txt')
+			def eula = new Properties()
+			if (accepted.exists()) accepted.withInputStream { eula.load(it) }
+			if (eula.getProperty('eula') != 'true') {
+				throw new GradleException('Accept the Minecraft server EULA in run/filter-probe/eula.txt before running the probe.')
+			}
+			copy { from accepted; into directory }
+		}
+	}
+	doLast {
+		def log = file('run/filter-probe/logs/latest.log')
+		if (!log.exists() || log.lastModified() < testStartedAt
+				|| !log.text.contains('[FilterProbe] COMPLETE:') || log.text.contains('[FilterProbe] FAIL:')
+				|| log.text.contains('Encountered an unexpected exception')) {
+			throw new GradleException('Filter terrain probe did not finish; see run/filter-probe/logs/latest.log')
+		}
+		def report = new groovy.json.JsonSlurper().parse(file('run/filter-probe/validation.json'))
+		if (report.formatVersion != 1 || !(report.status in ['REJECTED', 'PARTIAL_PASS'])
+				|| (project.hasProperty('filterCandidate') && report.candidateId != candidateId)) {
+			throw new GradleException('Filter validation report is incomplete or does not match this candidate')
+		}
+	}
+}

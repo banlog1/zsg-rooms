@@ -170,6 +170,7 @@ public class GameLogicTest {
         game.setSpawnNearFilterStructure(true);
         game.setMinimumNearbyAnimals(true);
         game.setNetherEntryWarmup(true);
+        game.setSharedNetherEntry(true);
         game.setDisablePauseWorldSaves(true);
         game.setPlayerProgress("Host", 1);
         game.setPlayerProgress("Guest", 2);
@@ -200,6 +201,7 @@ public class GameLogicTest {
         assertTrue(decoded.spawnNearFilterStructure);
         assertTrue(decoded.minimumNearbyAnimals);
         assertTrue(decoded.netherEntryWarmup);
+        assertTrue(decoded.sharedNetherEntry);
         assertTrue(decoded.disablePauseWorldSaves);
         assertTrue(decoded.synchronizedStartReleased);
         assertEquals(Arrays.asList("Host"), decoded.readyPlayers);
@@ -227,6 +229,7 @@ public class GameLogicTest {
         assertTrue(appliedGame.spawnsNearFilterStructure());
         assertTrue(appliedGame.hasMinimumNearbyAnimals());
         assertTrue(appliedGame.hasNetherEntryWarmup());
+        assertTrue(appliedGame.hasSharedNetherEntry());
         assertTrue(appliedGame.disablesPauseWorldSaves());
         assertTrue(appliedGame.isSynchronizedStartReleased());
         assertEquals(1, appliedGame.getReadyPlayerCount());
@@ -239,9 +242,11 @@ public class GameLogicTest {
                 "{\"protocolVersion\":1,\"roomName\":\"legacy-room\"}");
 
         assertFalse(snapshot.disablePauseWorldSaves);
+        assertFalse(snapshot.sharedNetherEntry);
         assertFalse(snapshot.reduceZeroCycleFlyAways);
         assertTrue(ZsgRooms.applyRoomSnapshot(snapshot.toJson()));
         assertFalse(ZsgRooms.getGame("legacy-room").disablesPauseWorldSaves());
+        assertFalse(ZsgRooms.getGame("legacy-room").hasSharedNetherEntry());
         assertFalse(ZsgRooms.getGame("legacy-room").reducesZeroCycleFlyAways());
     }
 
@@ -257,6 +262,20 @@ public class GameLogicTest {
         assertTrue(game.reducesZeroCycleFlyAways());
         RoomSnapshot snapshot = RoomSnapshot.capture(ZsgRooms.getRoom("assisted-room"), game);
         assertTrue(snapshot.reduceZeroCycleFlyAways);
+    }
+
+    @Test
+    public void sharedNetherEntryIsOptInAndIndependentFromRngAndWarmup() {
+        for (RoomRulePreset preset : RoomRulePreset.values()) {
+            assertFalse(preset.sharesNetherEntry());
+        }
+        ZsgRooms.createRoom("shared-entry-room", 2, 1, "manual:123", "Host",
+                false, false, false, false, false, false, false, false, false, false, false, true);
+        InGame game = ZsgRooms.getGame("shared-entry-room");
+        assertTrue(game.hasSharedNetherEntry());
+        assertFalse(game.isRngStandardized());
+        assertFalse(game.hasNetherEntryWarmup());
+        assertTrue(RoomSnapshot.capture(ZsgRooms.getRoom("shared-entry-room"), game).sharedNetherEntry);
     }
 
     @Test
@@ -298,6 +317,9 @@ public class GameLogicTest {
         assertEquals("jungle_pyramid", StructureSpawnProximity.structureKeyForFilter("zsgjungletemple"));
         assertEquals("jungle_pyramid", StructureSpawnProximity.structureKeyForFilter("zsgjungletempleop"));
         assertEquals("ruined_portal", StructureSpawnProximity.structureKeyForFilter("rpseedbank"));
+        assertEquals("desert_pyramid", StructureSpawnProximity.structureKeyForFilter("rooms-temple-v5"));
+        assertEquals("village", StructureSpawnProximity.structureKeyForFilter("rooms-village-v5"));
+        assertEquals("shipwreck", StructureSpawnProximity.structureKeyForFilter("rooms-shipwreck-v5"));
         assertEquals(null, StructureSpawnProximity.structureKeyForFilter("manual:12345"));
         assertEquals(null, StructureSpawnProximity.structureKeyForFilter("random"));
     }

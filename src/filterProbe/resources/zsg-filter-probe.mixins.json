@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "zsgrooms.modid.filter.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": ["LakeEvidenceMixin", "ProbeServerAccessor", "CarvingEvidenceMixin", "RavineEvidenceMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

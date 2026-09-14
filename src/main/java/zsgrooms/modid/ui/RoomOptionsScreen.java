@@ -24,6 +24,9 @@ public class RoomOptionsScreen extends Screen {
             "zsgjungletemple",
             "zsgjungletempleop",
             "rpseedbank",
+            "rooms-temple-v5",
+            "rooms-village-v5",
+            "rooms-shipwreck-v5",
             "random",
             "room",
             "manual"
