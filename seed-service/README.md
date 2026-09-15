@@ -1,15 +1,17 @@
 # ZSG Rooms Seed Service
 
-Local-first hosted seed-bank delivery. No deployment, Cloudflare resource creation
-or remote seed import is performed by the scripts in this directory. The checked-in
-Wrangler configuration has a placeholder D1 ID and is for local testing only.
+Hosted seed-bank delivery with separate local and production configurations.
+The publisher only creates private local files; remote imports and deployment
+are explicit Wrangler operations. `wrangler.jsonc` has a placeholder D1 ID for
+local testing. `wrangler.production.jsonc` pins the separate seed-bank account.
 
 ## Flow
 
 1. The model-only finder writes committed `bank.jsonl` snapshots.
-2. The operator publishes one or more snapshots into a new private revision.
-3. An SQL import stages that revision in D1 and switches the active pointer only
-   after all its seed rows exist. Older revisions remain available for rollback.
+2. The operator extends the latest private publication with new seeds only.
+3. A resumable uploader appends missing rows and increases each type's available
+   count after successful batches. Existing seeds remain usable during growth;
+   types become available independently, without waiting for the entire bank.
 4. The host requests one seed over HTTPS through its existing private prefetcher.
 5. Start or an approved seed change consumes that seed. The existing launch path
    shares it with the room only when launching, then prepares the following seed.
@@ -52,10 +54,17 @@ guests receive the launched exact seed through the existing room transport.
 For same-machine testing, both the relay-backed and direct room transports use
 the same host prefetcher. Setting the seed service does not change the relay URL.
 
-The URL is stored in `.minecraft/config/zsg-rooms-seedbank.txt`. It is deliberately
-empty by default until a production endpoint is deployed. Only HTTPS is accepted
+The URL override is stored in `.minecraft/config/zsg-rooms-seedbank.txt`. Missing
+or blank configuration uses `https://zsg-rooms-seeds.banlogzzz.workers.dev`.
+Existing explicit overrides, including localhost, are preserved. Clear the field
+and Save to return to the default. Only HTTPS is accepted
 outside the explicit localhost/loopback HTTP exception. Credentials, query strings
 and fragments are not allowed. Redirects are not followed.
+
+The commands above are for initial/local full-snapshot testing, not daily live
+updates. For production growth use `extend-bank.mjs` and `upload-bank.mjs` as
+described in [production operations](PRODUCTION.md). Daily cumulative snapshots
+are deduplicated against the previous plan; older live slots are never reassigned.
 
 The first local publication, `run/seed-service/publications/first-v5`, combines the
 completed main snapshot and the three benchmark banks: 51,126 seeds (9,158 temple,
@@ -86,7 +95,9 @@ local command above to start it for Minecraft testing.
 ```
 
 Success returns schema version 1, the matching profile/type/request ID, the active
-revision hash and one string-valued seed. There is no seed-list or bulk-download
+bank revision ID and one string-valued seed. The bank ID remains stable as rows
+are appended; it is not a content hash of the currently available prefix.
+There is no seed-list or bulk-download
 endpoint. All responses use `Cache-Control: no-store`. SQL import is an operator
 operation through Wrangler, not a public administrative API.
 
@@ -109,9 +120,10 @@ response; it is not an authentication credential.
 
 ## Deployment Boundary
 
-Before public deployment, create a separate production D1 database and Worker
-configuration, choose the real endpoint, and explicitly authorize the upload.
-The existing room relay is not modified or redeployed by this feature.
+See [production operations](PRODUCTION.md) for the pinned account, staged import
+status, remaining activation steps and quota precautions. The existing room
+relay is not modified or redeployed by this feature. Always pass the explicit
+seed-service production configuration to remote Wrangler commands.
 
 The initial endpoint is anonymous, with a coarse 60-requests/minute limiter keyed
 by connecting IP. Shared networks share that allowance. Cloudflare's limiter is

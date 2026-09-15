@@ -11,11 +11,14 @@ state, and player movement never pass through the room relay.
 ## What It Does
 
 - Creates or joins Internet-accessible rooms with a short room code.
-- Privately prepares the host's next filtered seed through FSG Mod, then
+- Privately prepares the host's next filtered seed through FSG Mod or the hosted
+  ZSG Rooms seed bank, then
   launches that exact seed through Atum for every player.
 - Supports the ZSG Mapless, Village, Shipwreck, Desert Temple, Jungle Temple,
   and Ruined Portal Seedbank filters, including OP variants where available.
 - Also supports random, room-code-derived, and manually entered seeds.
+- Adds ZSG Rooms Desert Temple, Village, and Shipwreck bank choices alongside
+  the original filters, without running the bank's seed search on players' PCs.
 - Holds loaded players behind a synchronized start screen until every runner is
   ready.
 - Can warm the projected Nether destination chunk during the normal portal
@@ -84,6 +87,38 @@ the victory screen.
 
 The host requests the seed. Each client loads that same seed locally, reports
 `world_ready`, and remains paused until the room releases everyone together.
+
+## ZSG Rooms Seed Banks
+
+Select **ZSG Rooms Desert Temple**, **ZSG Rooms Village**, or **ZSG Rooms
+Shipwreck** when choosing a filter. In 1.0.27 or newer, the host automatically
+uses the public seed service. No local server, Java argument, or bank download
+is needed. The original FSG choices remain available.
+
+The host needs an Internet connection to prepare seeds; the full bank is not
+shipped with the mod. Newly published seeds become available without updating
+the mod. If you previously tested with localhost, open **Settings > Seed Bank**,
+clear the URL and save to restore the public default. An explicitly configured
+server URL continues to override that default.
+
+Temple seeds check for at least seven iron, or four iron and three diamonds,
+across the temple chests, plus modeled roof exposure. Village seeds check for
+at least four iron-ingot equivalents in smith chests; the intended remaining
+iron comes from a golem, whose natural presence is not guaranteed by the filter.
+Both profiles use surface-lava opportunities near natural water instead of
+requiring a ruined portal. Shipwreck seeds check resources, food, a modeled
+Nether-entry opportunity, and nearby wooded island or coastline terrain.
+Nether checks reuse ZSG's route and loot models, with extra good-gap and
+triple-chest-rampart requirements for stables bastions.
+
+For temple and village bank worlds, initial loading also tries to preserve or
+prepare two safe lava pools in different directions. It uses natural water
+within 48 blocks, never creates water, and never places pools beyond 128 blocks
+from the structure. If only one safe pool fits, it keeps that one. These are
+modified racing/practice worlds, **not vanilla-verifiable runs**, even with the
+Regular Verifiable preset. Model predictions are not block-perfect guarantees.
+See [filter criteria](docs/MODEL_SEED_FINDER.md) and
+[terrain preparation](docs/SEED_BANK_TERRAIN.md) for the exact checks and limits.
 
 ## Replays
 

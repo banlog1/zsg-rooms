@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, resolve, basename } from "node:path";
 import { publishBank } from "../scripts/publish-bank.mjs";
 import { PROFILE, isSeed, validateRecord } from "../src/bank-format.js";
+import { DatabaseSync } from "node:sqlite";
 
 function record(seed, type = "temple") {
   return { seed, type, family: String(BigInt(seed) & ((1n << 48n) - 1n)), profile: PROFILE,
@@ -49,6 +50,45 @@ test("publication is deterministic, refuses duplicates and leaves existing outpu
     await assert.rejects(access(duplicate));
     assert.ok(saved.includes("9007199254740993"));
   } finally {
+    assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
+    assert.ok(basename(directory).startsWith("zsg-bank-publish-"));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("split imports preserve dense slots and cannot activate an incomplete revision", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "zsg-bank-publish-"));
+  const db = new DatabaseSync(":memory:");
+  try {
+    const input = join(directory, "bank.jsonl");
+    const rows = Array.from({ length: 101 }, (_, i) => record(String(i + 1), ["temple", "village", "shipwreck"][i % 3]));
+    await writeFile(input, rows.map(row => JSON.stringify(row)).join("\n"));
+    const output = join(directory, "published");
+    const manifest = await publishBank([input], output, 50);
+    const plan = JSON.parse(await readFile(join(output, "import-plan.json"), "utf8"));
+    assert.deepEqual(plan.parts.map(part => part.rows), [50, 50, 1]);
+    const activate = await readFile(join(output, plan.activation), "utf8");
+    for (const [index, part] of plan.parts.entries()) {
+      const sql = await readFile(join(output, part.file), "utf8");
+      db.exec(sql);
+      db.exec(sql);
+      assert.equal(db.prepare("SELECT count(*) AS n FROM bank_active").get().n, 0);
+      if (index < plan.parts.length - 1) {
+        db.exec(activate);
+        assert.equal(db.prepare("SELECT count(*) AS n FROM bank_active").get().n, 0);
+      }
+    }
+    db.exec(activate);
+    assert.equal(db.prepare("SELECT revision FROM bank_active").get().revision, manifest.revision);
+    for (const [type, count] of Object.entries(manifest.counts)) {
+      const actual = db.prepare("SELECT count(*) AS n, min(slot) AS first, max(slot) AS last FROM bank_seeds WHERE type=?").get(type);
+      assert.equal(actual.n, count);
+      assert.equal(actual.first, 0);
+      assert.equal(actual.last, count - 1);
+    }
+    assert.equal(db.prepare("SELECT count(*) AS n FROM bank_seeds").get().n, 101);
+  } finally {
+    db.close();
     assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
     assert.ok(basename(directory).startsWith("zsg-bank-publish-"));
     await rm(directory, { recursive: true, force: true });

@@ -7,7 +7,10 @@ import { pathToFileURL } from "node:url";
 import { PROFILE, SCHEMA_VERSION, TYPES, validateRecord } from "../src/bank-format.js";
 
 // Only consolidated, committed bank snapshots belong here, never in-progress attempts.
-export async function publishBank(inputs, output) {
+export async function publishBank(inputs, output, rowsPerPart = 25000) {
+  if (!Number.isSafeInteger(rowsPerPart) || rowsPerPart < 50 || rowsPerPart % 50 !== 0) {
+    throw new Error("Import part size must be a positive multiple of 50.");
+  }
   if (!inputs.length) throw new Error("Supply at least one completed bank.jsonl snapshot.");
   const rows = new Map();
   const families = new Map();
@@ -49,20 +52,36 @@ export async function publishBank(inputs, output) {
     await writeFile(resolve(staging, "bank.jsonl"), content, { flag: "wx" });
     await writeFile(resolve(staging, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
     const sql = [await readFile(new URL("../schema.sql", import.meta.url), "utf8")];
+    const schema = sql[0];
+    let part = [schema];
+    const parts = [];
     const revision = manifest.revision;
     const slots = Object.fromEntries(TYPES.map(type => [type, 0]));
     for (let i = 0; i < records.length; i += 50) {
       const values = records.slice(i, i + 50).map(row =>
         `('${revision}','${row.type}',${slots[row.type]++},'${row.seed}','${row.family}')`);
-      sql.push("INSERT OR IGNORE INTO bank_seeds(revision,type,slot,seed,family) VALUES " + values.join(",") + ";");
+      const statement = "INSERT OR IGNORE INTO bank_seeds(revision,type,slot,seed,family) VALUES " + values.join(",") + ";";
+      sql.push(statement);
+      part.push(statement);
+      if ((i + values.length) % rowsPerPart === 0 || i + values.length === records.length) {
+        const name = `import-part-${String(parts.length + 1).padStart(3, "0")}.sql`;
+        await writeFile(resolve(staging, name), part.join("\n") + "\n", { flag: "wx" });
+        parts.push({ file: name, rows: (i % rowsPerPart) + values.length });
+        part = [schema];
+      }
     }
+    const activation = [];
     for (const type of TYPES) {
-      sql.push(`INSERT OR IGNORE INTO bank_types(revision,type,count) VALUES ('${revision}','${type}',${counts[type]});`);
+      activation.push(`INSERT OR IGNORE INTO bank_types(revision,type,count) VALUES ('${revision}','${type}',${counts[type]});`);
     }
     // Publish only when the complete new revision is present. Previous revisions remain intact.
-    sql.push(`INSERT INTO bank_active(profile,revision) SELECT '${PROFILE}','${revision}'
+    activation.push(`INSERT INTO bank_active(profile,revision) SELECT '${PROFILE}','${revision}'
       WHERE (SELECT COUNT(*) FROM bank_seeds WHERE revision='${revision}')=${records.length}
       ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision;`);
+    sql.push(...activation);
+    await writeFile(resolve(staging, "activate.sql"), activation.join("\n") + "\n", { flag: "wx" });
+    await writeFile(resolve(staging, "import-plan.json"), JSON.stringify({ revision, parts,
+      activation: "activate.sql", estimatedRowsWritten: records.length * 3 + 8 }, null, 2) + "\n", { flag: "wx" });
     await writeFile(resolve(staging, "import.sql"), sql.join("\n") + "\n", { flag: "wx" });
     // Never overwrite a published revision, including one another publisher just created.
     await rename(staging, destination);

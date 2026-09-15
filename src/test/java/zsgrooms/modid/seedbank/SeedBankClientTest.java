@@ -4,11 +4,14 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import zsgrooms.modid.ZsgSeedBridge;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -17,6 +20,21 @@ import static org.junit.jupiter.api.Assertions.*;
 class SeedBankClientTest {
     private static final String ID = "test-request";
     private static final String SEED = "9223372036854775807";
+
+    @Test
+    void endpointDefaultsToProductionButPreservesExplicitOverrides(@TempDir Path directory) throws Exception {
+        Path config = directory.resolve("seedbank.txt");
+        assertEquals(SeedBankClient.DEFAULT_ENDPOINT, SeedBankClient.loadEndpoint(config));
+        assertFalse(Files.exists(config));
+        Files.write(config, " \r\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(SeedBankClient.DEFAULT_ENDPOINT, SeedBankClient.loadEndpoint(config));
+        for (String endpoint : Arrays.asList("http://127.0.0.1:8791", "https://example.com")) {
+            Files.write(config, (" " + endpoint + "\r\n").getBytes(StandardCharsets.UTF_8));
+            assertEquals(endpoint, SeedBankClient.loadEndpoint(config));
+        }
+        assertEquals(SeedBankClient.DEFAULT_ENDPOINT + "/v1/seed",
+                SeedBankClient.requestUri(SeedBankClient.DEFAULT_ENDPOINT).toString());
+    }
 
     private JsonObject response() {
         JsonObject body = new JsonObject();

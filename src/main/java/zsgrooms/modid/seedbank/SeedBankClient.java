@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class SeedBankClient {
+    public static final String DEFAULT_ENDPOINT = "https://zsg-rooms-seeds.banlogzzz.workers.dev";
     private static final Path CONFIG = Paths.get("config", "zsg-rooms-seedbank.txt");
     private static final ExecutorService REQUESTS = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "ZSG Room Seed Bank");
@@ -38,8 +39,14 @@ public final class SeedBankClient {
     private SeedBankClient() { }
 
     public static String getEndpoint() {
+        return loadEndpoint(CONFIG);
+    }
+
+    static String loadEndpoint(Path config) {
         try {
-            return Files.isRegularFile(CONFIG) ? new String(Files.readAllBytes(CONFIG), StandardCharsets.UTF_8).trim() : "";
+            String endpoint = Files.isRegularFile(config)
+                    ? new String(Files.readAllBytes(config), StandardCharsets.UTF_8).trim() : "";
+            return endpoint.isEmpty() ? DEFAULT_ENDPOINT : endpoint;
         } catch (IOException error) { return ""; }
     }
 

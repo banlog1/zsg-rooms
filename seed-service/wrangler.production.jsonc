@@ -1,0 +1,19 @@
+{
+  "name": "zsg-rooms-seeds",
+  "account_id": "3cee401ab7a7bc6f8d9be942204fe527",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": false },
+  "d1_databases": [{
+    "binding": "BANK",
+    "database_name": "zsg-rooms-seeds",
+    "database_id": "ade095f8-532f-4b0a-9220-b3b2410d3d40"
+  }],
+  "ratelimits": [{
+    "name": "SEED_REQUESTS",
+    "namespace_id": "1026",
+    "simple": { "limit": 60, "period": 60 }
+  }]
+}

@@ -19,6 +19,37 @@ all three types, and the tested Java executable is remembered in `plan.json`.
 An initial bounded trial has already populated this bank. No overnight session
 was started as part of implementation.
 
+### Temple And Village Only
+
+The prepared bank `run/model-bank/overnight/temple-village` selects only temple
+and village. Its runtime was initialized with `-ExportOnly`; no search was started.
+The existing three-type `main` bank and all its results remain separate. Both use
+the same installation-wide range cursor, so new batches do not repeat old ranges.
+
+For a twelve-hour session with five workers, run from the repository root:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
+```
+
+Reusing this command resumes that bank; change `-Minutes` for a shorter extension.
+Check its own `status.json` for progress. Its consolidated output is
+`run/model-bank/overnight/temple-village/bank.jsonl`; add that completed snapshot
+to the latest seed-service publication with `extend-bank.mjs` when ready to upload.
+The two types alternate by batch, not by accepted seed count. Shipwreck counts
+may still appear as zero in generic progress output, but no shipwreck jobs run.
+
+On a fresh checkout where this private bank has not been initialized, initialize
+it first (the `-Command` form passes the PowerShell type array correctly):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/temple-village' -Types temple,village -ExportOnly"
+```
+
+Supply `-Java` inside that command if needed. Stop this bank using a `STOP` file
+inside its own directory, not `overnight/main`. No second supervisor can run
+alongside it. Keep using the existing shared cursor; do not reset it.
+
 On a new installation, build the standalone finder first using
 [MODEL_SEED_FINDER.md](MODEL_SEED_FINDER.md). Supply `-Java` on the first launch
 if a compatible Java is not on PATH. A new bank can be selected with `-Directory`.
