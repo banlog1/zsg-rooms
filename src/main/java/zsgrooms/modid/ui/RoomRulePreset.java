@@ -1,5 +1,7 @@
 package zsgrooms.modid.ui;
 
+import zsgrooms.modid.RoomRuleSettings;
+
 public enum RoomRulePreset {
     STANDARD_ZSG_ROOMS("Standard ZSG Rooms", false, true, true, true, true, true, true, true, true, true),
     STANDARD_ZSG_VANILLA_BARTERS(
@@ -92,6 +94,27 @@ public enum RoomRulePreset {
     public boolean isCustom() {
         return this == CUSTOM;
     }
+
+    static RoomRulePreset matching(RoomRuleSettings rules) {
+        for (RoomRulePreset preset : values()) {
+            if (preset.isCustom()) continue;
+            boolean performanceMatches = preset != REGULAR_VERIFIABLE_ZSG
+                    || rules.removeNaturalStriderJockeys == preset.removesNaturalStriderJockeys()
+                    && rules.disablePauseWorldSaves == preset.disablesPauseWorldSaves();
+            if (performanceMatches && rules.allowCheats == preset.allowsCheats()
+                    && rules.rngStandardization == preset.standardizesRng()
+                    && rules.boostedBarters == preset.boostsBarters()
+                    && rules.minimumBastionIron == preset.guaranteesBastionIron()
+                    && rules.removeBastionZombifiedPiglins == preset.removesBastionZombifiedPiglins()
+                    && rules.spawnNearFilterStructure == preset.spawnsNearFilterStructure()
+                    && rules.minimumNearbyAnimals == preset.guaranteesNearbyAnimals()
+                    && rules.netherEntryWarmup == preset.warmsNetherEntry()
+                    && rules.reduceZeroCycleFlyAways == preset.reducesZeroCycleFlyAways()
+                    && rules.sharedNetherEntry == preset.sharesNetherEntry()) return preset;
+        }
+        return CUSTOM;
+    }
+
 
     public RoomRulePreset next() {
         RoomRulePreset[] presets = values();

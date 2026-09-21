@@ -1,8 +1,11 @@
 package zsgrooms.modid.net;
 
 import zsgrooms.modid.ZsgSeedBridge;
+import zsgrooms.modid.ZsgRoomsSeedMode;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.IntSupplier;
 
 public final class HostSeedPrefetchManager {
     public static final String STATUS_PREPARING = "Preparing next seed...";
@@ -14,16 +17,23 @@ public final class HostSeedPrefetchManager {
 
     private final Object lock = new Object();
     private final SeedRequester requester;
+    private final IntSupplier filterRoll;
     private long generation;
     private String currentRoom = "";
     private String currentSpecification = "";
+    private String resolvedSpecification;
     private CompletableFuture<String> pending;
     private CompletableFuture<String> activeConsumption;
     private String preparedSeed;
     private String status = "";
 
     HostSeedPrefetchManager(SeedRequester requester) {
+        this(requester, () -> ThreadLocalRandom.current().nextInt(100));
+    }
+
+    HostSeedPrefetchManager(SeedRequester requester, IntSupplier filterRoll) {
         this.requester = requester;
+        this.filterRoll = filterRoll;
     }
 
     public static HostSeedPrefetchManager getInstance() {
@@ -35,7 +45,7 @@ public final class HostSeedPrefetchManager {
         synchronized (this.lock) {
             SeedKey key = SeedKey.of(roomName, seedSpecification);
             stale = selectLocked(key);
-            if (this.preparedSeed == null && this.pending == null) {
+            if (this.preparedSeed == null && this.pending == null && this.activeConsumption == null) {
                 startRequestLocked(key);
             }
         }
@@ -57,7 +67,7 @@ public final class HostSeedPrefetchManager {
                 this.activeConsumption = result;
             } else {
                 result = this.pending == null ? startRequestLocked(key) : this.pending;
-                this.activeConsumption = result;
+                this.activeConsumption = result.isCompletedExceptionally() ? null : result;
             }
         }
         detach(stale);
@@ -77,13 +87,14 @@ public final class HostSeedPrefetchManager {
     public void onSeedConsumed(String roomName, String seedSpecification) {
         synchronized (this.lock) {
             SeedKey key = SeedKey.of(roomName, seedSpecification);
-            if (!matchesLocked(key)) {
+            if (!matchesLocked(key) || this.activeConsumption == null) {
                 return;
             }
             this.generation++;
             this.pending = null;
             this.activeConsumption = null;
             this.preparedSeed = null;
+            this.resolvedSpecification = null;
             startRequestLocked(key);
         }
     }
@@ -91,6 +102,18 @@ public final class HostSeedPrefetchManager {
     public String getStatus() {
         synchronized (this.lock) {
             return this.status;
+        }
+    }
+
+    public void onLaunchFailed(String roomName, String seedSpecification) {
+        synchronized (this.lock) {
+            if (!matchesLocked(SeedKey.of(roomName, seedSpecification))) return;
+            if (this.activeConsumption != null && this.activeConsumption.isDone()
+                    && !this.activeConsumption.isCompletedExceptionally()) {
+                this.preparedSeed = this.activeConsumption.getNow(null);
+                this.activeConsumption = null;
+                this.status = this.preparedSeed == null ? STATUS_FAILED : STATUS_READY;
+            }
         }
     }
 
@@ -120,9 +143,24 @@ public final class HostSeedPrefetchManager {
 
         CompletableFuture<String> source;
         try {
-            source = this.requester.request(key.roomName, key.seedSpecification);
+            // Keep the draw private and stable across retries for this slot.
+            if (this.resolvedSpecification == null) {
+                this.resolvedSpecification = ZsgRoomsSeedMode.SPECIFICATION.equals(key.seedSpecification)
+                        ? ZsgRoomsSeedMode.filterForRoll(this.filterRoll.getAsInt()) : key.seedSpecification;
+            }
+            String resolved = this.resolvedSpecification;
+            source = this.requester.request(key.roomName, resolved);
             if (source == null) {
                 source = failedFuture(new IllegalStateException("Seed request did not start"));
+            } else if (ZsgRoomsSeedMode.SPECIFICATION.equals(key.seedSpecification)) {
+                source = source.thenApply(seed -> {
+                    if (seed == null || seed.trim().isEmpty()
+                            || ZsgSeedBridge.extractMinecraftSeed(seed).startsWith("pending-")
+                            || !resolved.equals(ZsgSeedBridge.resolveStructure(seed))) {
+                        throw new IllegalStateException("Prepared seed did not match requested filter");
+                    }
+                    return seed + "|selection:" + ZsgRoomsSeedMode.SPECIFICATION;
+                });
             }
         } catch (Throwable error) {
             source = failedFuture(error);
@@ -175,6 +213,7 @@ public final class HostSeedPrefetchManager {
     private void clearLocked() {
         this.currentRoom = "";
         this.currentSpecification = "";
+        this.resolvedSpecification = null;
         this.pending = null;
         this.activeConsumption = null;
         this.preparedSeed = null;

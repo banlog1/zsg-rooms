@@ -155,7 +155,7 @@ public final class RuinedPortalChestRepair {
         InGame game = room == null ? null : ZsgRooms.getGame(room.roomName);
         return RoomUiPreferences.isRuinedPortalChestRepairEnabled()
                 && game != null
-                && "rpseedbank".equals(ZsgSeedBridge.normalizeSeedType(game.targetStructure));
+                && "rpseedbank".equals(game.getActiveFilter());
     }
 
     private static final class ChestKey {

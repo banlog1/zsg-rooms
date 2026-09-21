@@ -42,6 +42,8 @@ final class ReplaySmokeTest {
     private static int menuTicks;
     private static int resets;
     private static Object recording;
+    private static java.nio.file.Path firstRecording;
+    private static boolean replacedRecording;
     private static volatile long raceStart;
     private static net.minecraft.network.ClientConnection oldConnection;
 
@@ -91,6 +93,9 @@ final class ReplaySmokeTest {
                 if (!ReplayPrototype.configurePerformance(Boolean.getBoolean("zsgrooms.replayPrototype.smokePerformance"))) {
                     throw new IllegalStateException("Cannot configure replay performance mode");
                 }
+                if (!ReplayPrototype.configureSeedRetention(Boolean.getBoolean("zsgrooms.replayPrototype.smokeKeepSeedChanges"))) {
+                    throw new IllegalStateException("Cannot configure replay retention");
+                }
                 stage = 1;
                 client.options.pauseOnLostFocus = false;
                 client.options.viewDistance = 4;
@@ -99,12 +104,15 @@ final class ReplaySmokeTest {
                 return;
             }
             if (stage == 4) {
-                if (!ReplayPrototype.hasSession()) {
+                if (ReplayPrototype.canConfigure()) {
                     if (!"Saved to replay_recordings".equals(ReplayPrototype.getRecordingStatus())) {
                         fail(client, "recording did not save automatically");
                         return;
                     }
                     stage = 5;
+                    if (resets >= 2 && java.nio.file.Files.exists(firstRecording) != ReplayPrototype.getPreferences().keepSeedChanges) {
+                        throw new IllegalStateException("Previous seed replay retention mismatch");
+                    }
                     if (!ReplayPrototype.getPreferences().enabled) throw new IllegalStateException("Recording preference disabled by finish");
                     if (!ReplayPrototype.configureTestGroup("")) throw new IllegalStateException("Cannot disable test grouping after save");
                     if (client.world != null) {
@@ -122,10 +130,22 @@ final class ReplaySmokeTest {
                 fail(client, "recording session missing");
                 return;
             }
-            if (recording == null) recording = ReplayPrototype.recordingIdentity();
+            if (recording == null) {
+                recording = ReplayPrototype.recordingIdentity();
+                firstRecording = ReplayPrototype.recordingFile();
+            }
+            if (resets == 2 && !replacedRecording) {
+                if (recording == ReplayPrototype.recordingIdentity()) throw new IllegalStateException("New seed reused old recording");
+                recording = ReplayPrototype.recordingIdentity();
+                replacedRecording = true;
+                ZsgRooms.LOGGER.info("[ReplaySmoke] New seed started a fresh recording");
+            }
             if (recording != ReplayPrototype.recordingIdentity()) throw new IllegalStateException("Reset started another recording");
             if (stage == 1) {
                 ticks++;
+                if (ticks == 40 && resets == 0 && Boolean.getBoolean("zsgrooms.replayPrototype.benchmark")) {
+                    ReplayCaptureBenchmark.run();
+                }
                 if (ticks == 1) {
                     onServer(client, player -> {
                         player.setGameMode(GameMode.CREATIVE);
@@ -139,6 +159,7 @@ final class ReplaySmokeTest {
                     if (oldConnection != null) ReplayPrototype.disconnected(oldConnection);
                 }
                 if (ticks == 20) {
+                    if (!ReplayPrototype.isRecording()) throw new IllegalStateException("Replacement writer did not start");
                     boolean dirty = client.player.getDataTracker().isDirty();
                     ReplayPrototype.copyTrackedState(client.player.getEntityId(), client.player.getDataTracker());
                     ReplayTrackedState cache = new ReplayTrackedState();
@@ -158,6 +179,17 @@ final class ReplaySmokeTest {
                             world.spawnEntity(pig);
                         }
                         player.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.DIAMOND_SWORD));
+                        player.inventory.setStack(1, new ItemStack(Items.OBSIDIAN, 12));
+                        player.inventory.setStack(9, new ItemStack(Items.ENDER_PEARL, 7));
+                        player.inventory.setStack(18, new ItemStack(Items.BLAZE_ROD, 6));
+                        player.inventory.setStack(27, new ItemStack(Items.BREAD, 23));
+                        player.inventory.setStack(38, new ItemStack(Items.IRON_CHESTPLATE));
+                        player.setStackInHand(Hand.OFF_HAND, new ItemStack(Items.SHIELD));
+                        player.setHealth(14);
+                        player.getHungerManager().setFoodLevel(13);
+                        player.addExperience(42);
+                        player.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
+                                net.minecraft.entity.effect.StatusEffects.FIRE_RESISTANCE, 3600));
                     });
                     client.options.keyForward.setPressed(true);
                 }
@@ -203,8 +235,8 @@ final class ReplaySmokeTest {
                         client.openScreen(new TitleScreen());
                         createWorld(client);
                     }
-                    if (!ReplayPrototype.isRecording()) throw new IllegalStateException("Reset ended recording");
-                    ZsgRooms.LOGGER.info("[ReplaySmoke] Continued reset {} in the same recording", resets);
+                    if (!ReplayPrototype.hasSession()) throw new IllegalStateException("Reset lost recording session");
+                    ZsgRooms.LOGGER.info("[ReplaySmoke] Awaiting reset {} replacement world", resets);
                     return;
                 }
                 stage = 4;
@@ -231,7 +263,7 @@ final class ReplaySmokeTest {
                 ZsgRooms.LOGGER.info("[ReplaySmoke] Automatic finish triggered: {}", end);
             }
         } catch (Exception e) {
-            fail(client, e.getClass().getSimpleName());
+            fail(client, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 

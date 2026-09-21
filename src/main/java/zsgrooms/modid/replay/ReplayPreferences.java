@@ -16,6 +16,7 @@ public final class ReplayPreferences {
     public final String soloTestGroup;
     public final boolean showRecordingHud;
     public final boolean performanceMode;
+    public final boolean keepSeedChanges;
 
     public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled) {
         this(enabled, libraryDirectory, replayModRecordingDisabled, "");
@@ -30,12 +31,17 @@ public final class ReplayPreferences {
     }
 
     public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode) {
+        this(enabled, libraryDirectory, replayModRecordingDisabled, soloTestGroup, showRecordingHud, performanceMode, false);
+    }
+
+    public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode, boolean keepSeedChanges) {
         this.enabled = enabled;
         this.libraryDirectory = libraryDirectory == null ? "" : libraryDirectory.trim();
         this.replayModRecordingDisabled = replayModRecordingDisabled;
         this.soloTestGroup = normalizeTestGroup(soloTestGroup);
         this.showRecordingHud = showRecordingHud;
         this.performanceMode = performanceMode;
+        this.keepSeedChanges = keepSeedChanges;
     }
 
     public static String normalizeTestGroup(String value) {
@@ -64,7 +70,8 @@ public final class ReplayPreferences {
                 values.getProperty("libraryDirectory", ""),
                 Boolean.parseBoolean(values.getProperty("replayModRecordingDisabled", "false")), testGroup,
                 Boolean.parseBoolean(values.getProperty("showRecordingHud", "true")),
-                Boolean.parseBoolean(values.getProperty("performanceMode", "false")));
+                Boolean.parseBoolean(values.getProperty("performanceMode", "false")),
+                Boolean.parseBoolean(values.getProperty("keepSeedChanges", "false")));
     }
 
     void save(Path path) throws IOException {
@@ -75,6 +82,7 @@ public final class ReplayPreferences {
         values.setProperty("soloTestGroup", soloTestGroup);
         values.setProperty("showRecordingHud", Boolean.toString(showRecordingHud));
         values.setProperty("performanceMode", Boolean.toString(performanceMode));
+        values.setProperty("keepSeedChanges", Boolean.toString(keepSeedChanges));
         Files.createDirectories(path.toAbsolutePath().getParent());
         try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             values.store(writer, "Local ZSG replay settings");

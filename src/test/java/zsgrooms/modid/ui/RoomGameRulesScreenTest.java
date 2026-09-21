@@ -7,6 +7,34 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class RoomGameRulesScreenTest {
+
+    @Test
+    public void lobbyRecognizesPresetsButRequiresExactVerifiableDefaults() {
+        for (RoomRulePreset preset : RoomRulePreset.values()) {
+            if (preset.isCustom()) continue;
+            zsgrooms.modid.RoomRuleSettings rules = new zsgrooms.modid.RoomRuleSettings();
+            rules.allowCheats = preset.allowsCheats();
+            rules.rngStandardization = preset.standardizesRng();
+            rules.boostedBarters = preset.boostsBarters();
+            rules.minimumBastionIron = preset.guaranteesBastionIron();
+            rules.removeBastionZombifiedPiglins = preset.removesBastionZombifiedPiglins();
+            rules.removeNaturalStriderJockeys = preset.removesNaturalStriderJockeys();
+            rules.spawnNearFilterStructure = preset.spawnsNearFilterStructure();
+            rules.minimumNearbyAnimals = preset.guaranteesNearbyAnimals();
+            rules.netherEntryWarmup = preset.warmsNetherEntry();
+            rules.disablePauseWorldSaves = preset.disablesPauseWorldSaves();
+            rules.reduceZeroCycleFlyAways = preset.reducesZeroCycleFlyAways();
+            rules.sharedNetherEntry = preset.sharesNetherEntry();
+            assertEquals(preset, RoomRulePreset.matching(rules));
+            rules.removeNaturalStriderJockeys = !rules.removeNaturalStriderJockeys;
+            rules.disablePauseWorldSaves = !rules.disablePauseWorldSaves;
+            assertEquals(preset == RoomRulePreset.REGULAR_VERIFIABLE_ZSG ? RoomRulePreset.CUSTOM : preset,
+                    RoomRulePreset.matching(rules));
+            rules.sharedNetherEntry = true;
+            assertEquals(RoomRulePreset.CUSTOM, RoomRulePreset.matching(rules));
+        }
+    }
+
     @Test
     public void wideScreensUseTwoReadableColumns() {
         assertTrue(RoomGameRulesScreen.useTwoColumns(700, 300));
@@ -18,10 +46,10 @@ public class RoomGameRulesScreenTest {
     }
 
     @Test
-    public void veryShortScreensPreferColumnsToAvoidVerticalOverflow() {
-        assertTrue(RoomGameRulesScreen.useTwoColumns(420, 180));
-        assertTrue(RoomGameRulesScreen.useTwoColumns(420, 240));
-        assertTrue(RoomGameRulesScreen.useTwoColumns(420, 300));
+    public void shortNarrowScreensUseTabbedGroupsInsteadOfCrampedColumns() {
+        assertFalse(RoomGameRulesScreen.useTwoColumns(420, 180));
+        assertFalse(RoomGameRulesScreen.useTwoColumns(420, 240));
+        assertFalse(RoomGameRulesScreen.useTwoColumns(304, 300));
     }
 
     @Test

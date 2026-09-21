@@ -30,12 +30,59 @@ public final class RoomUiPreferences {
     private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair.txt");
     private static final Path SEED_DEBUG_CONFIG_PATH = Paths.get("config", "zsg-rooms-seed-debug.txt");
     private static final Path NETHER_WARMUP_CONFIG_PATH = Paths.get("config", "zsg-rooms-nether-warmup.txt");
+    private static final Path LOADING_IMAGES_CONFIG_PATH = Paths.get("config", "zsg-rooms-loading-images.txt");
+    private static final Path LOADING_POSITION_CONFIG_PATH = Paths.get("config", "zsg-rooms-loading-position.txt");
+    private static LoadingProgressPosition loadingProgressPosition = loadLoadingProgressPosition(LOADING_POSITION_CONFIG_PATH);
+    private static boolean loadingImagesEnabled = loadLoadingImages();
     private static HudPosition hudPosition = loadHudPosition();
     private static boolean ruinedPortalChestRepairEnabled = loadRuinedPortalChestRepair();
     private static boolean seedDebugLoggingEnabled = loadSeedDebugLogging();
     private static boolean netherEntryWarmupEnabled = loadNetherEntryWarmup();
 
     private RoomUiPreferences() {
+    }
+
+    public static boolean areLoadingImagesEnabled() { return loadingImagesEnabled; }
+
+    public static LoadingProgressPosition getLoadingProgressPosition() { return loadingProgressPosition; }
+
+    public static void setLoadingProgressPosition(LoadingProgressPosition position) {
+        if (position == null) return;
+        loadingProgressPosition = position;
+        try {
+            Files.createDirectories(LOADING_POSITION_CONFIG_PATH.getParent());
+            Files.write(LOADING_POSITION_CONFIG_PATH, position.name().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) {
+        }
+    }
+
+    static LoadingProgressPosition loadLoadingProgressPosition(Path path) {
+        try {
+            if (Files.exists(path)) {
+                return LoadingProgressPosition.parse(new String(Files.readAllBytes(path), StandardCharsets.UTF_8));
+            }
+        } catch (IOException ignored) {
+        }
+        return LoadingProgressPosition.CENTER;
+    }
+
+    public static void setLoadingImagesEnabled(boolean enabled) {
+        loadingImagesEnabled = enabled;
+        try {
+            Files.createDirectories(LOADING_IMAGES_CONFIG_PATH.getParent());
+            Files.write(LOADING_IMAGES_CONFIG_PATH, Boolean.toString(enabled).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static boolean loadLoadingImages() {
+        try {
+            if (Files.exists(LOADING_IMAGES_CONFIG_PATH)) {
+                return Boolean.parseBoolean(new String(Files.readAllBytes(LOADING_IMAGES_CONFIG_PATH), StandardCharsets.UTF_8).trim());
+            }
+        } catch (IOException ignored) {
+        }
+        return true;
     }
 
     public static HudPosition getHudPosition() {

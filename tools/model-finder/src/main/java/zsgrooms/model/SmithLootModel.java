@@ -25,6 +25,8 @@ final class SmithLootModel {
 
     static final class Result {
         final int iron;
+        final int ironPickaxes;
+        final int diamonds;
         final int smithChests;
         final int modeledChests;
         final boolean modeledGolem;
@@ -32,8 +34,10 @@ final class SmithLootModel {
         long layoutNanos;
         long lootNanos;
 
-        Result(int iron, int smithChests, int modeledChests, boolean modeledGolem, Outcome outcome) {
+        Result(int iron, int ironPickaxes, int diamonds, int smithChests, int modeledChests, boolean modeledGolem, Outcome outcome) {
             this.iron = iron;
+            this.ironPickaxes = ironPickaxes;
+            this.diamonds = diamonds;
             this.smithChests = smithChests;
             this.modeledChests = modeledChests;
             this.modeledGolem = modeledGolem;
@@ -51,7 +55,7 @@ final class SmithLootModel {
                 new OverworldBiomeSource(MCVersion.v1_16_1, seed));
         VillageGenerator village = new VillageGenerator(MCVersion.v1_16_1);
         if (!village.generate(terrain, chunkX, chunkZ, new ChunkRand(), false)) {
-            Result result = new Result(0, 0, 0, false, Outcome.LAYOUT_REJECTED);
+            Result result = new Result(0, 0, 0, 0, 0, false, Outcome.LAYOUT_REJECTED);
             result.layoutNanos = System.nanoTime() - start;
             return result;
         }
@@ -79,6 +83,8 @@ final class SmithLootModel {
 
     static Result summarize(Set<BPos> smithChests, List<Pair<BPos, List<ItemStack>>> loot, boolean golem) {
         int nuggets = 0;
+        int ironPickaxes = 0;
+        int diamonds = 0;
         Set<BPos> modeledChests = new HashSet<>();
         // Upstream omits loot it cannot confidently model. Omitted loot never earns credit.
         for (Pair<BPos, List<ItemStack>> chest : loot) {
@@ -87,14 +93,18 @@ final class SmithLootModel {
                 if (stack.getItem().equals(Items.IRON_INGOT)) nuggets += stack.getCount() * 9;
                 else if (stack.getItem().equals(Items.IRON_NUGGET)) nuggets += stack.getCount();
                 else if (stack.getItem().equals(Items.IRON_BLOCK)) nuggets += stack.getCount() * 81;
+                else if (stack.getItem().equals(Items.IRON_PICKAXE)) ironPickaxes += stack.getCount();
+                else if (stack.getItem().equals(Items.DIAMOND)) diamonds += stack.getCount();
             }
         }
         int iron = nuggets / 9;
+        // Only one pickaxe is needed. Its credit cannot pay for a bucket or ignition.
+        boolean sufficient = iron >= 4 || (iron >= 1 && (ironPickaxes > 0 || diamonds >= 3));
         Outcome outcome = smithChests.isEmpty() ? Outcome.NO_SMITH_CHESTS
-                : iron >= 4 ? Outcome.ACCEPTED
+                : sufficient ? Outcome.ACCEPTED
                 : modeledChests.isEmpty() ? Outcome.NO_MODELED_SMITH_LOOT
                 : modeledChests.size() < smithChests.size() ? Outcome.PARTIAL_LOOT_INSUFFICIENT
                 : Outcome.INSUFFICIENT_IRON;
-        return new Result(iron, smithChests.size(), modeledChests.size(), golem, outcome);
+        return new Result(iron, ironPickaxes, diamonds, smithChests.size(), modeledChests.size(), golem, outcome);
     }
 }

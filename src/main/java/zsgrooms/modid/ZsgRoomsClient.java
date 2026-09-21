@@ -39,7 +39,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
             String action = buffer.readString(64);
             String roomName = buffer.readString(64);
             String playerName = buffer.readString(64);
-            String value = buffer.readString(256);
+            String value = buffer.readString(ZsgRoomNetworking.valueLimit(action));
             context.getTaskQueue().execute(() -> {
                 if ("launch".equals(action)) {
                     beginSynchronizedStart(roomName, value);
@@ -140,6 +140,8 @@ public class ZsgRoomsClient implements ClientModInitializer {
         if (!synchronizedRoomName.equals(roomName) || !synchronizedSeed.equals(seed)) {
             return;
         }
+        zsgrooms.modid.ui.RoomLoadingArtwork.cancel();
+        StructureSpawnProximity.prepareNextLaunch(null);
         synchronizedRoomName = "";
         synchronizedSeed = "";
         worldBeforeLaunch = null;

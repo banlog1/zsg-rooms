@@ -42,10 +42,14 @@ final class ViewerControls {
     private final GuiButton forward;
     private final GuiButton editor;
     private final GuiButton players;
+    private final GuiButton analysisButton;
+    private final ReplayAnalysis analysis = new ReplayAnalysis();
+    private final FollowDetailOptions details = new FollowDetailOptions();
+    private final DetailedFollowHud detailHud = new DetailedFollowHud();
     private final GuiCheckbox autoHide = new GuiCheckbox().setLabel("Auto-hide").setChecked(true);
     private final GuiCheckbox showChat = new GuiCheckbox().setLabel("Chat").setChecked(false);
     private final GuiDropdownMenu<String> camera = new GuiDropdownMenu<String>()
-            .setValues("Direct Freecam", "Classic Freecam", "Follow Player", "Follow: Far");
+            .setValues("Direct Freecam", "Classic Freecam", "Follow Player", "Follow: Drone", "Follow: Details");
     private final CameraSpeeds speeds = new CameraSpeeds();
     private final FarFollowController.Distance followDistance = new FarFollowController.Distance();
     private final MilestoneIndex milestoneIndex;
@@ -77,7 +81,8 @@ final class ViewerControls {
             if (!sender.isAsyncMode() || sender instanceof FullReplaySender && ((FullReplaySender) sender).isHurrying()) return;
             client.openScreen(new RaceReplayScreen(handler, snapshot()));
         });
-        camera.setTooltip(new GuiTooltip().setText("Freecam, first-person follow, or follow from behind and above. Scroll changes distance in Far mode."));
+        analysisButton = button("Analysis", "Follow details, piglin counter and customizable trails", () -> client.openScreen(new AnalysisScreen(analysis, details)));
+        camera.setTooltip(new GuiTooltip().setText("Drone: hold left mouse and move to orbit the player with the cursor captured. Scroll changes distance. Player turns do not rotate the drone."));
         showChat.setTooltip(new GuiTooltip().setText("Show recorded chat during playback. Does not change live chat or ReplayMod's capture/filter settings."));
         autoHide.setTooltip(new GuiTooltip().setText("Hide after 3 seconds idle. Press T to release the cursor and reveal controls."));
         transport.setLayout(new CustomLayout<GuiPanel>() {
@@ -102,7 +107,8 @@ final class ViewerControls {
                 // Menus open downwards: place the transport above the timeline.
                 set(transport, 6, 6, width - 12, layout.narrow ? 44 : 20);
                 int y = layout.narrow ? 54 : 30;
-                set(timestamp, 6, y + 5, width - 82, 10);
+                set(timestamp, 6, y + 5, width - 152, 10);
+                set(analysisButton, width - 138, y, 64, 20);
                 set(players, width - 68, y, 62, 20);
                 set(milestones, 6, y + 24, width - 12, 14);
                 set(overlay.timeline, 6, y + 38, width - 12, 20);
@@ -166,13 +172,13 @@ final class ViewerControls {
             for (GuiElement element : originalElements.keySet()) overlay.removeElement(element);
             overlay.topPanel.removeElement(overlay.playPauseButton).removeElement(overlay.speedSlider).removeElement(overlay.timeline);
             transport.addElements(null, overlay.playPauseButton, back, forward, overlay.speedSlider, camera, autoHide, showChat, editor);
-            bar.addElements(null, transport, timestamp, players, milestones, overlay.timeline);
+            bar.addElements(null, transport, timestamp, analysisButton, players, milestones, overlay.timeline);
             overlay.addElements(null, bar);
             overlay.setLayout(new CustomLayout<GuiReplayOverlay>() {
                 @Override
                 protected void layout(GuiReplayOverlay container, int width, int height) {
                     ViewerLayout layout = new ViewerLayout(width);
-                    if (shown) set(bar, 8, Math.max(0, height - layout.height - 8), layout.width, layout.height);
+                    if (shown) set(bar, 8, layout.barY(height, hudInset()), layout.width, layout.height);
                 }
             });
             editor.setLabel("Editor");
@@ -181,6 +187,7 @@ final class ViewerControls {
     }
 
     void update() {
+        analysis.update(handler);
         if (!metadataApplied && recordingIndex.recording != null) {
             metadataApplied = true;
             ReplayViewer.raceContext(recordingIndex.recording);
@@ -192,16 +199,19 @@ final class ViewerControls {
             lastSecond = time / 1000;
             lastWidth = width;
             timestamp.setText(client.textRenderer.trimToWidth(ReplayViewer.timeLabel(time, handler.getReplayDuration()),
-                    Math.max(30, width - 114)));
+                    Math.max(30, width - 184)));
         }
         int height = client.getWindow().getScaledHeight();
         double x = client.mouse.getX() * width / client.getWindow().getWidth();
         double y = client.mouse.getY() * height / client.getWindow().getHeight();
         boolean mouse = overlay.isMouseVisible();
-        boolean hover = mouse && x >= 8 && x < width - 8 && y >= height - new ViewerLayout(width).height - 8;
+        ViewerLayout layout = new ViewerLayout(width);
+        int barY = layout.barY(height, hudInset());
+        boolean hover = mouse && x >= 8 && x < width - 8 && y >= barY && y < barY + layout.height;
         boolean held = mouse && GLFW.glfwGetMouseButton(client.getWindow().getHandle(), GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
         boolean visible = visibility.update(System.nanoTime(), autoHide.isChecked(), mouse, x, y,
                 hover || held || camera.isOpened() || !overlay.isAllowUserInput(), handler.getReplaySender().paused());
+        if (camera.getSelected() == 4 && details.inventoryVisible()) visible = false;
         if (visible != shown) {
             shown = visible;
             if (visible) overlay.addElements(null, bar);
@@ -215,7 +225,7 @@ final class ViewerControls {
         if (entity == null) return;
         int mode = camera.getSelected();
         speeds.remember(managedController);
-        if (mode == 2) {
+        if (mode == 2 || mode == 4) {
             if (client.world != null && handler.isCameraView()) {
                 PlayerEntity target = FarFollowController.recordedPlayer(client);
                 if (target != null) handler.spectateEntity(target);
@@ -232,8 +242,27 @@ final class ViewerControls {
     }
 
     boolean hideChat() { return !showChat.isChecked(); }
+    private int hudInset() { return camera.getSelected() == 4 && !client.options.hudHidden ? detailHud.reservedHeight() : 0; }
+    boolean detailedActive() { return camera.getSelected() == 4 && statusVisible(); }
+    boolean inventoryKey(int key, int scanCode, int action) {
+        if (!detailedActive() || camera.isOpened() || !overlay.isAllowUserInput()
+                || Screen.hasControlDown() || Screen.hasAltDown() || Screen.hasShiftDown()) return false;
+        boolean close = key == GLFW.GLFW_KEY_ESCAPE && details.inventoryVisible();
+        if (!close && !client.options.keyInventory.matchesKey(key, scanCode)) return false;
+        if (action == GLFW.GLFW_PRESS) {
+            if (close) details.closeInventory(); else details.toggleInventory();
+            visibility.touch(System.nanoTime());
+        }
+        return true;
+    }
+    boolean droneActive() { return !editing && camera.getSelected() == 3 && handler.isCameraView(); }
+    void orbit(double x, double y) { followDistance.drag(x, y); }
+    void clearTrails() { analysis.clear(); }
+    void renderTrails(net.minecraft.client.util.math.MatrixStack matrices, net.minecraft.client.render.Camera view) {
+        if (statusVisible()) analysis.render(matrices, view);
+    }
     void refreshTimestamp() { lastSecond = -1; }
-    void close() { milestoneIndex.close(); recordingIndex.close(); }
+    void close() { analysis.clear(); milestoneIndex.close(); recordingIndex.close(); }
 
     private boolean statusVisible() {
         return !editing && !client.options.hudHidden && client.world != null
@@ -246,16 +275,32 @@ final class ViewerControls {
                 : recording.timing.at(handler.getReplaySender().currentTimeStamp());
     }
 
+    private boolean recordedLoading() {
+        RaceRecording recording = recordingIndex.recording;
+        return recording != null && recording.loading.at(handler.getReplaySender().currentTimeStamp());
+    }
+
     void renderPlayerPause(net.minecraft.entity.player.PlayerEntity player,
                            net.minecraft.client.util.math.MatrixStack matrices,
                            net.minecraft.client.render.VertexConsumerProvider consumers) {
-        if (statusVisible() && player == FarFollowController.recordedPlayer(client) && recordedTiming().paused) {
-            PauseIndicator.renderAbove(player, matrices, consumers);
+        if (statusVisible() && player == FarFollowController.recordedPlayer(client)) {
+            boolean loading = recordedLoading();
+            if (loading || recordedTiming().paused) PauseIndicator.renderAbove(player, matrices, consumers,
+                    loading, handler.getReplaySender().currentTimeStamp());
         }
     }
 
     void renderStatus(net.minecraft.client.util.math.MatrixStack matrices) {
         if (!statusVisible()) return;
+        if (detailedActive()) {
+            RaceRecording recording = recordingIndex.recording;
+            int time = handler.getReplaySender().currentTimeStamp();
+            RaceRecording.Interval interval = recording == null ? null : recording.intervalAt(time);
+            PlayerEntity target = FarFollowController.recordedPlayer(client);
+            PlayerHudTrack.Frame frame = interval == null || target == null || recordingIndex.hud == null ? null
+                    : recordingIndex.hud.at(time, interval.world, target.getEntityId(), interval.start);
+            detailHud.render(matrices, frame, details, target);
+        }
         ReplayTimings.Value value = recordedTiming();
         String rta = "RTA " + ReplayTimings.clock(value.rta);
         String igt = "IGT " + ReplayTimings.clock(value.igt);
@@ -264,7 +309,15 @@ final class ViewerControls {
         net.minecraft.client.gui.DrawableHelper.fill(matrices, x - 4, 6, x + width + 4, 31, 0xBB101114);
         client.textRenderer.drawWithShadow(matrices, rta, x, 10, 0xFFFFFF);
         client.textRenderer.drawWithShadow(matrices, igt, x, 21, 0xA8D8FF);
-        if (value.paused && client.options.perspective == 0
+        if (analysis.piglinCounter) {
+            String label = "Piglin cluster: " + (analysis.counterAvailable ? analysis.piglins : "--");
+            int countX = client.getWindow().getScaledWidth() - client.textRenderer.getWidth(label) - 12;
+            net.minecraft.client.gui.DrawableHelper.fill(matrices, countX - 4, 35, client.getWindow().getScaledWidth() - 8, 50, 0xBB101114);
+            client.textRenderer.drawWithShadow(matrices, label, countX, 38, 0xFFE3AD);
+        }
+        if (recordedLoading()) {
+            PauseIndicator.renderLoadingHud(matrices, x - 16, 18, handler.getReplaySender().currentTimeStamp());
+        } else if (value.paused && client.options.perspective == 0
                 && client.getCameraEntity() == FarFollowController.recordedPlayer(client)) {
             PauseIndicator.renderHud(matrices, x - 16, 18);
         }
@@ -275,7 +328,13 @@ final class ViewerControls {
         State state = new State();
         state.speeds.copyFrom(speeds);
         state.mode = camera.getSelected();
-        state.distance = followDistance.blocks;
+        state.orbit.copyFrom(followDistance);
+        state.details.copyFrom(details);
+        state.piglins = analysis.piglinCounter;
+        state.trail = analysis.dragonTrail;
+        state.piglinTrail = analysis.piglinTrail;
+        state.dragonStyle.copyFrom(analysis.dragonStyle);
+        state.piglinStyle.copyFrom(analysis.piglinStyle);
         state.chat = showChat.isChecked();
         state.autoHide = autoHide.isChecked();
         state.speed = handler.getReplaySender().getReplaySpeed();
@@ -286,7 +345,13 @@ final class ViewerControls {
     void restore(State state) {
         speeds.copyFrom(state.speeds);
         camera.setSelected(state.mode);
-        followDistance.blocks = state.distance;
+        followDistance.copyFrom(state.orbit);
+        details.copyFrom(state.details);
+        analysis.piglinCounter = state.piglins;
+        analysis.dragonTrail = state.trail;
+        analysis.piglinTrail = state.piglinTrail;
+        analysis.dragonStyle.copyFrom(state.dragonStyle);
+        analysis.piglinStyle.copyFrom(state.piglinStyle);
         showChat.setChecked(state.chat);
         autoHide.setChecked(state.autoHide);
         lastMode = -1;
@@ -298,7 +363,13 @@ final class ViewerControls {
     static final class State {
         final CameraSpeeds speeds = new CameraSpeeds();
         int mode;
-        double distance;
+        final FarFollowController.Distance orbit = new FarFollowController.Distance();
+        final FollowDetailOptions details = new FollowDetailOptions();
+        boolean piglins;
+        boolean trail;
+        boolean piglinTrail;
+        final TrailStyle dragonStyle = new TrailStyle(TrailStyle.Color.CYAN);
+        final TrailStyle piglinStyle = new TrailStyle(TrailStyle.Color.GOLD);
         boolean chat;
         boolean autoHide;
         double speed;

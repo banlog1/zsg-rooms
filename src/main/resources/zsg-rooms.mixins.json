@@ -24,6 +24,7 @@
 		"LivingEntityDropMixin",
 		"MinecraftServerSaveProbeMixin",
 		"MinecraftServerRngMixin",
+		"MinecraftServerSpawnPreparationMixin",
 		"MobSpawnerLogicAccessor",
 		"MobSpawnerLogicMixin",
 		"NetherPortalPreloadMixin",
@@ -50,6 +51,8 @@
 		"WoodLightingWorldMixin"
 	],
 	"client": [
+		"RoomLoadingScreenMixin",
+		"RoomLoadingInputMixin",
 		"ReplayAtumResetMixin",
 		"ReplayClientDisconnectMixin",
 		"ReplayConnectionMixin",

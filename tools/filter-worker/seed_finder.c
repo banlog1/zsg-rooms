@@ -33,7 +33,7 @@ static void trace_decision(uint64_t seed, int stage, int pass) {
     decision_trace=(decision_trace^(uint64_t)(stage*2+!!pass))*UINT64_C(0x100000001b3);
 }
 typedef struct { Pos pos; int y, salt; } Lake;
-typedef struct { Pos main, bastion, fortress; Lake lakes[512]; int lake_count; Pos ravines[225]; int ravine_count; Loot loot; int obsidian_score; char bastion_type[16]; } Family;
+typedef struct { Pos main, bastion, fortress; Lake lakes[512]; int lake_count; Pos ravines[225]; int ravine_count; Loot loot; int iron_pickaxes; int obsidian_score; char bastion_type[16]; } Family;
 typedef struct { Pos spawn, entry, wood, water; } Result;
 
 static double now_ms(void) {
@@ -50,6 +50,19 @@ static double now_ms(void) {
 static int done(int stage, double start, int pass) { stage_ms[stage] += now_ms() - start; reached[stage]++; if (!pass) failed[stage]++; return pass; }
 static int axes(Pos a, Pos b, int radius) { return abs(a.x-b.x) <= radius && abs(a.z-b.z) <= radius; }
 static int circle(Pos a, Pos b, int radius) { int dx=a.x-b.x, dz=a.z-b.z; return dx*dx+dz*dz <= radius*radius; }
+static int village_resources(int iron, int iron_pickaxes, int diamonds) {
+    return iron >= 4 || (iron >= 1 && (iron_pickaxes > 0 || diamonds >= 3));
+}
+static int parse_smith_loot(const char *response, Family *f) {
+    int iron, picks, diamonds;
+    char extra;
+    if (sscanf(response,"SMITH_LOOT %d %d %d %c",&iron,&picks,&diamonds,&extra)!=3 ||
+        iron<0 || iron>100000 || picks<0 || picks>100000 || diamonds<0 || diamonds>100000) return 0;
+    f->loot.iron=iron;
+    f->loot.diamonds=diamonds;
+    f->iron_pickaxes=picks;
+    return 1;
+}
 static int floor_div(int x, int d) { return x/d - (x%d < 0); }
 static const Pos origin = {0,0};
 
@@ -320,6 +333,8 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
             && getVariant(&variant,Village,MC_1_16_1,seed,f->main.x,f->main.z,biome) && !variant.abandoned
             && tree_biome(g,f->main,30);
     }
+    // Temple routes collect wood before heading to a pool; anchor this check at the temple.
+    if (pass && type==TEMPLE) pass=tree_biome(g,f->main,20);
     if (!done(BIOMES,start,pass)) return 0;
     start=now_ms();
     SurfaceNoise *noise=surface_noise_for_seed(surface,seed);
@@ -330,7 +345,7 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
         pass=ship_surface(g,noise,f,out);
     } else for(int i=0;i<f->lake_count;i++) {
         Lake *lake=&f->lakes[i];
-        if(pool_proxy(g,noise,lake) && tree_biome(g,lake->pos,20)) {
+        if(pool_proxy(g,noise,lake) && (type==TEMPLE || tree_biome(g,lake->pos,20))) {
             pools[pool_count++]=lake->pos;pass=1;
         }
     }
@@ -343,7 +358,7 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
         int near_main=pass;
         pass=0;
         for(int i=0;i<pool_count;i++) if(near_main || axes(out->spawn,pools[i],48)) {
-            out->entry=pools[i];out->wood=pools[i];pass=1;break;
+            out->entry=pools[i];out->wood=type==TEMPLE?f->main:pools[i];pass=1;break;
         }
     }
     if (!done(SPAWN,start,pass)) return 0;
@@ -356,20 +371,18 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
         start=now_ms();
         pass=select_watered_pool(g,noise,f->main,out->spawn,pools,pool_count,&out->entry,&out->water);
         if (!done(WATER,start,pass)) return 0;
-        out->wood=out->entry;
+        out->wood=type==TEMPLE?f->main:out->entry;
     }
     if (type==VILLAGE) {
         start=now_ms();
         /* Private parent-child pipe, never forwarded by the Java coordinator. */
         printf("SMITH %" PRId64 " %d %d\n",(int64_t)seed,f->main.x/16,f->main.z/16);
         fflush(stdout);
-        char response[64], extra;
-        int iron;
-        if (!fgets(response,sizeof(response),stdin) || sscanf(response,"IRON %d %c",&iron,&extra)!=1 || iron<0 || iron>100000) {
+        char response[64];
+        if (!fgets(response,sizeof(response),stdin) || !parse_smith_loot(response,f)) {
             fprintf(stderr,"Village model protocol failed; search aborted\n"); exit(3);
         }
-        f->loot.iron=iron;
-        return done(SMITH_LOOT,start,iron>=4);
+        return done(SMITH_LOOT,start,village_resources(f->loot.iron,f->iron_pickaxes,f->loot.diamonds));
     }
     return 1;
 }
@@ -433,15 +446,17 @@ int main(int argc,char **argv) {
             reached[ACCEPT]++;accepted++;
             char water_json[64]="null";
             char family_json[64]="";
+            char smith_json[128]="";
+            if (type==VILLAGE) snprintf(smith_json,sizeof(smith_json),",\"villageResourceRule\":\"pickaxe-credit-v1\",\"ironPickaxes\":%d",f.iron_pickaxes);
             if (family_cap>1) snprintf(family_json,sizeof(family_json),",\"family\":\"%" PRIu64 "\"",lower);
             if (type!=SHIP) snprintf(water_json,sizeof(water_json),"[%d,%d]",result.water.x,result.water.z);
             /* A complete model acceptance, not a pending Minecraft verification job. */
             if(fprintf(output,"{\"profile\":\"" PROFILE "\",\"status\":\"MODEL_ACCEPTED\",\"type\":\"%s\",\"seed\":\"%" PRId64 "\","
                 "\"structure\":[%d,%d],\"entry\":[%d,%d],\"wood\":[%d,%d],\"spawn\":[%d,%d],\"bastion\":[%d,%d],\"fortress\":[%d,%d],\"water\":%s,"
-                "\"chestIron\":%d,\"diamonds\":%d,\"gold\":%d,\"foodScore\":%d,\"netherObsidianScore\":%d,\"bastionType\":\"%s\"%s}\n",
+                "\"chestIron\":%d,\"diamonds\":%d,\"gold\":%d,\"foodScore\":%d,\"netherObsidianScore\":%d,\"bastionType\":\"%s\"%s%s}\n",
                 argv[2],(int64_t)seed,f.main.x,f.main.z,result.entry.x,result.entry.z,result.wood.x,result.wood.z,result.spawn.x,result.spawn.z,
                 f.bastion.x,f.bastion.z,f.fortress.x,f.fortress.z,water_json,f.loot.iron,f.loot.diamonds,f.loot.gold,f.loot.food,
-                f.obsidian_score,f.bastion_type,family_json)<0 || fflush(output)) {
+                f.obsidian_score,f.bastion_type,family_json,smith_json)<0 || fflush(output)) {
                 fclose(output);fprintf(stderr,"Private bank write failed\n");return 3;
             }
             digest=(digest^seed)*UINT64_C(0x100000001b3);

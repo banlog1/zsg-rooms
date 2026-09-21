@@ -36,6 +36,7 @@ final class RaceRecording {
     final List<Race> races;
     final List<Interval> intervals;
     final ReplayTimings timing;
+    final ReplayLoading loading;
 
     private RaceRecording(Path path, JsonObject data, JsonObject standard) throws IOException {
         this.path = path.toAbsolutePath().normalize();
@@ -86,6 +87,7 @@ final class RaceRecording {
         }
         intervals = Collections.unmodifiableList(parsedIntervals);
         timing = new ReplayTimings(data.getAsJsonArray("timingSamples"), duration);
+        loading = new ReplayLoading(data.getAsJsonArray("loadingIntervals"), duration);
     }
 
     static RaceRecording read(Path path) throws IOException {
@@ -168,6 +170,17 @@ final class RaceRecording {
     Race raceAt(int timestamp) {
         for (Race race : races) if (timestamp * 1000000L >= race.start && timestamp * 1000000L < race.end) return race;
         return races.size() == 1 ? races.get(0) : null;
+    }
+
+    Interval intervalAt(int timestamp) {
+        int low = 0, high = intervals.size();
+        while (low < high) {
+            int mid = (low + high) >>> 1;
+            if (intervals.get(mid).start <= timestamp) low = mid + 1; else high = mid;
+        }
+        if (low == 0) return null;
+        Interval interval = intervals.get(low - 1);
+        return timestamp < interval.end ? interval : null;
     }
 
     int targetTime(Race race, long elapsedNanos) {

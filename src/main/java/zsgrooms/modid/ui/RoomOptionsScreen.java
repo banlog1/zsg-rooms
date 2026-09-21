@@ -12,43 +12,23 @@ import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
 
 public class RoomOptionsScreen extends Screen {
-    private static final String[] SEED_TYPES = new String[]{
-            "zsg",
-            "zsgop",
-            "zsgvillage",
-            "zsgvillageop",
-            "zsgshipwreck",
-            "zsgshipwreckop",
-            "zsgtemple",
-            "zsgtempleop",
-            "zsgjungletemple",
-            "zsgjungletempleop",
-            "rpseedbank",
-            "rooms-temple-v5",
-            "rooms-village-v5",
-            "rooms-shipwreck-v5",
-            "random",
-            "room",
-            "manual"
-    };
 
     private final Screen parent;
     private final String roomName;
     private TextFieldWidget manualSeedField;
     private ButtonWidget seedTypeButton;
-    private int selectedSeedTypeIndex;
+    private String selectedSeedType = "zsg";
     private String initialManualSeed = "";
 
     public RoomOptionsScreen(Screen parent, String roomName) {
         super(new LiteralText("Room Options"));
         this.parent = parent;
         this.roomName = roomName;
-        this.selectedSeedTypeIndex = 0;
 
         Room room = ZsgRooms.getRoom(roomName);
         if (room != null) {
             InGame game = ZsgRooms.getGame(roomName);
-            String specification = game == null ? ZsgSeedBridge.resolveStructure(room.getSeed()) : game.targetStructure;
+            String specification = game == null ? ZsgSeedBridge.seedSpecificationFromSeed(room.getSeed()) : game.targetStructure;
             String current = ZsgSeedBridge.normalizeSeedType(specification);
             if ("manual".equals(current)) {
                 String normalized = ZsgSeedBridge.normalizeSeedSpecification(specification);
@@ -56,12 +36,7 @@ public class RoomOptionsScreen extends Screen {
                         ? normalized.substring("manual:".length())
                         : "";
             }
-            for (int i = 0; i < SEED_TYPES.length; i++) {
-                if (SEED_TYPES[i].equals(current)) {
-                    this.selectedSeedTypeIndex = i;
-                    break;
-                }
-            }
+            this.selectedSeedType = FilterCatalog.find(current).id;
         }
     }
 
@@ -74,9 +49,7 @@ public class RoomOptionsScreen extends Screen {
         int y = panelY() + 54;
 
         this.seedTypeButton = new ButtonWidget(contentX, y, contentWidth, 20, seedTypeText(), button -> {
-            this.selectedSeedTypeIndex = (this.selectedSeedTypeIndex + 1) % SEED_TYPES.length;
-            button.setMessage(seedTypeText());
-            updateManualSeedState();
+            this.client.openScreen(new FilterPickerScreen(this, currentSeedType(), value -> this.selectedSeedType = value));
         });
         this.addButton(this.seedTypeButton);
 
@@ -131,7 +104,7 @@ public class RoomOptionsScreen extends Screen {
     }
 
     private String currentSeedType() {
-        return SEED_TYPES[this.selectedSeedTypeIndex];
+        return this.selectedSeedType;
     }
 
     private String selectedSeedTypeValue() {

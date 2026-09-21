@@ -71,15 +71,17 @@ public class RoomLobbyScreen extends Screen {
         if (compact) {
             int gap = 4;
             int buttonY = footerTop + 30;
-            int buttonWidth = (this.width - 16 - gap * 3) / 4;
+            int buttonWidth = (this.width - 16 - gap * 4) / 5;
             addLobbyButton(8, buttonY, buttonWidth, "Leave", "leave");
             this.optionsButton = addLobbyButton(8 + (buttonWidth + gap), buttonY, buttonWidth, "Options", "options");
-            this.startButton = addLobbyButton(8 + (buttonWidth + gap) * 2, buttonY, buttonWidth, "Start", "start");
-            addLobbyButton(8 + (buttonWidth + gap) * 3, buttonY, buttonWidth, "Share", "share");
+            addLobbyButton(8 + (buttonWidth + gap) * 2, buttonY, buttonWidth, "Rules", "rules");
+            this.startButton = addLobbyButton(8 + (buttonWidth + gap) * 3, buttonY, buttonWidth, "Start", "start");
+            addLobbyButton(8 + (buttonWidth + gap) * 4, buttonY, buttonWidth, "Share", "share");
         } else {
             int bottomY = footerTop + 16;
-            addLobbyButton(16, bottomY, 112, "Leave Room", "leave");
-            this.optionsButton = addLobbyButton(this.width - 332, bottomY, 100, "Options", "options");
+            addLobbyButton(16, bottomY, 96, "Leave Room", "leave");
+            this.optionsButton = addLobbyButton(this.width - 440, bottomY, 100, "Options", "options");
+            addLobbyButton(this.width - 332, bottomY, 100, "Game Rules", "rules");
             this.startButton = addLobbyButton(this.width - 224, bottomY, 100, "Start Race", "start");
             addLobbyButton(this.width - 116, bottomY, 100, "Share Seed", "share");
         }
@@ -273,7 +275,7 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private void drawRoomDetails(MatrixStack matrices, String seed, int y) {
-        String filter = "Filter: " + ZsgSeedBridge.seedTypeLabel(ZsgSeedBridge.resolveStructure(seed));
+        String filter = "Filter: " + ZsgSeedBridge.seedTypeLabel(ZsgSeedBridge.seedSpecificationFromSeed(seed));
         if (isCompact()) {
             drawCenteredString(matrices, this.textRenderer, trimToWidth(filter, this.width - 20), this.width / 2, y + 4, 0x88CCFF);
             return;
@@ -421,6 +423,8 @@ public class RoomLobbyScreen extends Screen {
                 this.client.openScreen(this.parent);
             } else if ("options".equals(action)) {
                 this.client.openScreen(new RoomOptionsScreen(this, this.roomName));
+            } else if ("rules".equals(action)) {
+                this.client.openScreen(RoomGameRulesScreen.forRoom(this, this.roomName));
             } else if ("start".equals(action)) {
                 ZsgRoomsClient.sendRoomAction("start", this.roomName, "");
             } else if ("share".equals(action)) {

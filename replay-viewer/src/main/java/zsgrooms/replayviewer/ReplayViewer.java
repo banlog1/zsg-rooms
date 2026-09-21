@@ -153,6 +153,39 @@ public final class ReplayViewer implements ClientModInitializer {
                 && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.hideChat();
     }
 
+    public static boolean droneActive() {
+        return !switching && instance != null && instance.controls != null
+                && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.droneActive();
+    }
+
+    public static boolean detailedActive() {
+        return !switching && instance != null && instance.controls != null
+                && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.detailedActive();
+    }
+
+    public static boolean inventoryKey(int key, int scanCode, int action) {
+        return detailedActive() && instance.controls.inventoryKey(key, scanCode, action);
+    }
+
+    public static boolean orbitInput(net.minecraft.entity.Entity entity, double x, double y) {
+        if (!droneActive() || entity != instance.current.getCameraEntity()) return false;
+        net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
+        if (client.currentScreen == null && client.mouse.isCursorLocked()
+                && client.mouse.wasLeftButtonClicked()) {
+            instance.controls.orbit(x, y);
+        }
+        return true;
+    }
+
+    public static void clearTrails(ReplayHandler handler) {
+        if (instance != null && instance.current == handler && instance.controls != null) instance.controls.clearTrails();
+    }
+
+    public static void renderTrails(net.minecraft.client.util.math.MatrixStack matrices, net.minecraft.client.render.Camera camera) {
+        if (!switching && instance != null && instance.controls != null
+                && ReplayModReplay.instance.getReplayHandler() == instance.current) instance.controls.renderTrails(matrices, camera);
+    }
+
     public static void renderStatus(net.minecraft.client.util.math.MatrixStack matrices) {
         if (!switching && instance != null && instance.controls != null
                 && ReplayModReplay.instance.getReplayHandler() == instance.current) instance.controls.renderStatus(matrices);

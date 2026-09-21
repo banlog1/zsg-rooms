@@ -1,3 +1,5 @@
+. (Join-Path $PSScriptRoot 'FilterBankCheckpoint.ps1')
+
 function Write-FilterAtomicJson([string]$Path, $Value) {
     $temporary = $Path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
     $bytes = [Text.UTF8Encoding]::new($false).GetBytes(($Value | ConvertTo-Json -Depth 12))
@@ -49,9 +51,23 @@ function Get-FilterModelFingerprint([string]$Root, [string]$Java, [string]$Finde
     finally { $sha.Dispose() }
 }
 
-function Get-OvernightJobs([string]$Directory) {
+function Get-OvernightJobs([string]$Directory, $Checkpoint = $null) {
+    if ($Checkpoint) { $Checkpoint.reusable.Clear() }
+    $progress = [Diagnostics.Stopwatch]::StartNew()
+    $readCount = 0
+    $assigned = [Collections.Generic.HashSet[string]]::new()
     $jobs = @(Get-ChildItem -LiteralPath (Join-Path $Directory 'jobs') -Filter '*.json' -File | Sort-Object Name | ForEach-Object {
-        $job = Read-FilterJson $_.FullName
+        $cached = if ($Checkpoint) { $Checkpoint.entries[$_.BaseName] } else { $null }
+        if ($cached -and $cached.length -eq $_.Length -and $cached.ticks -eq $_.LastWriteTimeUtc.Ticks) {
+            $job = $cached.job
+            $Checkpoint.reusable[$job.id] = $true
+        } else { $job = Read-FilterJson $_.FullName }
+        $readCount++
+        $null = $assigned.Add($_.BaseName)
+        if ($progress.Elapsed.TotalSeconds -ge 5) {
+            Write-Host "Reading job journal: $readCount assignments checked..."
+            $progress.Restart()
+        }
         foreach ($field in @('startOffset','families','attempts','failures','accepted','acceptedFamilies')) {
             if (($job.$field -isnot [long] -and $job.$field -isnot [int]) -or $job.$field -lt 0) {
                 throw 'Invalid integer in overnight job journal.'
@@ -69,6 +85,11 @@ function Get-OvernightJobs([string]$Directory) {
         }
         $job
     })
+    if ($Checkpoint) {
+        foreach ($id in $Checkpoint.entries.Keys) {
+            if (-not $assigned.Contains($id)) { throw 'Checkpoint references a missing job; committed history has not been discarded.' }
+        }
+    }
     $end = -1L
     foreach ($job in ($jobs | Sort-Object {[long]$_.startOffset})) {
         if ($job.startOffset -lt $end) { throw 'Overnight journal contains overlapping family ranges.' }
@@ -123,21 +144,42 @@ function Read-OvernightBatch([string]$Directory, $Job, $Policy) {
     return [pscustomobject]@{hash=$hash;rows=$rows;accepted=$rows.Count;acceptedFamilies=$families.Count}
 }
 
-function Export-OvernightBank([string]$Directory, $Plan) {
-    $jobs = @(Get-OvernightJobs $Directory)
+function Export-OvernightBank([string]$Directory, $Plan, $Checkpoint = $null, $Jobs = $null) {
+    $jobs = if ($null -ne $Jobs) { @($Jobs) } else { @(Get-OvernightJobs $Directory $Checkpoint) }
     $temporary = Join-Path $Directory ('bank.'+[guid]::NewGuid().ToString('N')+'.tmp')
     $seen = [Collections.Generic.HashSet[string]]::new()
     $counts = @{temple=0;shipwreck=0;village=0}
+    $entries = [Collections.Generic.List[object]]::new()
+    $next = [pscustomobject]@{entries=@{};rows=@{};reusable=@{}}
+    $verified = 0
+    $reused = 0
+    $progress = [Diagnostics.Stopwatch]::StartNew()
     $stream = [IO.File]::Open($temporary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write)
     $writer = [IO.StreamWriter]::new($stream,[Text.UTF8Encoding]::new($false))
     try {
         foreach ($job in $jobs) {
             if ($job.state -cne 'complete') { continue }
-            $batch = Read-OvernightBatch $Directory $job $Plan.policies.($job.type)
-            foreach ($row in $batch.rows) {
+            if ($Checkpoint -and $Checkpoint.reusable[$job.id]) {
+                $rows = $Checkpoint.rows[$job.id]
+                $entry = $Checkpoint.entries[$job.id]
+                $reused++
+            } else {
+                $rows = (Read-OvernightBatch $Directory $job $Plan.policies.($job.type)).rows
+                $file = Get-Item -LiteralPath (Join-Path $Directory ('jobs/'+$job.id+'.json'))
+                $entry = [pscustomobject]@{job=$job;length=$file.Length;ticks=$file.LastWriteTimeUtc.Ticks}
+                $verified++
+            }
+            foreach ($row in $rows) {
                 if (-not $seen.Add($row.seed)) { throw 'Duplicate seed across committed overnight batches.' }
                 $writer.WriteLine($row.line)
                 $counts[$job.type]++
+            }
+            $entries.Add($entry)
+            $next.entries[$job.id]=$entry
+            $next.rows[$job.id]=$rows
+            if ($progress.Elapsed.TotalSeconds -ge 5) {
+                Write-Host "Preparing bank: $reused checkpoint batches reused; $verified batches verified..."
+                $progress.Restart()
             }
         }
         $writer.Flush(); $stream.Flush($true)
@@ -145,5 +187,6 @@ function Export-OvernightBank([string]$Directory, $Plan) {
     $bank = Join-Path $Directory 'bank.jsonl'
     if ([IO.File]::Exists($bank)) { [IO.File]::Replace($temporary,$bank,[NullString]::Value) }
     else { [IO.File]::Move($temporary,$bank) }
-    return [pscustomobject]@{accepted=$seen.Count;counts=$counts;bank=$bank}
+    Write-OvernightCheckpoint $Directory $Plan $entries.ToArray()
+    return [pscustomobject]@{accepted=$seen.Count;counts=$counts;bank=$bank;seen=$seen;checkpoint=$next;verified=$verified;reused=$reused}
 }

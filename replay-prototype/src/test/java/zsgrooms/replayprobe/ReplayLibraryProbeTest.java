@@ -78,6 +78,7 @@ class ReplayLibraryProbeTest {
                 write.invoke(writer, 0, packetId, 0L, first);
                 write.invoke(writer, 0, packetId, 0L, second);
                 write.invoke(writer, 0, packetId, 100L, first);
+                type.getMethod("writePlayerHud", byte[].class).invoke(writer, (Object) second);
                 type.getMethod("finish", int.class, boolean.class).invoke(writer, 73, true);
             }
             Map<String, Object> result = read(loader, path);
@@ -90,6 +91,46 @@ class ReplayLibraryProbeTest {
             assertEquals(Base64.getEncoder().encodeToString(second), payloads.get(2));
             assertEquals(Base64.getEncoder().encodeToString(first), payloads.get(3));
             assertEquals(736, result.get("protocol"));
+            try (JarFile archive = new JarFile(path.toFile());
+                 InputStream hud = archive.getInputStream(archive.getEntry("zsg-rooms/player-hud.bin"))) {
+                byte[] bytes = new byte[second.length];
+                new DataInputStream(hud).readFully(bytes);
+                assertArrayEquals(second, bytes);
+                assertEquals(-1, hud.read());
+            }
+        }
+    }
+
+    @Test
+    void discardRemovesOnlyItsOwnRecordingAndTemporaryFiles() throws Exception {
+        Path directory = Files.createDirectory(temp.resolve("recordings"));
+        Path saved = directory.resolve("saved.mcpr");
+        try (URLClassLoader loader = isolated(libraries())) {
+            Class<?> type = loader.loadClass(WRITER);
+            int id = (Integer) loader.loadClass(FIXTURE).getMethod("timePacketId").invoke(null);
+            java.lang.reflect.Method write = type.getMethod("write", int.class, int.class, long.class, byte[].class);
+            try (AutoCloseable writer = (AutoCloseable) type.getConstructor(Path.class, long.class).newInstance(saved, 0L)) {
+                write.invoke(writer, 0, id, 10L, new byte[16]);
+                type.getMethod("finish", int.class, boolean.class).invoke(writer, 7, true);
+                assertInstanceOf(IllegalStateException.class, assertThrows(InvocationTargetException.class,
+                        () -> type.getMethod("discard").invoke(writer)).getCause());
+            }
+            byte[] original = Files.readAllBytes(saved);
+            List<Path> existing;
+            try (Stream<Path> files = Files.walk(directory)) {
+                existing = files.sorted().collect(Collectors.toList());
+            }
+            for (boolean writePackets : new boolean[] { false, true }) {
+                try (AutoCloseable writer = (AutoCloseable) type.getConstructor(Path.class, long.class)
+                        .newInstance(directory.resolve("discard.mcpr"), 0L)) {
+                    if (writePackets) write.invoke(writer, 0, id, 20L, new byte[16]);
+                    type.getMethod("discard").invoke(writer);
+                }
+                try (Stream<Path> files = Files.walk(directory)) {
+                    assertEquals(existing, files.sorted().collect(Collectors.toList()));
+                }
+                assertArrayEquals(original, Files.readAllBytes(saved));
+            }
         }
     }
 

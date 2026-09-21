@@ -273,7 +273,7 @@ public class RoomSocketTransport {
                 broadcastSnapshot();
                 return;
             }
-            if ("start".equals(type) || "filter".equals(type)) {
+            if ("start".equals(type) || "filter".equals(type) || "rules".equals(type)) {
                 sendToPlayer(player, "chat", this.roomName, this.hostName, "Only the host can use that control");
                 return;
             }
@@ -348,6 +348,8 @@ public class RoomSocketTransport {
             }
             if ("start".equals(type)) {
                 requestAndLaunchExactSeed();
+            } else if ("rules".equals(type)) {
+                if (ZsgRooms.changeRoomRules(this.roomName, player, value)) broadcastSnapshot();
             } else if ("filter".equals(type)) {
                 ZsgRooms.applyRoomAction(type, room, player, value);
                 seedSelectionChanged();
@@ -445,7 +447,7 @@ public class RoomSocketTransport {
                 status = HostSeedPrefetchManager.STATUS_FAILED;
                 ZsgRooms.shareChat(this.roomName, HostSeedPrefetchManager.STATUS_FAILED);
                 finishSeedLaunch(launchGeneration);
-                manager.onSeedConsumed(this.roomName, specification);
+                manager.onLaunchFailed(this.roomName, specification);
                 return;
             }
             ZsgInGameActions.showSeedReady(MinecraftClient.getInstance());
@@ -454,7 +456,7 @@ public class RoomSocketTransport {
                 ZsgRoomsClient.cancelSynchronizedStart(this.roomName, seed);
                 status = HostSeedPrefetchManager.STATUS_FAILED;
                 finishSeedLaunch(launchGeneration);
-                manager.onSeedConsumed(this.roomName, specification);
+                manager.onLaunchFailed(this.roomName, specification);
                 return;
             }
 

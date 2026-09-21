@@ -23,16 +23,57 @@ ZSG recording mod remains independently usable without this companion.
   places the icon beside the timers because the player's head is out of view.
   These remain visible when the bottom bar auto-hides. Playback pause is separate
   from recorded player pause.
+  Fresh recordings also show a cyan pixel-ring loading indicator above the player
+  and beside the timers, including reset gaps when no player is visible. It follows
+  explicit recorded loading intervals, not missing data or the viewer's own loading
+  screen. Its animation follows replay time and stops when playback is paused.
   F1 and the camera-path editor hide this overlay along with the compact HUD.
 - **Players** pauses playback and lists locally available matching race recordings.
   **Import Replay...** adds manually shared MCPRs without moving their originals.
 - Direct freecam, accelerated Classic freecam, first-person Follow Player, and
-  Follow: Far (behind and above the recorded player).
+  Follow: Drone (an independently controlled orbit around the recorded player).
+- **Follow: Details** adds recorded health, hunger, armor, XP, air, status effects,
+  hotbar and offhand to first-person follow using Minecraft's normal HUD layout.
+  The hotbar stays bottom-center with health/hunger above it. The playback bar
+  sits above the HUD when visible. Press your Minecraft inventory key (normally E)
+  for the centered vanilla inventory layout; playback controls hide until E or
+  Escape closes it. Small GUI sizes fit the inventory above the survival HUD.
+  **Analysis > Always show inventory** enables the optional always-visible mode.
+  E/Escape can dismiss it without changing that preference. Inventory display is
+  read-only and does not open a live inventory screen. Crafting slots are marked
+  unavailable because their contents are not part of the recorded inventory track.
 - Direct and Classic camera speeds are remembered separately across dimension
   changes, recorded world resets, and switching compact camera modes.
-- Far follow starts eight blocks behind the player. Scroll adjusts the distance
-  from two to 32 blocks; solid terrain brings the camera closer. The chosen
-  distance survives camera replacement too.
+- Drone follow starts eight blocks away, above and behind the player. Hold the
+  left mouse button and move the captured mouse to orbit; release it to keep
+  the viewing angle. Player turns do not rotate the orbit. Scroll adjusts the
+  distance from two to 32 blocks; solid terrain brings the camera closer.
+  Orbit angles and distance survive camera replacement and recording switches.
+  ReplayMod's click-to-spectate is suppressed only in Drone mode. Use T to
+  release the cursor for the playback controls.
+- **Analysis** has three optional overlays, all off initially:
+  **Piglin cluster counter**, **Dragon trail**, and **Piglin trails**. Settings survive
+  switches between grouped recordings; opening an unrelated replay resets them.
+  The counter follows [Llama's Bastion Practice 3.15.0](https://github.com/LlamaPag/bastion/releases/tag/3.15.0):
+  count piglins within one block of each piglin and display the largest count.
+  The viewer considers living recorded piglins within 64 blocks of the recorded
+  player, without the practice map's `bastion_mob` tag. It includes babies and
+  does not detect walls, identify a particular hole, or infer unrecorded mobs.
+  `--` means the recorded player is unavailable; zero means no eligible piglins.
+  **Customize** beside either trail opens independent color swatches, length
+  (2-30 seconds), thickness (1-4 pixels), opacity (10-100%), and optional fading
+  of older segments. Reset restores that trail's defaults: ten seconds, one pixel,
+  85% opacity, no fading, cyan for dragons and gold for piglins. Increasing length
+  accumulates more history going forward; it cannot recover discarded samples.
+  Line thickness is subject to the graphics driver's supported OpenGL line widths.
+  Dragon trails show observed body positions; piglin trails sit just above the
+  feet. Piglin trails cover up to 128 living recorded piglins within 64 blocks
+  of the recorded player and work independently of the cluster counter.
+  Trails are sampled at most ten times per replay second. They build during
+  playback, stay still when paused, and clear on seeking, world changes,
+  disappearance, leaving the piglin tracking radius, or large teleports. They do
+  not reconstruct history preceding a seek and are depth-tested against
+  terrain. F1 and the editor hide all analysis overlays; no replay files are modified.
 - Chat is hidden by default during playback. The Chat checkbox reveals it
   without changing live-game chat settings or removing recorded messages.
   ReplayMod's own Show Chat filter must also be enabled to see those messages.
@@ -61,11 +102,33 @@ relevant advancement packets. These are recording timestamps, not race IGT.
 Closely spaced markers retain their notches and hover details even when their
 labels cannot fit. The index is limited to 2,048 milestones per file.
 
-World Preview interfered with replay viewing in the user's test instance. If
-that happens, disable its preview behavior for playback. No terrain-screen
-workaround is applied by this companion.
+The companion orders ReplayMod 2.6.27's terrain-screen dismissal with Minecraft's
+packet tasks. ReplayMod otherwise queues that dismissal separately, which can
+run before the queued JoinGame handler opens the screen and leave it stuck.
+This preserves the original position-packet trigger and terrain-only screen
+check; it does not add a timeout, fabricate packets, or alter recordings.
+It also applies when seeking or crossing recorded worlds/dimensions. World
+Preview can separately interfere with playback; disable its preview behavior
+if necessary.
 
 ## Recorded Timers
+
+### Player Details
+
+Detailed follow requires a fresh replay from the updated ZSG recorder. ReplayMod
+filters out several ordinary inventory/status packets, so ZSG stores a separate
+compressed `zsg-rooms/player-hud.bin` archive entry. Capture reads only the local
+player, with at most five samples per second and one-second heartbeats for
+unchanged state. It works in both normal and Performance recording modes.
+The track is capped at 16 MiB uncompressed and 72,000 samples; reaching its limit
+does not stop the replay. The viewer loads the bounded track asynchronously and
+selects only past samples from the current world interval and recorded entity.
+Missing, invalid, or stale coverage displays "Player details unavailable", never
+the replay camera's inventory or invented health. Seeking and recording switches
+select the corresponding recorded state. This is viewing data, not tick-perfect
+verification. Inventory visibility preferences survive grouped recording switches.
+
+### Timers And Pause
 
 Pause and timer data require a new recording made with the updated ZSG recorder.
 Install SpeedRunIGT when recording to capture its RTA/IGT values. Without it,
@@ -79,6 +142,11 @@ timers, not a replacement for the exact finish result. Reset/load gaps are not
 interpolated. Capture is bounded to 12,000 samples per file; missing or stale
 coverage becomes unavailable rather than showing an indefinitely paused player.
 Metadata is read asynchronously from the archive without seeking playback.
+
+Loading coverage is stored separately as optional `loadingIntervals` in the race
+manifest, capped at 4,096 intervals. It survives long gaps without client ticks and
+is clamped to the written recording duration. Older recordings without this field
+do not show a loading indicator; older viewers can ignore the field.
 
 To hide only the live recording badge, use ZSG **Settings > Replays > Recording >
 Show Recording Indicator**. This does not stop recording or hide playback timers.
@@ -107,6 +175,20 @@ of the input MCPR because ReplayMod may create caches/metadata beside it:
 ```powershell
 .\gradlew.bat runReplayPlaybackTest '-PreplayPlaybackFile=<absolute copy path>' -PreplayViewer=true -PreplayViewerSmoke=true --offline
 ```
+
+Use `-PreplayStartupSmoke=true` instead of `-PreplayViewerSmoke=true` for the
+controlled terrain-screen queue-order regression. It exercises the real
+ReplayMod position-packet handler with both task-queue orders, an unrelated
+screen, no position packet, and a synchronous position packet. The unpatched
+2.6.27 handler fails when ReplayMod's queue runs first. For cold-open checks,
+copy only the MCPR to a new directory, without any adjacent playback caches.
+The regression establishes the ordering defect, not that every reported
+first-open hang necessarily has this cause.
+
+Use `-PreplayDetailsSmoke=true` for detailed-follow checks against a fresh
+`runReplayPrototype -PreplaySmoke=true -PreplayResets=1` capture. It checks captured
+inventory/status, actual inventory-key dispatch, both display modes, small/wide
+windows, backward seeking, dimension changes and a same-file world reset.
 
 The extended smoke driver uses the local `7bbdc52d-751b-4136-8a03-ff65922ffe6f`
 fixture: a dimension transfer before 22 seconds, a world reset around 66 seconds,

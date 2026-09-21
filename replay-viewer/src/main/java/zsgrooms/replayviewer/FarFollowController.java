@@ -6,14 +6,26 @@ import com.replaymod.replay.camera.CameraEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RayTraceContext;
 
 final class FarFollowController implements CameraController {
     static final class Distance {
         double blocks = 8.0;
+        double yaw;
+        double pitch = 20.0;
+        boolean initialized;
         void change(double delta) { blocks = Math.max(2.0, Math.min(32.0, blocks + delta)); }
+        void drag(double x, double y) {
+            yaw = (yaw + x * 0.15) % 360.0;
+            pitch = Math.max(-80.0, Math.min(80.0, pitch + y * 0.15));
+        }
+        void copyFrom(Distance other) {
+            blocks = other.blocks;
+            yaw = other.yaw;
+            pitch = other.pitch;
+            initialized = other.initialized;
+        }
     }
 
     private final MinecraftClient client;
@@ -44,8 +56,14 @@ final class FarFollowController implements CameraController {
         if (target == null || camera.world != client.world) return;
         float delta = client.getTickDelta();
         Vec3d aim = target.getCameraPosVec(delta);
-        double yaw = Math.toRadians(MathHelper.lerpAngleDegrees(delta, target.prevYaw, target.yaw));
-        Vec3d desired = aim.add(Math.sin(yaw) * distance.blocks, 3.0, -Math.cos(yaw) * distance.blocks);
+        if (!distance.initialized) {
+            distance.yaw = target.yaw;
+            distance.initialized = true;
+        }
+        double yaw = Math.toRadians(distance.yaw);
+        double pitch = Math.toRadians(distance.pitch);
+        double horizontal = Math.cos(pitch) * distance.blocks;
+        Vec3d desired = aim.add(Math.sin(yaw) * horizontal, Math.sin(pitch) * distance.blocks, -Math.cos(yaw) * horizontal);
         HitResult hit = client.world.rayTrace(new RayTraceContext(aim, desired, RayTraceContext.ShapeType.COLLIDER,
                 RayTraceContext.FluidHandling.NONE, target));
         Vec3d position = hit.getType() == HitResult.Type.BLOCK

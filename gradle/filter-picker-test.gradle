@@ -1,0 +1,46 @@
+sourceSets {
+    filterPickerTest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+if (project.hasProperty('loadingWorldPreview')) {
+    dependencies {
+        modRuntimeOnly files('run/replay-playback-test/reference-mods/worldpreview-6.3.1+1.16-1.16.1.jar')
+        modRuntimeOnly fileTree(dir: 'libs', include: 'speedrunapi-*.jar')
+    }
+}
+loom {
+    mods {
+        'zsg-rooms' { sourceSet sourceSets.main }
+        'zsg-filter-picker-test' { sourceSet sourceSets.filterPickerTest }
+    }
+    runs {
+        filterPickerTest {
+            client()
+            source sourceSets.filterPickerTest
+            runDir 'run/filter-picker-test'
+            vmArg "-Dzsgrooms.seedVisualSmoke=${project.hasProperty('seedVisualSmoke')}"
+            vmArg "-Dzsgrooms.lobbyRulesSmoke=${project.hasProperty('lobbyRulesSmoke')}"
+            vmArg "-Dzsgrooms.spawnPreparationSmoke=${project.hasProperty('spawnPreparationSmoke')}"
+            vmArg "-Dzsgrooms.loadingPositionSmoke=${project.hasProperty('loadingPositionSmoke')}"
+        }
+    }
+}
+tasks.named('runFilterPickerTest') {
+    doFirst {
+        ext.startedAt = System.currentTimeMillis()
+        def pack = file('build/distributions/zsg-rooms-filter-gallery.zip')
+        if (!pack.exists()) throw new GradleException('Build the image pack with scripts/Build-FilterGalleryPack.ps1 first')
+        copy { from pack; into 'run/filter-picker-test/resourcepacks' }
+        file('run/filter-picker-test/options.txt').text = 'resourcePacks:["file/zsg-rooms-filter-gallery.zip"]\nguiScale:2\nmaxFps:60\npauseOnLostFocus:false\n'
+    }
+    doLast {
+        def log = file('run/filter-picker-test/logs/latest.log')
+        if (!log.exists() || log.lastModified() < startedAt || !log.text.contains('[FilterPickerSmoke] PASS:')
+                || log.text.contains('[SeedVisualSmoke] FAILED') || log.text.contains('[LobbyRulesSmoke] FAILED')
+                || log.text.contains('[SpawnPreparationSmoke] FAILED') || log.text.contains('[LoadingPositionSmoke] FAILED')) {
+            throw new GradleException('Filter picker smoke test failed; see run/filter-picker-test/logs/latest.log')
+        }
+    }
+}

@@ -88,6 +88,79 @@ the victory screen.
 The host requests the seed. Each client loads that same seed locally, reports
 `world_ready`, and remains paused until the room releases everyone together.
 
+Open **Game Rules** (**Rules** in compact layouts) directly from the lobby.
+The host can edit the rules and presets between races; **Done** or Escape saves
+the changes and syncs them to everyone. Guests can inspect the current rules and
+hover the question marks, but cannot edit them. Rules are locked while a race
+is running. Small windows use separate Race and World tabs. Rule edits do not
+change the selected seed or filter, and require no relay deployment.
+
+## Filter Picker
+
+Click the filter button during room creation, or open **Options** from the lobby,
+to choose from **ZSG Rooms**, **Existing Filters**, and **Other**. Select a named
+tile instead of cycling through every filter. Lobby changes take effect after
+**Apply**. Manual seed entry remains available under **Other**.
+
+The picker always opens on **ZSG Rooms**. It defaults to **Gallery** when preview
+images are available from an enabled resource pack, or **Compact** otherwise.
+You can switch modes while browsing. For picture previews, place the
+optional `zsg-rooms-filter-gallery.zip` in your instance's `.minecraft/resourcepacks`
+folder, enable it in **Options > Resource Packs**, and choose **Gallery**. Keep the
+ZIP intact. It is a resource pack, not a mod, and does not belong in `mods`.
+
+The preview images are kept outside the mod JAR. They are 480x270 thumbnails;
+missing pictures fall back to icons. On very short screens the picker uses compact
+rows. See [optional asset packaging](optional-assets/README.md) to build the ZIP.
+
+### Seed Icons And Loading Images
+
+The match HUD shows the current seed category with a Minecraft item icon and a
+short label, including the actual drawn category in ZSG Rooms Mode. Toggle it
+under **Settings > Match HUD > Appearance > Show seed type**. It works without
+the image pack and can remain visible with the match header hidden.
+**Seed header size** in the same Appearance tab scales its icon and label from
+50% to 150%, independently of the player rows and overall HUD size.
+
+The optional gallery pack also contains loading backgrounds for temple, village,
+shipwreck, ruined portal and buried treasure seeds. Enable the resource pack and
+leave **Settings > Loading Screen > Loading Images** checked. One matching image stays fixed for
+each world load; Minecraft's chunk-progress square and percentage remain on top.
+Missing artwork or disabling the setting keeps the normal loading screen.
+**Progress** presets in that menu place the square and percentage in the center
+(default) or any corner. This only affects image-backed loading screens.
+
+Artwork applies only to worlds launched through ZSG Rooms, including same-seed
+resets. It does not replace dimension-transition or replay-playback screens.
+WorldPreview's generation and preview initialization still run; the image covers
+its preview and menu, and hidden controls cannot be clicked or keyboard-activated.
+The images are illustrative, not screenshots of the seed being loaded.
+
+### ZSG Rooms Mode
+
+Choose **ZSG Rooms Mode** in the ZSG Rooms tab to mix filters for each new seed:
+
+| Filter | Chance |
+| --- | --- |
+| ZSG Rooms Desert Temple | 20% |
+| ZSG Rooms Village | 20% |
+| ZSG Rooms Shipwreck | 20% |
+| Ruined Portal Seedbank | 20% |
+| ZSG Mapless | 10% |
+| ZSG Mapless (OP) | 10% |
+
+The host privately draws one filter when preparing the next seed. Starting the
+race or approving a seed change consumes that prepared result, shared with every
+runner. The following seed gets a fresh draw; consecutive identical filters are
+possible. Request failures retry the same filter, and a failed launch retains the
+same prepared seed. Same-seed resets do not draw again. Explicit filter selections
+still stay within that filter.
+
+The room remains in ZSG Rooms Mode after launch, while structure-specific gameplay
+rules and completed-run history use the actual drawn filter. FSG Mod is needed for
+the Mapless and Ruined Portal draws, and the hosted bank is used for our three
+custom filters. There is no fallback to another filter when a source is unavailable.
+
 ## ZSG Rooms Seed Banks
 
 Select **ZSG Rooms Desert Temple**, **ZSG Rooms Village**, or **ZSG Rooms
@@ -103,7 +176,8 @@ server URL continues to override that default.
 
 Temple seeds check for at least seven iron, or four iron and three diamonds,
 across the temple chests, plus modeled roof exposure. Village seeds check for
-at least four iron-ingot equivalents in smith chests; the intended remaining
+at least four iron-ingot equivalents in smith chests, or one plus an iron pickaxe
+or three diamonds with the updated finder. The intended remaining
 iron comes from a golem, whose natural presence is not guaranteed by the filter.
 Both profiles use surface-lava opportunities near natural water instead of
 requiring a ruined portal. Shipwreck seeds check resources, food, a modeled
@@ -168,7 +242,8 @@ through that world. Enter another world after setup is ready.
 
 **Performance Mode** in the Recording tab is optional and defaults OFF. Select
 it before recording starts. It skips identical synthetic player-metadata updates
-and avoids empty equipment-update lists, while keeping full-rate movement,
+and avoids empty equipment-update lists. It also reuses bounded packet buffers
+and caches unchanged inventory-slot encodings, while keeping full-rate movement,
 terrain, entities, sounds, and timers. It does not reduce recording distance or
 apply stronger compression. File-size and CPU savings depend on the run; no
 fixed reduction is guaranteed. Leave it off to use the original recording path.
@@ -178,8 +253,13 @@ fixed reduction is guaranteed. Leave it off to use the original recording path.
 - Room recordings save automatically when a victory, loss, draw, or forfeit
   result is displayed, or when you return to the room.
 - Ordinary singleplayer recordings save when you quit to title.
-- **Resets continue in one replay file**, including Reset Run and New Seed.
+- **Same-seed resets continue in one replay file**, including Reset Run.
   Loading gaps remain on the recording timeline.
+- **New Seed discards the unfinished replay by default** once the replacement
+  world connects with a different seed. Recording starts again automatically.
+  Enable **Save on Seed Change** in **Replays > Recording** to save the previous
+  seed as a separate replay instead. Completed recordings are kept. Votes and
+  unsuccessful seed requests do not discard a recording.
 - **Stop Recording** is a manual override, not a required step after a race.
 
 Wait for saving to finish, then open **ReplayMod's Replay Viewer** from the title
@@ -195,10 +275,24 @@ With the optional ZSG Replay Viewer companion:
   move it to reveal the controls.
 - Press **3** to skip back five seconds or **4** to skip forward. Rebind these
   under Minecraft **Controls > Replay Mod**.
-- Choose **Follow Player**, **Follow: Far**, or freecam. Click timeline milestone
+- Choose **Follow Player**, **Follow: Drone**, or freecam. Hold left mouse and
+  move the captured mouse to orbit in Drone mode; scroll changes distance.
+- **Follow: Details** shows recorded health, hunger, armor, XP, effects, hotbar
+  and offhand in Minecraft's normal HUD positions. Press the inventory key
+  (normally E) for a centered inventory, or
+  enable **Analysis > Always show inventory**. This needs a fresh recording made
+  with the updated ZSG recorder; older files show player details as unavailable.
+  Playback controls hide while inventory is open; E or Escape closes it.
+  Click timeline milestone
   markers to jump to Nether, Bastion, Fortress, Stronghold, or End entries.
 - The timer overlay shows recorded RTA/IGT when available. A pause icon identifies
-  when the recorded player was paused. Chat is hidden by default during playback.
+  when the recorded player was paused; a cyan pixel spinner marks recorded loading
+  on fresh recordings, including resets. Chat is hidden by default during playback.
+- **Analysis** optionally shows the largest nearby one-block piglin cluster and
+  dragon/piglin trails. Each trail type has independent color, length (2-30 seconds),
+  thickness, opacity, and fading controls under **Customize**.
+  Trails build during playback and clear on seeks;
+  the counter only sees recorded mobs, not the physical boundaries of a hole.
 
 ### Watch Other Racers
 

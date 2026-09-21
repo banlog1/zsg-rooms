@@ -46,7 +46,7 @@ public final class RunHistoryTracker {
         for (Map.Entry<String, Long> split : run.splits.entrySet()) {
             splits.add(new RunSplit(split.getKey(), split.getValue()));
         }
-        String filterId = ZsgSeedBridge.normalizeSeedType(game.targetStructure);
+        String filterId = game.getActiveFilter();
         RunHistoryStore.getDefault().add(new CompletedRun(
                 System.currentTimeMillis(), finalTime, filterId, ZsgSeedBridge.seedTypeLabel(filterId), splits));
         activeRun = null;

@@ -77,6 +77,8 @@ public final class MatchHudSettingsScreen extends Screen {
             checkbox(3, "Show progress numbers", () -> settings.progressNumbers, value -> settings.progressNumbers = value);
             slider(4, "Background", 0, 100, 5, settings.opacity, "%", value -> settings.opacity = value);
             slider(5, "Size", 75, 150, 5, settings.scale, "%", value -> settings.scale = value);
+            checkbox(6, "Show seed type", () -> settings.seedType, value -> settings.seedType = value);
+            slider(7, "Seed header size", 50, 150, 5, settings.seedTypeScale, "%", value -> settings.seedTypeScale = value);
         }
         this.addButton(new ButtonWidget(this.width / 2 - 60, this.height - 28, 120, 20,
                 new LiteralText("Done"), button -> onClose()));
@@ -113,7 +115,7 @@ public final class MatchHudSettingsScreen extends Screen {
     }
 
     private int optionCount() {
-        return previewTab ? 0 : playersTab ? 5 : 6;
+        return previewTab ? 0 : playersTab ? 5 : 8;
     }
 
     private boolean shown(int index) {
@@ -220,7 +222,7 @@ public final class MatchHudSettingsScreen extends Screen {
                 float scale = MatchHud.fitScale(settings.scale, width, this.height - 100, height);
                 MatchHud.drawPanel(matrices, this.client, settings, previewPlayers, previewProgress, previewLabels,
                         this.client.getSession().getUsername(), x + (width - 166 * scale) / 2, 64, scale,
-                        (System.nanoTime() - previewStart) / 1_000_000L);
+                        (System.nanoTime() - previewStart) / 1_000_000L, "rooms-temple-v5");
             } else {
                 drawCenteredString(matrices, this.textRenderer, "Hidden", x + width / 2, 80, 0xAAAAAA);
             }

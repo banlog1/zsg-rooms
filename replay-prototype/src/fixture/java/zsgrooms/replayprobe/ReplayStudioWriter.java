@@ -88,6 +88,12 @@ public final class ReplayStudioWriter implements AutoCloseable {
         }
     }
 
+    public void writePlayerHud(byte[] data) throws IOException {
+        if (closed) throw new IllegalStateException("Writer closed");
+        if (data.length > 16 * 1024 * 1024) throw new IllegalArgumentException("Player HUD too large");
+        try (java.io.OutputStream entry = file.write("zsg-rooms/player-hud.bin")) { entry.write(data); }
+    }
+
     @Override
     public void close() throws IOException {
         if (!closed) {
@@ -98,5 +104,14 @@ public final class ReplayStudioWriter implements AutoCloseable {
                 file.close();
             }
         }
+    }
+
+    public void discard() throws IOException {
+        if (closed) throw new IllegalStateException("Recording already closed");
+        close();
+        // ReplayStudio retains the recording hash cache even without save().
+        Path cache = path.resolveSibling(path.getFileName() + ".cache");
+        Files.deleteIfExists(cache.resolve("recording.tmcpr.crc32"));
+        Files.deleteIfExists(cache);
     }
 }

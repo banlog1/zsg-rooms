@@ -7,6 +7,31 @@ finder. No Minecraft generation or filter-criteria changes are involved.
 
 ## Start Or Resume
 
+**Latest model (2026-09-20):** use
+`run/model-bank/overnight/temple-village-wood-first` for near-temple wood sampling
+and the calibrated village confidence and well-placement fixes. This prepared temple/village bank uses the updated
+runtime; older bank folders below still resume their original frozen models.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village-wood-first -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
+```
+
+No overnight search was started during this upgrade. Existing seeds and
+checkpoints remain intact; the new bank shares the installation-wide range
+cursor to avoid repeating previously reserved overnight work. Keep the old banks
+for publication alongside new results. Do not copy the new runtime into them.
+On a fresh checkout, build/install the finder and initialize the corrected bank:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/temple-village-wood-first' -Types temple,village -ExportOnly"
+```
+
+The earlier `temple-village-corrected` folder includes the village corrections
+but retains pool-centered temple wood sampling. The new folder requires a
+tree-bearing biome within 20 blocks per axis of the temple reference instead;
+it does not additionally require wood near the pool. Village and shipwreck wood
+checks, pool distances and water checks are unchanged.
+
 From the repository directory, run:
 
 ```powershell
@@ -50,6 +75,28 @@ Supply `-Java` inside that command if needed. Stop this bank using a `STOP` file
 inside its own directory, not `overnight/main`. No second supervisor can run
 alongside it. Keep using the existing shared cursor; do not reset it.
 
+### Updated Village Pickaxe Credit
+
+The updated finder accepts four chest iron ingot equivalents, or one plus an
+iron pickaxe, or one plus three diamonds. Pickaxe credit applies only once and
+cannot replace bucket/ignition iron. This still assumes three iron from a golem;
+the filter does not guarantee that a golem is present.
+
+Existing bank directories keep their pinned finder and original resource rule.
+The new `run/model-bank/overnight/temple-village-pickaxe` directory is prepared
+with the updated runtime and no search jobs started. To use it:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village-pickaxe -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
+```
+
+On a fresh checkout, rebuild/install both finder components first, then initialize
+that directory with the `-Types temple,village -ExportOnly` command above using
+the new directory name. Do not replace runtime files inside an existing bank.
+The shared range cursor avoids repeating earlier overnight ranges. Keep the old
+bank: its accepted seeds remain valid and can be combined with the new bank in
+a later seed-service publication.
+
 On a new installation, build the standalone finder first using
 [MODEL_SEED_FINDER.md](MODEL_SEED_FINDER.md). Supply `-Java` on the first launch
 if a compatible Java is not on PATH. A new bank can be selected with `-Directory`.
@@ -70,11 +117,61 @@ Useful options:
 | `-MaxCompletedBatches` | 0 | Optional cumulative completed-batch target for this bank; zero means no target |
 | `-AllowSleep` | off | Permit Windows idle sleep instead of holding a temporary system-awake request |
 | `-ExportOnly` | off | Recover/export completed work without starting any searches |
+| `-FullVerify` | off | Revalidate all completed batch files instead of reusing a checkpoint |
 
 The deadline stops search processes; validation/export and cleanup may finish
 afterward. Duration, worker count and runtime limits may change between sessions.
 Changing filter types or batch sizes requires a fresh bank directory. There are
 no automatic reboots, scheduled tasks, cloud purchases or account operations.
+
+### Checkpointed Resume
+
+Resumes use a checksum-protected `checkpoint.json` paired with `bank.jsonl`.
+The first run after upgrading must verify the old journal once to create it.
+Subsequent starts load the validated combined bank, enumerate the job journal,
+and fully validate only new or changed completed entries. Pending attempts still
+follow normal recovery: reuse a completed attempt or retry its reserved range.
+Runtime fingerprints, range overlap, missing assignments and duplicate-seed
+guards remain in place. Startup now reports its recovery stages and progress;
+the requested `-Minutes` search duration starts after startup recovery finishes.
+
+Checkpoints are refreshed every 500 newly completed batches and on shutdown.
+The two files are published individually using atomic replacements; if a crash
+leaves them mismatched, the next start performs full verification. Missing,
+damaged or wrong-plan checkpoints also take that full path. Original per-batch
+files remain available for recovery. A checksum is an accidental-corruption
+guard, not protection against deliberate edits to both data and checksums.
+
+The fast path treats checkpointed completed shards as immutable archives. It
+checks journal file length and modification time, but does not reopen or hash
+every historical shard on every launch. To audit the archived shard contents,
+force full verification. With the supervisor stopped, this also rebuilds the
+checkpoint without starting any search workers:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village -ExportOnly -FullVerify
+```
+
+Keep the entire bank directory, including its journal, attempts and checkpoint.
+Do not edit or delete history to speed up a resume. An active older supervisor
+keeps its already-loaded code; these changes apply on its next invocation.
+
+The isolated checkpoint tests cover cache reuse, delta validation, corruption,
+changed plans/jobs, completed-attempt recovery, missing/overlapping assignments,
+empty banks, and byte-for-byte equality with full export. An optional synthetic
+benchmark runs without accessing the live bank or reserving search ranges:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-OvernightFilterBank.ps1 -BenchmarkBatches 1000
+```
+
+On the development laptop, the 1,000-batch synthetic test measured 5.78 seconds
+for full export and 0.82 seconds for checkpoint load/export. After migrating the
+real temple/village bank, an `-ExportOnly` launch took 35.13 seconds including
+runtime checks, checkpoint loading, startup export and shutdown export. All
+27,685 completed batches were reused, zero were fully revalidated, and the
+combined bank hash was unchanged. These are warm-run measurements, not a fixed
+startup-time guarantee; disk cache, bank size and other applications still matter.
 
 `scripts/Benchmark-OvernightWorkers.ps1 -OutputDirectory <new-directory> -Java <java-path>`
 runs four, five and six workers sequentially for ten minutes each. It stops the

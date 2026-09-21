@@ -10,6 +10,7 @@ import java.io.IOException;
 /** Independent archive read, performed once per open file without scanning packet data. */
 final class RecordingIndex implements AutoCloseable {
     volatile RaceRecording recording;
+    volatile PlayerHudTrack hud;
     private volatile boolean closed;
     private final Thread worker;
 
@@ -20,6 +21,8 @@ final class RecordingIndex implements AutoCloseable {
             try {
                 RaceRecording value = RaceRecording.read(file.toPath());
                 if (!closed) recording = value;
+                PlayerHudTrack track = PlayerHudTrack.read(value);
+                if (!closed) hud = track;
             } catch (IOException ignored) { /* Legacy or unsupported metadata: show unavailable values. */ }
         }, "ZSG replay timers");
         worker.setDaemon(true);

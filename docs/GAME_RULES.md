@@ -164,12 +164,21 @@ does not need new worker code.
 
 ## Spawn Near Filter Structure
 
-When the selected filter's route structure is more than 140 horizontal blocks
+When the selected filter's route structure is more than 48 horizontal blocks
 from Minecraft's original world spawn, the mod moves the local world spawn to a
-safe surface 70-128 blocks from that structure. The distance and direction are
+safe surface 24-48 blocks from that structure. Shipwreck filters retain their
+original 140-block relocation threshold and 70-128-block target range to avoid
+forcing offshore starts. The distance and direction are
 derived from the shared world seed and filter, so equivalent clients choose the
 same position. If the structure is already close, cannot be located, or no dry
 two-block-high surface is found, the original spawn is kept.
+
+Spawn selection runs before Minecraft prepares the starting region. Its normal
+spawn-chunk ticket and loading progress therefore use the final destination,
+rather than preparing the old location and moving the player afterward. The
+shared first-Nether-entry reference is still captured from the original spawn.
+For non-shipwreck routes already within 48 blocks, the safe original position is
+pinned to avoid vanilla spawn-radius scatter exceeding that limit.
 
 Ruined portal targets receive an additional generation check because Minecraft
 1.16.1 can report portal starts that never place a structure. Logical candidates

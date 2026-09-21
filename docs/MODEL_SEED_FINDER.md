@@ -9,6 +9,23 @@ see [Seed Service](../seed-service/README.md).
 
 ## Production Boundary
 
+As of 2026-09-20, production builds include the calibrated chunk-scoped village
+loot-confidence correction and plains well-connector correction. The tracked
+patch is `tools/model-finder/patches/village-1.16.1-corrections.patch`.
+`prepareVillageSources` applies it to a generated copy after verifying the clean
+pinned upstream checkout; a clean build reproduces both fixes. The historical
+experiment sections below describe their validation before promotion.
+
+New searches use the installed corrected model. Existing overnight directories
+retain their immutable runtime snapshots: use the prepared
+`run/model-bank/overnight/temple-village-wood-first` directory for new collection,
+not an old folder. Existing banks, checkpoints and the shared cursor are retained.
+The profile label remains v5; the runtime fingerprint identifies the implementation.
+The latest native finder also moves temple wood sampling from the selected lava
+pool to the temple reference position (20 blocks per axis). Older snapshots do
+not acquire this acceptance-rule change automatically. No mod rebuild, relay deployment or bank upload is
+needed to use these operator-side filtering changes.
+
 `scripts/Search-FilterCandidates.ps1` now searches and accepts seeds without
 Minecraft, Fabric, Loom, a game installation, a server, or a save directory.
 All profiles run a standalone Cubiomes C executable through a persistent Java
@@ -44,9 +61,10 @@ provide opt-in delivery after an operator publishes a completed snapshot.
 | Temple loot | ZSG-derived four-chest decorator/loot model. At least seven iron, or four iron plus three diamonds. No ruined portal required. |
 | Temple exposure (v4) | Cubiomes approximate surface heights at a 4x4 grid, offsets 4,8,12,16 inside the 21x21 footprint. Require one adjacent 2x2 group (four corners of a 4x4-block roof patch) with predicted terrain at least three blocks below the stepped roof: Y72 at the inner four samples, Y68 at the others. Two blocks of desired exposure plus a provisional one-block model allowance. |
 | Exposure limitations | Rejects modeled heavy burial, not every difficult-to-spot temple. Does not guarantee entrance access, line of sight from spawn, an unobstructed route, or exact final blocks. The allowance is not a measured error bound. Needs gameplay sample calibration; never falls back to Minecraft generation. |
-| Village iron | Non-abandoned plains/desert/savanna village, actual modeled jigsaw layout, and at least four ingot-equivalents from its own smith chests. No temple substitution. Natural golem presence is not an acceptance requirement in v2. |
+| Village resources | Non-abandoned plains/desert/savanna village and actual modeled jigsaw layout. Its own smith chests must supply at least four iron-ingot equivalents, or at least one plus an iron pickaxe or three diamonds. Credit replaces only one pickaxe, never bucket/ignition iron. No temple substitution. Natural golem presence is not an acceptance requirement in v2. |
 | Village loot confidence | VillageGenerator omits loot it cannot model confidently after certain feature placements. Omitted loot contributes zero; errors abort search rather than silently passing or calling Minecraft. Layout uses its full height model, not its optional height-map shortcut. |
-| Village/temple wood | Nearby tree-bearing biome sampling, preserving the original biome-check approach rather than guaranteeing a specific tree. Village anchor radius 30; pool radius 20. |
+| Temple wood (2026-09-20) | Tree-bearing biome sampling centered on the temple reference position: nine points at X/Z offsets -20, 0, +20. At least one forest/jungle/taiga/swamp/savanna-category sample is required. Diagonal points are about 28 blocks away. No separate pool-side wood requirement. The exported `wood` coordinate is the temple reference, not a predicted trunk. |
+| Village wood | Unchanged tree-bearing biome sampling around the village reference (30 blocks per axis) and selected lava pool (20 per axis). Neither village nor temple checks guarantee a specific generated tree. |
 | Surface lava pool | Lower48 decorator chance, position, height and surface roll; correct desert/default salt selected by full-seed biome. Pool-center radius 96 from main structure, 224-axis origin envelope. Model requires a dry, non-river/non-ocean, roughly level surface (five samples, height 64-80, spread at most 6) below the attempted lake Y. |
 | Lava-pool limitations | This is a surface-lake opportunity proxy, not proof of a completed ten-source lake. It does not simulate the lake ellipsoid, final block replacement, caves, water-feature interference, or structure overwrites. Sample gameplay tests must measure false positives. There is no per-candidate native verification. |
 | Nearby water (v5, temple/village only) | A modeled 4x4-block water patch centered within 48 horizontal blocks of the selected lava pool. All four corner samples must be unfrozen river/ocean biomes with predicted ground height at most Y61, below sea level Y63. Excludes isolated springs and frozen river/ocean biomes; does not depend on a single water block. |
@@ -89,12 +107,27 @@ and added stables requirements still differ from stock ZSG.
 Version 1/2 banks, including the earlier 25-village batch, did not pass the
 new Nether checks. They must not be relabeled as version 3 without rechecking.
 
-Version 2 removes the natural-golem gate. It assumes a missing golem can be
-provided during gameplay, but **this tool change does not implement that gameplay
-repair**. Without a natural or supplied golem, the filter alone promises only
-four modeled chest ingots, not seven total. No other acceptance criterion was
-relaxed. Village golem presence remains an observational diagnostic so reports
-can show how many additional acceptances removing the gate actually permits.
+Version 2 removed the natural-golem gate. It assumes a missing golem can be
+provided during gameplay, but **the gameplay golem repair is not implemented**.
+The current village resource check assumes three golem ingots: four chest ingots
+cover the remaining budget, or one chest ingot suffices when a modeled iron
+pickaxe or three diamonds replace the three-ingot pickaxe cost. Extra pickaxes
+or diamonds never replace the remaining iron. Nuggets and blocks still convert
+to actual ingot equivalents; only known smith-chest loot counts.
+
+The `pickaxe-credit-v1` refinement widens village acceptance without changing
+the other v5 requirements. Existing accepted seeds remain eligible. New village
+records identify `villageResourceRule: "pickaxe-credit-v1"`, report `ironPickaxes`
+and `diamonds`, and keep `chestIron` as actual ingot equivalents, not credited
+iron. The private Java/native protocol carries all three counts; mixed old/new
+binaries fail closed. Golem presence remains diagnostic, not a guarantee.
+
+Rebuild both the native finder and Java coordinator to use this refinement.
+Existing overnight directories retain their original runtime snapshots; use a
+new directory rather than replacing pinned binaries or resetting history. The
+shared range cursor prevents repeated search work, and the normal publication
+extension can merge both old and new completed banks. Historical timings and
+rejection statistics below describe the older four-ingot-only requirement.
 
 ## Pipeline And Architectural Decision
 
@@ -379,6 +412,138 @@ The seed-free detailed report is
 Rechecking these 25 seeds against version 3's added Nether rules retained 2;
 16 failed ZSG's obsidian score and 7 failed its terrain check. Their old bank
 files were not modified or relabeled.
+
+### Village Loot Confidence Investigation (2026-09-19)
+
+The pinned VillageGenerator marks `confident = false` for every feature piece
+encountered during chunk loot traversal, before testing whether its bounding box
+intersects that chunk. A feature outside the chunk can therefore suppress a later
+chest's loot prediction without being placed or consuming any chunk RNG.
+Minecraft 1.16.1's `StructureStart.generateStructure` checks intersection before
+calling a piece's generation method; this was checked against the locally mapped
+Minecraft source, without generating a world.
+
+`VillageLootConfidenceTest` characterizes the pinned library without changing it:
+an outside feature suppresses loot with unchanged RNG state on all four adjacent
+chunk boundaries; an earlier intersecting feature suppresses loot; a feature
+after the chest does not; an outside non-feature does not; and confidence is
+initialized per chunk but can be suppressed again by the same outside feature.
+Tests exercise the upstream private traversal and actual weaponsmith loot code,
+using an instrumented feature to isolate the confidence gate from terrain logic.
+
+The next candidate correction is to mark feature uncertainty only inside the
+intersection branch, retaining uncertainty after earlier intersecting features.
+This is not permission to trust approximate feature RNG: the upstream pile model
+explicitly depends on uncertain block state, and its tree methods only model
+part of generation. Moving the guard cannot resolve those genuine unknowns.
+The tests establish avoidable suppression, not block-perfect recovered loot or
+a measured acceptance-rate improvement. Production code, installed runtimes and
+existing bank snapshots remain unchanged by this investigation. A proposed fix
+still needs model comparison and sampled offline Minecraft loot calibration.
+
+#### Offline Chest Calibration
+
+`scripts/Prepare-VillageLootCalibration.ps1` runs the same calibration exporter
+against the installed baseline and an isolated experimental model runtime. It
+checks that experimental iron/pickaxe/diamond totals reproduce the input bank,
+then selects up to 12 distinct families across available biome/recovery groups.
+`-AllSeeds` selects the whole input batch instead (maximum 68 entries). A recovered
+seed is accepted by the experimental resource check but not by the baseline.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Prepare-VillageLootCalibration.ps1 `
+    -Bank <private-village-bank.jsonl> -ExperimentalModel <isolated-model-directory> `
+    -Directory run/village-calibration
+.\gradlew.bat runFilterBank -PfilterProbe=true -PfilterCalibration=true -PvillageCalibration=true `
+    '-PvillageCalibrationInput=run/village-calibration/samples.json' `
+    '-PvillageCalibrationOutput=run/village-calibration/vanilla-results.jsonl' --offline
+```
+
+The second command runs headless Minecraft only as a calibration harness, not a
+production acceptance stage. Each sample uses fresh disposable worlds. It generates
+actual smith-building and predicted-chest chunks, resolves copied vanilla chest
+inventories without modifying the originals, and compares iron ingots, iron
+pickaxes and diamonds per modeled chest. Chest matching uses exact X/Z and records
+both Y values, allowing terrain-height error to be evaluated separately. It also
+checks whether the actual smith resources satisfy the current pickaxe-credit rule.
+It does not verify golem presence, lava/water, Nether criteria or whole-run playability.
+
+Input seeds stay in private files; result rows and progress logs use sample IDs.
+Results are appended after every sample, and an existing output file is refused.
+`COMPLETE` means every sample ran, not that predictions matched; inspect `matching`,
+`modeled`, `resourcesPass` and chest comparisons in the JSONL. Neither command
+installs the experimental runtime, changes bank cursors, or uploads any seeds.
+
+#### Experimental Calibration Result (2026-09-19)
+
+The isolated chunk-scoped confidence correction accepted 68 seeds in a two-worker
+10-minute benchmark versus 18 previously. This is an output comparison, not a
+3.8x computational speedup: the runs visited different numbers of candidates.
+All 68 experimental seeds (53 families) were then calibrated in Minecraft:
+67 satisfy the resource rule, and 79/80 modeled chests have matching coordinates
+and iron/pickaxe/diamond counts. Of 57 chest predictions newly recovered by the
+change, 56 match. All 18 baseline acceptances pass; 49/50 new acceptances pass.
+
+Sample 33 has a village layout/placement discrepancy: the baseline and experimental
+models predict the same smith chest position, but Minecraft generates the chest
+elsewhere with insufficient resources. The old confidence gate omitted that
+chest's loot; the correction exposes the existing layout uncertainty. This is
+not yet evidence of a loot RNG error at matching coordinates. The batch covers
+plains, savanna and desert weaponsmiths, not all village biome/template variants.
+
+The production runtime and banks remain unchanged. Do not upload the experimental
+batch as-is or add per-candidate Minecraft validation to production. Private results and the
+seed-free report are under
+`run/model-bank/benchmarks/village-chunk-confidence-20260919/calibration-all/`.
+
+#### Sample 33 Root Cause
+
+The first divergence is piece index 9, the well bottom, not a smith or loot roll.
+The pinned model's plains-specific `common/well_bottom` connector is at local
+`(4, 3, 4)` with orientation `up_south`. Minecraft 1.16.1's actual template has
+`(3, 2, 0)` and `up_north`, already correctly represented in the model's shared
+`CommonVillageJigsawBlocks` table. The plains override is even outside the
+template's `4 x 3 x 4` bounds.
+
+The misplaced well changes collision decisions for subsequent village pieces,
+which changes assembly RNG consumption and the resulting smith location. Using
+the shared connector in an isolated calibration process changes the predicted
+smith chest from `(105, 65, 13)` with nine iron and one diamond to `(81, 67, 3)`
+with one iron and no diamonds, exactly as Minecraft generates it. This seed
+should be rejected by the resource rule.
+
+Re-exporting all 68 samples with this correction changes only sample 33. All
+80 modeled chest XYZ positions and iron/pickaxe/diamond counts then match the
+existing Minecraft calibration results; 67 seeds pass and sample 33 fails.
+This establishes this failure's cause, not universal accuracy of the model.
+
+`VillageCalibrationExport layout` emits ordered template positions/rotations;
+`correct-well` applies the isolated table override and can be combined with
+`layout`. A calibration sample with `includeLayout: true` exports the actual
+piece layout and the bundled well's jigsaw data. Characterization tests cover
+the bad pinned override and correct shared-template data. Production still uses
+the original model; promoting the confidence correction and well-data fix is a
+separate step, with no need for Minecraft in production search.
+
+#### Fresh Corrected Village Benchmark (2026-09-20)
+
+A fresh two-worker 600-second search with both isolated corrections accepted
+67 seeds from 55 families in 602.024 seconds wall time (6.68 seeds/minute).
+It checked 28,877,181 lower-48 families and 4,770,559 sisters, with 264/290 smith
+chests modeled. This is similar output to the confidence-only run's 68 seeds;
+different ranges and host load prevent interpreting it as a controlled speedup.
+
+All 67 accepted seeds were then calibrated offline in Minecraft: all satisfy
+the resource rule and all 77 modeled chest XYZ positions and iron/pickaxe/diamond
+counts match exactly. Coverage is 48 plains, 8 desert and 11 savanna seeds.
+On these same seeds, the installed model accepts 16, confidence-only accepts 65,
+and both corrections accept 67. Minecraft confirms both well-fix recoveries.
+
+The calibration took a separate 5m 10s including startup; production search still
+creates no Minecraft worlds. Results do not prove universal accuracy or measure
+false rejections. No production runtime or hosted-bank changes were made.
+Private artifacts and the seed-free report are under
+`run/model-bank/benchmarks/village-confidence-well-20260919/`.
 
 ## Verification Commands
 

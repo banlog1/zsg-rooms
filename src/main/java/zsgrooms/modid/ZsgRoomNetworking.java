@@ -18,7 +18,7 @@ public class ZsgRoomNetworking {
             String action = buffer.readString(64);
             String roomName = buffer.readString(64);
             buffer.readString(64);
-            String value = buffer.readString(256);
+            String value = buffer.readString(valueLimit(action));
             PlayerEntity player = context.getPlayer();
             String playerName = player == null ? "player" : player.getEntityName();
 
@@ -35,7 +35,7 @@ public class ZsgRoomNetworking {
         buffer.writeString(safe(action), 64);
         buffer.writeString(safe(roomName), 64);
         buffer.writeString(safe(playerName), 64);
-        buffer.writeString(safe(value), 256);
+        buffer.writeString(safe(value), valueLimit(action));
         return buffer;
     }
 
@@ -49,5 +49,9 @@ public class ZsgRoomNetworking {
 
     private static String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    public static int valueLimit(String action) {
+        return "rules".equals(action) ? 4096 : 256;
     }
 }

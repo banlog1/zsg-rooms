@@ -28,6 +28,7 @@ public final class PlaybackTest implements ClientModInitializer {
     private long jumpTime;
     private final ViewerSmokeChecks viewerChecks = new ViewerSmokeChecks();
     private final RaceSwitchSmoke raceChecks = new RaceSwitchSmoke();
+    private final DetailsSmokeChecks detailsChecks = new DetailsSmokeChecks();
 
     @Override
     public void onInitializeClient() {
@@ -69,6 +70,22 @@ public final class PlaybackTest implements ClientModInitializer {
                 return;
             }
             int timestamp = (Integer) time.invoke(sender);
+            if (Boolean.getBoolean("zsgrooms.replayDetailsSmoke") && (timestamp >= 2500 || detailsChecks.started())) {
+                if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Details test timed out");
+                if (detailsChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {
+                    done = true;
+                    handler.getClass().getMethod("endReplay").invoke(handler);
+                    client.scheduleStop();
+                }
+                return;
+            }
+            if (Boolean.getBoolean("zsgrooms.replayStartupSmoke") && timestamp >= 2500) {
+                StartupOrderingSmoke.run((com.replaymod.replay.ReplayHandler) handler, client);
+                done = true;
+                handler.getClass().getMethod("endReplay").invoke(handler);
+                client.scheduleStop();
+                return;
+            }
             if (Boolean.getBoolean("zsgrooms.replayViewerSmoke") && timestamp >= 2500) viewerChecks.tick(handler, client);
             String state = (client.currentScreen == null ? "none" : client.currentScreen.getClass().getSimpleName())
                     + "; world=" + (client.world != null) + "; player=" + (client.player != null);

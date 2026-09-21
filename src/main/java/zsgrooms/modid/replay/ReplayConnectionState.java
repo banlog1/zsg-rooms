@@ -23,10 +23,14 @@ final class ReplayConnectionState<T> {
     }
 
     synchronized boolean attach(T connection) {
-        if (stopped || !resetting || current != null) return false;
+        if (!canAttach()) return false;
         current = new Attachment<>(connection);
         resetting = false;
         return true;
+    }
+
+    synchronized boolean canAttach() {
+        return !stopped && resetting && current == null;
     }
 
     /** True means a real session end; false means wait for the replacement world. */

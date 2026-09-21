@@ -6,6 +6,24 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class MatchHudLayoutTest {
     @Test
+    public void seedHeaderScalingReservesSpaceWithoutResizingPlayerRows() {
+        MatchHudPreferences settings = new MatchHudPreferences();
+        for (boolean header : new boolean[]{false, true}) {
+            settings.header = header;
+            for (int size : new int[]{50, 100, 150}) {
+                settings.seedTypeScale = size;
+                assertTrue(MatchHud.playerRowsY(settings) >= (header ? 15 : 4) + 16 * size / 100.0F);
+                assertEquals(22, MatchHud.panelHeight(settings, 3) - MatchHud.panelHeight(settings, 2));
+            }
+        }
+        settings.seedType = false;
+        settings.seedTypeScale = 150;
+        int hidden = MatchHud.panelHeight(settings, 2);
+        settings.seedTypeScale = 50;
+        assertEquals(hidden, MatchHud.panelHeight(settings, 2));
+    }
+
+    @Test
     public void enlargedHudFitsSmallViewports() {
         MatchHudPreferences settings = new MatchHudPreferences();
         for (int width : new int[]{240, 320, 427, 960}) {
@@ -23,6 +41,8 @@ public class MatchHudLayoutTest {
         MatchHudPreferences settings = new MatchHudPreferences();
         int withHeader = MatchHud.panelHeight(settings, 2);
         settings.header = false;
+        assertEquals(withHeader - 7, MatchHud.panelHeight(settings, 2));
+        settings.seedType = false;
         assertEquals(withHeader - 25, MatchHud.panelHeight(settings, 2));
         assertEquals(22, MatchHud.panelHeight(settings, 3) - MatchHud.panelHeight(settings, 2));
     }

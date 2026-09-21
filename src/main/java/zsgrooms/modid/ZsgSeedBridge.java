@@ -111,6 +111,9 @@ public class ZsgSeedBridge {
             return "zsg";
         }
         String normalized = seedType.trim().toLowerCase(Locale.ROOT);
+        if (ZsgRoomsSeedMode.LABEL.toLowerCase(Locale.ROOT).equals(normalized)) {
+            return ZsgRoomsSeedMode.SPECIFICATION;
+        }
         SeedBankProfile bank = SeedBankProfile.find(normalized);
         if (bank != null) return bank.specification;
         if (normalized.startsWith("manual:")) {
@@ -152,6 +155,7 @@ public class ZsgSeedBridge {
 
     public static String seedTypeLabel(String seedType) {
         String normalized = normalizeSeedType(seedType);
+        if (ZsgRoomsSeedMode.SPECIFICATION.equals(normalized)) return ZsgRoomsSeedMode.LABEL;
         SeedBankProfile bank = SeedBankProfile.find(normalized);
         if (bank != null) return bank.label;
         if (FSG_FILTER_LABELS.containsKey(normalized)) {
@@ -215,6 +219,13 @@ public class ZsgSeedBridge {
     }
 
     public static String seedSpecificationFromSeed(String seed) {
+        if (seed != null) {
+            for (String part : seed.split("\\|")) {
+                if (("selection:" + ZsgRoomsSeedMode.SPECIFICATION).equals(part)) {
+                    return ZsgRoomsSeedMode.SPECIFICATION;
+                }
+            }
+        }
         String structure = normalizeSeedType(resolveStructure(seed));
         if ("manual".equals(structure)) {
             return normalizeSeedSpecification("manual:" + extractMinecraftSeed(seed));
@@ -224,7 +235,9 @@ public class ZsgSeedBridge {
 
     public static String fetchSeedForRoom(String roomName, String structureType) {
         String seedType = normalizeSeedType(structureType);
-        if (SeedBankProfile.find(seedType) != null) return pendingSeedForSpecification(seedType);
+        if (SeedBankProfile.find(seedType) != null || ZsgRoomsSeedMode.SPECIFICATION.equals(seedType)) {
+            return pendingSeedForSpecification(seedType);
+        }
         logToFile("=== ZSG-Rooms Seed Detection ===");
         logToFile("Room: " + roomName + ", Seed Type: " + seedTypeLabel(seedType));
 
@@ -296,6 +309,11 @@ public class ZsgSeedBridge {
 
     public static CompletableFuture<String> requestExactSeedForRoom(String roomName, String structureType) {
         String seedType = normalizeSeedType(structureType);
+        if (ZsgRoomsSeedMode.SPECIFICATION.equals(seedType)) {
+            CompletableFuture<String> failed = new CompletableFuture<String>();
+            failed.completeExceptionally(new IllegalArgumentException("Mixed filters must be resolved by host prefetch"));
+            return failed;
+        }
         SeedBankProfile bank = SeedBankProfile.find(seedType);
         if (bank != null) {
             return SeedBankClient.request(bank).thenApply(seed -> {
@@ -450,6 +468,8 @@ public class ZsgSeedBridge {
             );
 
             seedProviderField.set(null, roomProvider);
+            StructureSpawnProximity.prepareNextLaunch(seed);
+            zsgrooms.modid.ui.RoomLoadingArtwork.prepare(seed);
             MinecraftClient client = MinecraftClient.getInstance();
             if (client != null && client.world != null) {
                 beginRoomSeedRequest();
@@ -467,12 +487,16 @@ public class ZsgSeedBridge {
             }
             return true;
         } catch (Exception e) {
+            zsgrooms.modid.ui.RoomLoadingArtwork.cancel();
+            StructureSpawnProximity.prepareNextLaunch(null);
             logToFile("Failed to launch Atum world: " + e.getClass().getSimpleName());
             return false;
         }
     }
 
     public static void releaseRoomControl() {
+        StructureSpawnProximity.prepareNextLaunch(null);
+        zsgrooms.modid.ui.RoomLoadingArtwork.cancel();
         PauseWorldSaveControl.configure(false);
         try {
             Class<?> atumClass = Class.forName("me.voidxwalker.autoreset.Atum");

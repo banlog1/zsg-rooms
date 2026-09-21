@@ -64,11 +64,16 @@ public final class MatchHud {
         float y = bottom ? Math.max(8, screenHeight - height * scale - 34) : 8;
         drawPanel(matrices, client, settings, room.players, game.getPlayerProgress(),
                 game.getPlayerProgressLabels(), client.getSession().getUsername(),
-                x, y, scale, now - rotationStart);
+                x, y, scale, now - rotationStart, game.getActiveFilter());
     }
 
     static int panelHeight(MatchHudPreferences settings, int rows) {
-        return (settings.header ? 32 : 7) + rows * 22 + 3;
+        return playerRowsY(settings) + rows * 22 + 3;
+    }
+
+    static int playerRowsY(MatchHudPreferences settings) {
+        if (!settings.seedType) return settings.header ? 32 : 7;
+        return (settings.header ? 16 : 9) + (int) Math.ceil(16 * settings.seedTypeScale / 100.0F);
     }
 
     static float fitScale(int percent, int width, int height, int panelHeight) {
@@ -78,7 +83,7 @@ public final class MatchHud {
 
     static void drawPanel(MatrixStack matrices, MinecraftClient client, MatchHudPreferences settings,
                           Player[] players, Map<String, Integer> progress, Map<String, String> labels,
-                          String localName, float x, float y, float scale, long elapsedMillis) {
+                          String localName, float x, float y, float scale, long elapsedMillis, String filter) {
         int count = 0;
         int localIndex = -1;
         for (Player player : players) {
@@ -103,10 +108,22 @@ public final class MatchHud {
                 }
             }
             if (settings.header) {
-                drawCentered(client, matrices, "Current Match", 7, 0xFFFFE36B);
-                drawCentered(client, matrices, "ZSG Room (" + count + ")", 18, 0xFFD2D2D2);
+                drawCentered(client, matrices, "Current Match" + (settings.seedType ? " (" + count + ")" : ""), 7, 0xFFFFE36B);
+                if (!settings.seedType) drawCentered(client, matrices, "ZSG Room (" + count + ")", 18, 0xFFD2D2D2);
             }
-            int rowY = settings.header ? 32 : 7;
+            if (settings.seedType) {
+                SeedVisualType type = SeedVisualType.forFilter(filter);
+                float headerScale = settings.seedTypeScale / 100.0F;
+                String label = trimToWidth(client, type.labelFor(filter), (int) ((PANEL_WIDTH - 14) / headerScale) - 20);
+                float groupX = (PANEL_WIDTH - (20 + client.textRenderer.getWidth(label)) * headerScale) / 2;
+                matrices.push();
+                matrices.translate(groupX, settings.header ? 15 : 4, 0);
+                matrices.scale(headerScale, headerScale, 1);
+                SeedTypeIcon.draw(matrices, client, type, 0, 0);
+                client.textRenderer.drawWithShadow(matrices, label, 20, 4, 0xFFD2D2D2);
+                matrices.pop();
+            }
+            int rowY = playerRowsY(settings);
             for (int row = 0; row < rows; row++) {
                 int index = HudPlayerRotation.playerIndex(count, localIndex, rows, settings.pinSelf,
                         elapsedMillis, settings.rotationSeconds, row);

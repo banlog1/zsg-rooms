@@ -181,6 +181,59 @@ milestones, or timers. Savings need measurement on representative recordings.
 Run the capture smoke test with `-PreplayPerformance=true` to exercise this mode;
 omit that property to exercise the original path.
 
+Performance mode also reuses per-capture-thread packet encoding scratch buffers
+(up to 256 KiB retained per thread; larger buffers are released). Nested capture
+uses independent buffers, and queued packets always own their copied payloads.
+The player-HUD sampler caches serialized inventory slots, invalidating on changes
+to the item, count, damage or NBT, and clears the cache when the player changes.
+It preserves sampling frequency and all recorded item data. These optimizations
+do not remove incoming packets or lower movement capture frequency.
+
+The same mode now reuses HUD and metadata scratch buffers as well (8 KiB and
+256 KiB maximum retained, respectively, with the original encoding-size limits).
+HUD frames still receive their own copied bytes before deduplication. Sampling
+times, heartbeats, limits, tracker reads/dirty flags, and the
+on-disk HUD track remain unchanged. Performance Mode OFF keeps the original path.
+
+For an opt-in encoding microbenchmark and item-byte equivalence checks, run the
+development capture smoke with `-PreplayCaptureBenchmark=true`. It reports warmed
+median encoding time and thread-allocated bytes for small/large packets and
+typical/NBT-heavy inventories. This is not a whole-game FPS or frame-time benchmark.
+
+Local Java 25 smoke results (2026-09-21), baseline -> Performance mode:
+
+| Encoding case | Median microseconds/op | Allocated bytes/op |
+| --- | --- | --- |
+| 96-byte packet | 1.64 -> 0.28 | 456 -> 120 |
+| 64 KiB packet | 26.05 -> 12.53 | 196984 -> 65560 |
+| Typical inventory | 2.94 -> 2.04 | 1200 -> 816 |
+| NBT-heavy inventory | 51.64 -> 17.43 | 29024 -> 23952 |
+
+Five alternating 1,000-operation measurements followed 2,000 warmup operations
+per path. Packet measurements include the required owned payload copy. Inventory
+measurements include the full frame buffer/copy. Changed-item encodings were
+checked byte-for-byte, including in-place NBT edits and player-cache replacement.
+These isolate encoding cost, not total recorder throughput or gameplay FPS.
+
+The follow-up buffer-reuse pass compares against the **previous Performance Mode**,
+not against disabled recording or the original normal mode. Two local runs showed
+these stable allocation reductions:
+
+| Operation | Previous -> new allocated bytes/op |
+| --- | --- |
+| Full player metadata snapshot | 1624 -> 1288 |
+| Unchanged 256-byte HUD frame assembly | 873 -> 281 |
+| Unchanged 4096-byte HUD frame assembly | 8825 -> 4121 |
+| Changing 256-byte HUD frame assembly | 912 -> 320 |
+
+HUD assembly time improved in both runs; metadata CPU timings varied, so only its
+allocation reduction is established. HUD assembly measures buffer/copy/track work,
+not item serialization. Metadata still reads/copies every tracker entry and never
+uses or clears dirty flags. Full HUD capture is checked byte-for-byte with both
+modes, including unavailable-player and simulated world transitions.
+An experiment comparing scratch frames before copying was discarded: byte-wise,
+array, and Netty bulk comparisons all saved allocations but increased CPU cost.
+
 Choices persist in `config/zsg-rooms-replay.properties` inside the instance's game
 directory. Setup's **Use Minecraft Folder & Set Up** restores automatic setup,
 including when an earlier prototype saved a custom folder. Blank override means
@@ -257,7 +310,7 @@ so it does not trigger this recorder. Full modpack coexistence remains untested.
   replacement JoinGame recreates the playback player/camera in the fresh world.
   These synthetic packets go to the file, never to the live game or relay.
 - Ordinary disconnect drains committed packets. Client shutdown waits at most
-  two seconds for finalization; abrupt exit or slow disk can leave unfinished data.
+  two seconds per pending writer; abrupt exit or slow disk can leave unfinished data.
 - Custom mod payloads, resource-pack downloads, and authentication exchanges are
   excluded, as are disconnect packets that would prematurely close playback.
   Replays still contain ordinary world/player data and vanilla chat;
@@ -273,15 +326,19 @@ world is still open. They do not simulate relay arbitration. Quit mode verifies
 the client-disconnect hook; room mode returns to a local fixture lobby without
 opening a relay connection. None uses the manual Stop Recording control.
 
-Add `-PreplayResets=2` to record three worlds in one file: first a same-seed
-reset, then a different seed. Add `-PreplayAtum=true` to load the local optional
+Add `-PreplayResets=2` to exercise a same-seed reset followed by a different seed.
+The first reset must retain the session; the second must start a fresh session
+and discard the old recording by default. Add `-PreplayKeepSeedChanges=true`
+to verify that the first recording is saved separately instead. Add
+`-PreplayAtum=true` to load the local optional
 mods and exercise `ZsgSeedBridge.launchSeedWithAtum` and the actual Atum hook;
-without it the smoke harness drives the same handoff explicitly. The test asserts
-the recording session stays identical across worlds. Pass `-PreplayResets=2`
-to `inspectRecording` as well. It requires one login, three world initializations,
-nine local-player spawns and the expected respawns, with monotonic timestamps.
+without it the smoke harness drives the same handoff explicitly. For inspection,
+the final recording has zero resets. With retention enabled, the saved first
+recording has one reset. Pass the corresponding count to `inspectRecording`.
+Each file must have its own login and monotonic timestamps.
 
-The continuous Atum smoke passed locally: two resets produced one 73,137 ms file,
+Before seed-change retention was introduced, the continuous Atum smoke passed
+locally: two resets produced one 73,137 ms file,
 with one login, three JoinGame packets, nine local-player spawns and 687 local
 movement packets. Streaming inspection passed. Unit tests cover repeated handoffs,
 stale attachment rejection, reset cancellation, forced stops, pending-task budget

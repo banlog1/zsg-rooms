@@ -236,6 +236,12 @@ public class InGame {
         this.seed = ZsgSeedBridge.buildSeedForStructure(baseSeed, normalizedStructure, this.requiredIronCount);
     }
 
+    public String getActiveFilter() {
+        String selection = ZsgSeedBridge.normalizeSeedType(this.targetStructure);
+        return ZsgRoomsSeedMode.SPECIFICATION.equals(selection)
+                ? ZsgSeedBridge.normalizeSeedType(ZsgSeedBridge.resolveStructure(this.seed)) : selection;
+    }
+
     public void setFinishGoal(int finishGoal) {
         this.finishGoal = Math.max(1, finishGoal);
     }

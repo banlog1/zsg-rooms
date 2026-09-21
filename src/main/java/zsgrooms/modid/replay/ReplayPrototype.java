@@ -58,6 +58,7 @@ public final class ReplayPrototype {
     private static final int MAX_PACKET_BYTES = 4 * 1024 * 1024;
     private static final EquipmentSlot[] SLOTS = EquipmentSlot.values();
     private static final AtomicReference<Session> CURRENT = new AtomicReference<>();
+    private static final java.util.Set<Session> WRITERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static Library library;
 
     private ReplayPrototype() {
@@ -77,8 +78,7 @@ public final class ReplayPrototype {
         net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT.register(zsgrooms.modid.ui.ReplayHud::render);
         ReplaySmokeTest.initialize();
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
-            Session session = CURRENT.get();
-            if (session != null) {
+            for (Session session : WRITERS) {
                 session.buffer.close();
                 try {
                     session.worker.join(2000L);
@@ -103,7 +103,7 @@ public final class ReplayPrototype {
     }
 
     public static boolean canConfigure() {
-        return CURRENT.get() == null && !CHECKING.get();
+        return CURRENT.get() == null && WRITERS.isEmpty() && !CHECKING.get();
     }
 
     public static boolean isLibraryReady() {
@@ -145,7 +145,7 @@ public final class ReplayPrototype {
 
     public static boolean configure(boolean enabled, String directory, boolean replayModRecordingDisabled) {
         if (!canConfigure()) return false;
-        ReplayPreferences next = new ReplayPreferences(enabled, directory, replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, preferences.performanceMode);
+        ReplayPreferences next = new ReplayPreferences(enabled, directory, replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, preferences.performanceMode, preferences.keepSeedChanges);
         try {
             next.resolveLibraries(gameDirectory);
             next.save(preferencesFile);
@@ -162,7 +162,7 @@ public final class ReplayPrototype {
     }
 
     public static void checkLibraries() {
-        if (CURRENT.get() != null || !CHECKING.compareAndSet(false, true)) return;
+        if (!canConfigure() || !CHECKING.compareAndSet(false, true)) return;
         libraryReady = false;
         libraryStatus = "Checking libraries...";
         Thread thread = new Thread(() -> {
@@ -185,7 +185,7 @@ public final class ReplayPrototype {
         if (!canConfigure()) return false;
         try {
             ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                    preferences.replayModRecordingDisabled, group, preferences.showRecordingHud, preferences.performanceMode);
+                    preferences.replayModRecordingDisabled, group, preferences.showRecordingHud, preferences.performanceMode, preferences.keepSeedChanges);
             next.save(preferencesFile);
             preferences = next;
             return true;
@@ -205,7 +205,7 @@ public final class ReplayPrototype {
 
     public static boolean configureHud(boolean visible) {
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                preferences.replayModRecordingDisabled, preferences.soloTestGroup, visible, preferences.performanceMode);
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, visible, preferences.performanceMode, preferences.keepSeedChanges);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
@@ -213,7 +213,15 @@ public final class ReplayPrototype {
     public static boolean configurePerformance(boolean enabled) {
         if (!canConfigure()) return false;
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, enabled);
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, enabled, preferences.keepSeedChanges);
+        try { next.save(preferencesFile); preferences = next; return true; }
+        catch (java.io.IOException error) { return false; }
+    }
+
+    public static boolean configureSeedRetention(boolean keep) {
+        ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud,
+                preferences.performanceMode, keep);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
@@ -255,7 +263,10 @@ public final class ReplayPrototype {
         Session session = CURRENT.get();
         if (session == null) return;
         synchronized (session.connections) {
-            if (session.buffer.isOpen()) session.manifest.finishRace(raceId, elapsedNanos, igtMillis);
+            if (session.buffer.isOpen()) {
+                session.manifest.finishRace(raceId, elapsedNanos, igtMillis);
+                session.retention.completed();
+            }
         }
     }
 
@@ -281,6 +292,7 @@ public final class ReplayPrototype {
             session.buffer.cancelPending();
             session.player = null;
             session.worldChanging = true;
+            if (!finished) session.manifest.recordLoading(session.timestamp(), true);
             if (finished) session.buffer.close();
         }
     }
@@ -295,17 +307,33 @@ public final class ReplayPrototype {
 
     public static void connected(ClientConnection connection) {
         if (!preferences.enabled || MinecraftClient.getInstance().getServer() == null) return;
+        long seed = MinecraftClient.getInstance().getServer().getOverworld().getSeed();
         Session previous = CURRENT.get();
         if (previous != null) {
             synchronized (previous.connections) {
-                if (previous.buffer.isOpen() && previous.connections.attach(connection)) {
-                    previous.worldChanging = true;
-                    previous.player = null;
-                    previous.equipment = null;
-                    previous.swingTicks = 0;
-                    return;
+                if (previous.buffer.isOpen()) {
+                    if (!previous.connections.canAttach()) return;
+                    ReplaySeedRetention.Action action = previous.retention.onReplacement(seed, preferences.keepSeedChanges);
+                    if (action == ReplaySeedRetention.Action.CONTINUE) {
+                        previous.connections.attach(connection);
+                        previous.worldChanging = true;
+                        previous.player = null;
+                        previous.equipment = null;
+                        previous.swingTicks = 0;
+                        return;
+                    }
+                    previous.manifest.closeInterval(previous.timestamp());
+                    previous.connections.stop();
+                    previous.discard = action == ReplaySeedRetention.Action.DISCARD;
+                    previous.buffer.cancelPending();
+                    if (previous.discard) previous.buffer.discardQueued();
+                    else previous.buffer.close();
+                    ZsgRooms.LOGGER.info("[ReplayPrototype] Seed changed: {} previous recording",
+                            previous.discard ? "discarding" : "saving");
                 }
             }
+            // The old writer owns its cleanup; it must not block the new world's login capture.
+            CURRENT.compareAndSet(previous, null);
         }
         if (FabricLoader.getInstance().isModLoaded("replaymod")
                 && !preferences.replayModRecordingDisabled) {
@@ -317,12 +345,13 @@ public final class ReplayPrototype {
             ZsgRooms.LOGGER.warn("[ReplayPrototype] Skipped world: recorder setup is not ready; re-enter after setup finishes");
             return;
         }
-        Session session = new Session(connection, MinecraftClient.getInstance().runDirectory.toPath());
+        Session session = new Session(connection, MinecraftClient.getInstance().runDirectory.toPath(), seed);
         if (!CURRENT.compareAndSet(null, session)) {
             ZsgRooms.LOGGER.warn("[ReplayPrototype] Skipped world: previous recording is still finalizing");
             return;
         }
         recordingStatus = "Recording";
+        WRITERS.add(session);
         session.worker.start();
     }
 
@@ -332,6 +361,11 @@ public final class ReplayPrototype {
 
     static Object recordingIdentity() {
         return CURRENT.get();
+    }
+
+    static Path recordingFile() {
+        Session session = CURRENT.get();
+        return session == null ? null : session.root.resolve("replay_recordings").resolve(session.recordingId + ".mcpr");
     }
 
     static Path prepareRecordingDirectory(Path gameDirectory) throws java.io.IOException {
@@ -382,7 +416,8 @@ public final class ReplayPrototype {
     private static void capture(Session session, ReplayConnectionState.Attachment<ClientConnection> attachment,
                                 Packet<?> packet, boolean worldChanging) {
         if (!session.buffer.isOpen()) return;
-        PacketByteBuf encoded = new PacketByteBuf(Unpooled.buffer(256, MAX_PACKET_BYTES));
+        PacketByteBuf encoded = session.performance ? ReplayEncodingBuffers.acquire()
+                : new PacketByteBuf(Unpooled.buffer(256, MAX_PACKET_BYTES));
         ReplayBuffer.Record record = null;
         try {
             NetworkState phase = NetworkState.getPacketHandlerState(packet);
@@ -423,6 +458,7 @@ public final class ReplayPrototype {
                         }
                         if (worldChanging) {
                             session.manifest.closeInterval(timestamp);
+                            session.manifest.recordLoading(timestamp, true);
                             session.worldChanging = true;
                         }
                         if (login) session.loggedIn = true;
@@ -447,7 +483,7 @@ public final class ReplayPrototype {
             if (record != null) session.buffer.cancel(record);
             session.fail("packet capture " + e.getClass().getSimpleName());
         } finally {
-            encoded.release();
+            if (session.performance) ReplayEncodingBuffers.recycle(encoded); else encoded.release();
         }
     }
 
@@ -455,7 +491,11 @@ public final class ReplayPrototype {
         Session session = CURRENT.get();
         if (session != null && session.buffer.isOpen()) {
             long timestamp = session.timestamp();
-            int state = session.worldChanging || client.world == null || client.player == null ? 2 : client.isPaused() ? 1 : 0;
+            boolean loading = session.worldChanging || client.currentScreen instanceof net.minecraft.client.gui.screen.DownloadingTerrainScreen
+                    || client.currentScreen instanceof net.minecraft.client.gui.screen.LevelLoadingScreen;
+            session.manifest.recordLoading(timestamp, loading);
+            int state = loading || client.world == null || client.player == null ? 2 : client.isPaused() ? 1 : 0;
+            session.hudCapture.capture(session.hud, timestamp, session.worldIndex, state == 2 ? null : client.player);
             if (session.manifest.needsTiming(timestamp, session.worldIndex, state)) {
                 long[] clocks = state == 2 ? ReplayTimerCapture.UNAVAILABLE : ReplayTimerCapture.read();
                 session.manifest.recordTiming(timestamp, session.worldIndex, state, clocks[0], clocks[1]);
@@ -509,7 +549,7 @@ public final class ReplayPrototype {
     }
 
     static EntityTrackerUpdateS2CPacket copyTrackedState(int id, DataTracker tracker, ReplayTrackedState cache) throws java.io.IOException {
-        PacketByteBuf snapshot = new PacketByteBuf(Unpooled.buffer());
+        PacketByteBuf snapshot = cache == null ? new PacketByteBuf(Unpooled.buffer()) : ReplayEncodingBuffers.acquireMetadata();
         try {
             // The normal full-update constructor clears dirty flags on the live tracker.
             snapshot.writeVarInt(id);
@@ -523,7 +563,7 @@ public final class ReplayPrototype {
             }
             return packet;
         } finally {
-            snapshot.release();
+            if (cache == null) snapshot.release(); else ReplayEncodingBuffers.recycleMetadata(snapshot);
         }
     }
 
@@ -556,7 +596,9 @@ public final class ReplayPrototype {
         private final Method write;
         private final Method finish;
         private final Method writeManifest;
+        private final Method writeHud;
         private final Method close;
+        private final Method discard;
 
         private Library(List<Path> paths) throws Exception {
             List<URL> urls = new ArrayList<>();
@@ -568,7 +610,12 @@ public final class ReplayPrototype {
                 write = writer.getMethod("write", int.class, int.class, long.class, byte[].class);
                 finish = writer.getMethod("finish", int.class, boolean.class);
                 writeManifest = writer.getMethod("writeRaceManifest", String.class);
+                Method optionalHud;
+                try { optionalHud = writer.getMethod("writePlayerHud", byte[].class); }
+                catch (NoSuchMethodException ignored) { optionalHud = null; }
+                writeHud = optionalHud;
                 close = writer.getMethod("close");
+                discard = writer.getMethod("discard");
                 writer.getMethod("verifyDependencies").invoke(null);
             } catch (Exception | LinkageError e) {
                 loader.close();
@@ -579,6 +626,8 @@ public final class ReplayPrototype {
 
     private static final class Session {
         private final ReplayConnectionState<ClientConnection> connections;
+        private final ReplaySeedRetention retention;
+        private volatile boolean discard;
         private final ReplayWorldReset worldReset = new ReplayWorldReset();
         private boolean loggedIn;
         private boolean joined;
@@ -587,6 +636,9 @@ public final class ReplayPrototype {
         private final long epochMillis = System.currentTimeMillis();
         private final UUID recordingId = UUID.randomUUID();
         private final ReplayRaceManifest manifest;
+        private final ReplayHudTrack hud = new ReplayHudTrack();
+        private final boolean performance = preferences.performanceMode;
+        private final ReplayHudCapture hudCapture = new ReplayHudCapture(performance);
         private int worldIndex = -1;
         private String testRaceId = "";
         private String testGroup = "";
@@ -597,14 +649,16 @@ public final class ReplayPrototype {
         private volatile boolean writerReady;
         private boolean worldChanging = true;
         private ClientPlayerEntity player;
-        private final ReplayTrackedState trackedState = preferences.performanceMode ? new ReplayTrackedState() : null;
+        private final ReplayTrackedState trackedState = performance ? new ReplayTrackedState() : null;
         private ItemStack[] equipment;
         private int swingTicks;
 
-        private Session(ClientConnection connection, Path root) {
+        private Session(ClientConnection connection, Path root, long seed) {
             this.connections = new ReplayConnectionState<>(connection);
+            this.retention = new ReplaySeedRetention(seed);
             com.mojang.authlib.GameProfile profile = MinecraftClient.getInstance().getSession().getProfile();
             manifest = new ReplayRaceManifest(recordingId, profile.getId(), profile.getName(), originNanos);
+            manifest.recordLoading(0, true);
             this.root = root;
             worker = new Thread(this::writeReplay, "ZSG replay prototype writer");
             worker.setDaemon(true);
@@ -615,7 +669,7 @@ public final class ReplayPrototype {
         }
 
         private void fail(String reason) {
-            recordingStatus = "Recording stopped: " + reason;
+            if (CURRENT.get() == this) recordingStatus = "Recording stopped: " + reason;
             if (failure.compareAndSet(null, reason)) {
                 ZsgRooms.LOGGER.warn("[ReplayPrototype] Recording stopped: {}", reason);
             }
@@ -650,10 +704,18 @@ public final class ReplayPrototype {
                         buffer.complete(record);
                     }
                 }
+                if (discard) {
+                    stage = "discarding replay file";
+                    access.discard.invoke(writer);
+                    writer = null;
+                    ZsgRooms.LOGGER.info("[ReplayPrototype] Discarded recording after seed change");
+                    return;
+                }
                 stage = "finalizing replay file";
                 access.writeManifest.invoke(writer, manifest.finish(durationMillis, failure.get() == null));
+                if (access.writeHud != null) access.writeHud.invoke(writer, (Object) hud.finish(durationMillis));
                 access.finish.invoke(writer, selfId, failure.get() == null);
-                if (failure.get() == null) recordingStatus = "Saved to replay_recordings";
+                if (failure.get() == null && CURRENT.get() == this) recordingStatus = "Saved to replay_recordings";
                 ZsgRooms.LOGGER.info("[ReplayPrototype] Finalized {} packets, {} bytes; complete={}",
                         packets, bytes, failure.get() == null);
             } catch (Exception | LinkageError e) {
@@ -675,6 +737,7 @@ public final class ReplayPrototype {
                     }
                 }
                 CURRENT.compareAndSet(this, null);
+                WRITERS.remove(this);
             }
         }
     }

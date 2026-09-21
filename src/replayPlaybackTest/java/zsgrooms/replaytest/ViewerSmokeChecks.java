@@ -19,8 +19,9 @@ final class ViewerSmokeChecks {
     private int milestoneTime;
     private int milestoneX;
     private int milestoneY;
+    private final AnalysisSmokeChecks analysisChecks = new AnalysisSmokeChecks();
 
-    boolean complete() { return step > 18; }
+    boolean complete() { return step > 24; }
 
     void tick(Object handler, MinecraftClient client) throws Exception {
         if (complete() || System.nanoTime() < next) return;
@@ -187,6 +188,9 @@ final class ViewerSmokeChecks {
                 markerSender.getClass().getMethod("setReplaySpeed", double.class).invoke(markerSender, 1.0D);
                 ShortcutSmokeChecks.run((com.replaymod.replay.ReplayHandler) handler, client);
                 ZsgRooms.LOGGER.info("[ReplayViewerSmoke] PASS: auto-hide, chat, editor, resize, seeking, milestones, far follow, camera speed across dimension/reset/mode changes, 3/4 shortcuts and rebinding");
+                break;
+            case 19: case 20: case 21: case 22: case 23: case 24:
+                analysisChecks.tick(handler, client);
                 break;
             default:
                 break;

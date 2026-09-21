@@ -10,7 +10,8 @@ java { sourceCompatibility = JavaVersion.VERSION_16; targetCompatibility = JavaV
 def village = file('../../run/filter-reference/VillageGenerator')
 def bastion = file('../../run/filter-reference/BastionGenerator')
 def zsg = file('../../run/filter-reference/ZigSeedGlitchless')
-sourceSets.main.java.srcDir new File(village, 'src/main/java')
+def preparedVillage = layout.buildDirectory.dir('generated/sources/village')
+sourceSets.main.java.srcDir preparedVillage
 sourceSets.main.java.exclude 'profotoce59/Main.java', 'profotoce59/thread/**'
 // Keep ZSG's dependency versions isolated from the existing village model.
 sourceSets {
@@ -58,7 +59,23 @@ tasks.register('checkVillageRevision') {
         }
     }
 }
-tasks.named('compileJava') { dependsOn 'checkVillageRevision'; options.encoding = 'UTF-8' }
+tasks.register('prepareVillageSources', Sync) {
+    dependsOn 'checkVillageRevision'
+    def corrections = file('patches/village-1.16.1-corrections.patch')
+    inputs.file corrections
+    from new File(village, 'src/main/java')
+    into preparedVillage
+    doLast {
+        // Patch a generated copy, leaving the pinned upstream checkout verifiable.
+        def workspace = file('../..')
+        def destination = workspace.toPath().relativize(preparedVillage.get().asFile.toPath()).toString().replace('\\', '/')
+        providers.exec {
+            workingDir workspace
+            commandLine 'git', 'apply', '--no-index', '--ignore-space-change', "--directory=${destination}", corrections.absolutePath
+        }.result.get().assertNormalExitValue()
+    }
+}
+tasks.named('compileJava') { dependsOn 'prepareVillageSources'; options.encoding = 'UTF-8' }
 tasks.register('checkNetherRevisions') {
     doLast {
         [(bastion): '9cccd19863e941d2dc8d2820037c48d49fe7d526',

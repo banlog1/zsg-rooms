@@ -16,6 +16,18 @@ final class ReplayRaceManifest {
     private Race currentRace;
     private Interval currentInterval;
     private boolean sealed;
+    private long[] loading;
+
+    synchronized void recordLoading(long time, boolean active) {
+        if (sealed || time < 0) return;
+        if (active && loading == null && data.loadingIntervals.size() < MAX_INTERVALS) {
+            loading = new long[]{time, time};
+            data.loadingIntervals.add(loading);
+        } else if (!active && loading != null) {
+            loading[1] = Math.max(loading[0], time);
+            loading = null;
+        }
+    }
 
     ReplayRaceManifest(UUID recordingId, UUID recorder, String displayName, long originNanos) {
         this.originNanos = originNanos;
@@ -81,10 +93,13 @@ final class ReplayRaceManifest {
     /** Writer-thread finalization clamps coverage to the last packet actually written. */
     synchronized String finish(long durationMillis, boolean complete) {
         closeInterval(durationMillis);
+        recordLoading(durationMillis, false);
         sealed = true;
         data.durationMillis = durationMillis;
         data.complete = complete;
         data.timingSamples.removeIf(sample -> sample[0] > durationMillis);
+        data.loadingIntervals.removeIf(interval -> interval[0] >= durationMillis);
+        for (long[] interval : data.loadingIntervals) interval[1] = Math.min(interval[1], durationMillis);
         for (Interval interval : data.intervals) {
             interval.startReplayMillis = Math.min(interval.startReplayMillis, durationMillis);
             interval.endReplayMillis = Math.min(interval.endReplayMillis, durationMillis);
@@ -108,6 +123,7 @@ final class ReplayRaceManifest {
         final List<Interval> intervals = new ArrayList<>();
         // [replay ms, world index, active/paused/unavailable (0/1/2), RTA ms, IGT ms]
         final List<long[]> timingSamples = new ArrayList<>();
+        final List<long[]> loadingIntervals = new ArrayList<>();
         long durationMillis;
         boolean complete;
         boolean truncated;

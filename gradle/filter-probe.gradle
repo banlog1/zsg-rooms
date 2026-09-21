@@ -92,6 +92,9 @@ loom {
 			vmArg '-Dzsgrooms.filterProbe=true'
 			vmArg '-Dzsgrooms.filterBank=true'
 			vmArg "-Dzsgrooms.filterCalibration=${project.findProperty('filterCalibration') ?: 'false'}"
+			vmArg "-Dzsgrooms.villageCalibration=${project.findProperty('villageCalibration') ?: 'false'}"
+			vmArg "-Dzsgrooms.villageCalibration.input=${file(project.findProperty('villageCalibrationInput') ?: 'run/village-calibration/samples.json').absolutePath}"
+			vmArg "-Dzsgrooms.villageCalibration.output=${file(project.findProperty('villageCalibrationOutput') ?: 'run/village-calibration/results.jsonl').absolutePath}"
 			vmArg "-Dzsgrooms.spawnCalibration=${project.findProperty('spawnCalibration') ?: 'false'}"
 			vmArg "-Dzsgrooms.spawnCalibrationSamples=${project.findProperty('spawnCalibrationSamples') ?: '24'}"
 			vmArg "-Dzsgrooms.spawnCalibrationHoldout=${project.findProperty('spawnCalibrationHoldout') ?: 'false'}"
@@ -174,7 +177,7 @@ tasks.named('runFilterVerify') {
 }
 
 tasks.named('runFilterBank') {
-	if (project.findProperty('spawnCalibration') == 'true' || project.findProperty('filterSpawnHint') != 'false') dependsOn tasks.named('buildFilterStructureWorker')
+	if (project.findProperty('villageCalibration') != 'true' && (project.findProperty('spawnCalibration') == 'true' || project.findProperty('filterSpawnHint') != 'false')) dependsOn tasks.named('buildFilterStructureWorker')
 	doFirst {
 		ext.testStartedAt = System.currentTimeMillis()
 		def directory = file('run/filter-bank')
@@ -195,10 +198,11 @@ tasks.named('runFilterBank') {
 	}
 	doLast {
 		def log = file('run/filter-bank/logs/latest.log')
-		def complete = project.findProperty('spawnCalibration') == 'true' ? '[SpawnCalibration] COMPLETE:' : project.hasProperty('filterVerifierTest') ? '[FilterVerifierTest] COMPLETE:' : project.findProperty('filterEarlyTest') == 'true' ? '[FilterEarly] COMPLETE:' :
+		def complete = project.findProperty('villageCalibration') == 'true' ? '[VillageLootCalibration] COMPLETE:' : project.findProperty('spawnCalibration') == 'true' ? '[SpawnCalibration] COMPLETE:' : project.hasProperty('filterVerifierTest') ? '[FilterVerifierTest] COMPLETE:' : project.findProperty('filterEarlyTest') == 'true' ? '[FilterEarly] COMPLETE:' :
 			project.findProperty('filterLayoutTest') == 'true' ? '[FilterLayout] COMPLETE:' : '[FilterBank] COMPLETE:'
 		if (!log.exists() || log.lastModified() < testStartedAt || !log.text.contains(complete)
 				|| log.text.contains('[FilterLayout] FAIL:')
+				|| log.text.contains('[VillageLootCalibration] FAIL:')
 				|| log.text.contains('[FilterEarly] FAIL:')
 				|| log.text.contains('[FilterBank] FAIL:') || log.text.contains('Encountered an unexpected exception')) {
 			throw new GradleException('Offline bank run failed; inspect run/filter-bank/logs/latest.log')

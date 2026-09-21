@@ -11,11 +11,13 @@ import java.util.Properties;
 final class MatchHudPreferences {
     boolean visible = true;
     boolean header = true;
+    boolean seedType = true;
     boolean heads = true;
     boolean progressNumbers = true;
     boolean pinSelf = true;
     int opacity = 70;
     int scale = 100;
+    int seedTypeScale = 100;
     int rows = 2;
     int rotationSeconds = 5;
 
@@ -29,11 +31,13 @@ final class MatchHudPreferences {
         }
         settings.visible = bool(values, "visible", settings.visible);
         settings.header = bool(values, "header", settings.header);
+        settings.seedType = bool(values, "seedType", settings.seedType);
         settings.heads = bool(values, "heads", settings.heads);
         settings.progressNumbers = bool(values, "progressNumbers", settings.progressNumbers);
         settings.pinSelf = bool(values, "pinSelf", settings.pinSelf);
         settings.opacity = number(values, "opacity", settings.opacity, 0, 100);
         settings.scale = number(values, "scale", settings.scale, 75, 150);
+        settings.seedTypeScale = number(values, "seedTypeScale", settings.seedTypeScale, 50, 150);
         settings.rows = number(values, "rows", settings.rows, 1, 4);
         settings.rotationSeconds = number(values, "rotationSeconds", settings.rotationSeconds, 2, 10);
         if (settings.pinSelf) {
@@ -46,11 +50,13 @@ final class MatchHudPreferences {
         Properties values = new Properties();
         values.setProperty("visible", Boolean.toString(visible));
         values.setProperty("header", Boolean.toString(header));
+        values.setProperty("seedType", Boolean.toString(seedType));
         values.setProperty("heads", Boolean.toString(heads));
         values.setProperty("progressNumbers", Boolean.toString(progressNumbers));
         values.setProperty("pinSelf", Boolean.toString(pinSelf));
         values.setProperty("opacity", Integer.toString(opacity));
         values.setProperty("scale", Integer.toString(scale));
+        values.setProperty("seedTypeScale", Integer.toString(seedTypeScale));
         values.setProperty("rows", Integer.toString(rows));
         values.setProperty("rotationSeconds", Integer.toString(rotationSeconds));
         try {

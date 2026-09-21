@@ -19,6 +19,10 @@ final class ViewerLayout {
         return (int) Math.max(0L, Math.min(Math.max(0, duration), (long) current + delta));
     }
 
+    int barY(int screenHeight, int bottomInset) {
+        return Math.max(0, screenHeight - height - 8 - bottomInset);
+    }
+
     static String time(int milliseconds) {
         int seconds = Math.max(0, milliseconds) / 1000;
         return seconds / 60 + ":" + (seconds % 60 < 10 ? "0" : "") + seconds % 60;

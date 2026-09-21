@@ -9,6 +9,19 @@ int main(void) {
     assert(ship_resources((Loot){.iron=11,.food=30}));
     assert(!ship_resources((Loot){.iron=10,.food=30}));
     assert(type_of("village-temple")==-1);
+    for(int iron=0;iron<=4;iron++) for(int picks=0;picks<=2;picks++) for(int diamonds=0;diamonds<=6;diamonds++) {
+        int expected=iron>=4 || (iron>=1 && (picks>=1 || diamonds>=3));
+        assert(village_resources(iron,picks,diamonds)==expected);
+    }
+    Family smith={0};
+    assert(parse_smith_loot("SMITH_LOOT 1 1 0\n",&smith));
+    assert(smith.loot.iron==1 && smith.iron_pickaxes==1 && smith.loot.diamonds==0);
+    assert(parse_smith_loot("SMITH_LOOT 1 0 3\n",&smith));
+    assert(smith.loot.iron==1 && smith.iron_pickaxes==0 && smith.loot.diamonds==3);
+    const char *invalid[]={"IRON 4\n","SMITH_LOOT 4\n","SMITH_LOOT 4 0 0 extra\n",
+        "SMITH_LOOT -1 1 3\n","SMITH_LOOT 1 -1 3\n","SMITH_LOOT 1 0 -3\n",
+        "SMITH_LOOT 100001 0 0\n","SMITH_LOOT 0 100001 0\n","SMITH_LOOT 0 0 100001\n"};
+    for(unsigned i=0;i<sizeof(invalid)/sizeof(invalid[0]);i++) assert(!parse_smith_loot(invalid[i],&smith));
     for(int i=0;i<512;i++) {
         uint64_t seed=(uint64_t)i*STEP;
         Pos pos={((i%31)-15)*16,((i%23)-11)*16};

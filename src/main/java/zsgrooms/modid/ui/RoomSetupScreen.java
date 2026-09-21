@@ -14,25 +14,6 @@ import zsgrooms.modid.net.RoomWebSocketTransport;
 import java.security.SecureRandom;
 
 public class RoomSetupScreen extends Screen {
-    private static final String[] SEED_TYPES = new String[]{
-            "zsg",
-            "zsgop",
-            "zsgvillage",
-            "zsgvillageop",
-            "zsgshipwreck",
-            "zsgshipwreckop",
-            "zsgtemple",
-            "zsgtempleop",
-            "zsgjungletemple",
-            "zsgjungletempleop",
-            "rpseedbank",
-            "rooms-temple-v5",
-            "rooms-village-v5",
-            "rooms-shipwreck-v5",
-            "random",
-            "room",
-            "manual"
-    };
     private static final String ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom ROOM_CODE_RANDOM = new SecureRandom();
 
@@ -61,7 +42,7 @@ public class RoomSetupScreen extends Screen {
     private boolean disablePauseWorldSaves;
     private boolean roomCodeVisible;
     private boolean helpVisible;
-    private int selectedSeedTypeIndex;
+    private String selectedSeedType = "zsg";
     private String statusText;
 
     public RoomSetupScreen(Screen parent, boolean createMode) {
@@ -70,7 +51,6 @@ public class RoomSetupScreen extends Screen {
         this.createMode = createMode;
         this.helpVisible = false;
         this.roomCodeVisible = false;
-        this.selectedSeedTypeIndex = 0;
         this.statusText = "";
         this.rulePreset = RoomRulePreset.STANDARD_ZSG_ROOMS;
         applyRulePreset(this.rulePreset);
@@ -131,9 +111,7 @@ public class RoomSetupScreen extends Screen {
         this.addButton(this.finishGoalField);
 
         this.seedTypeButton = new ButtonWidget(fieldX, y + rowGap * 4, fieldWidth, 20, seedTypeText(), button -> {
-            this.selectedSeedTypeIndex = (this.selectedSeedTypeIndex + 1) % SEED_TYPES.length;
-            button.setMessage(seedTypeText());
-            updateManualSeedState();
+            this.client.openScreen(new FilterPickerScreen(this, currentSeedType(), value -> this.selectedSeedType = value));
         });
         this.addButton(this.seedTypeButton);
 
@@ -367,7 +345,7 @@ public class RoomSetupScreen extends Screen {
     }
 
     private String currentSeedType() {
-        return SEED_TYPES[this.selectedSeedTypeIndex];
+        return this.selectedSeedType;
     }
 
     private String selectedSeedTypeValue() {

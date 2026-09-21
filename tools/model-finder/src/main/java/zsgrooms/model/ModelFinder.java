@@ -84,7 +84,7 @@ public final class ModelFinder {
                         missingGolem++;
                         if (result.outcome == SmithLootModel.Outcome.ACCEPTED) acceptedWithoutGolem++;
                     }
-                    response.println("IRON " + result.iron);
+                    response.println("SMITH_LOOT " + result.iron + " " + result.ironPickaxes + " " + result.diamonds);
                     if (response.checkError()) throw new IllegalStateException("Private pipe closed");
                 } else if (line.startsWith("{\"profile\":\"zsg-model-only-v5\",") && report == null && !line.contains("\"seed\"")) {
                     report = line;

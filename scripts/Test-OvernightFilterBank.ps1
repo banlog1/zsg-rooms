@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$Java = 'java', [switch]$Integration)
+param([string]$Java = 'java', [switch]$Integration, [ValidateRange(0,10000)][int]$BenchmarkBatches = 0)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'FilterBankState.ps1')
 $root = Split-Path -Parent $PSScriptRoot
@@ -75,6 +75,116 @@ $manifest.fixedWorkComplete=$false
 Write-FilterAtomicJson $manifestPath $manifest
 Expect-Failure { Export-OvernightBank $fixture $plan }
 Write-Output 'Passed: cursor persistence/locking/exhaustion/corruption, idempotent export, committed hashes, overlap and duplicate rejection, partial-batch rejection, atomic publication.'
+
+# Checkpoints are exercised on synthetic private fixtures, never the active bank.
+$job1 = New-TestBatch 1 21
+$baseline = Export-OvernightBank $fixture $plan
+$baselineHash = (Get-FileHash $baseline.bank).Hash
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+Assert ($null -ne $checkpoint) 'Valid checkpoint could not be read.'
+$fast = Export-OvernightBank $fixture $plan $checkpoint
+Assert ($fast.reused -eq 2 -and $fast.verified -eq 0 -and $fast.accepted -eq 4) 'Unchanged history was revalidated.'
+Assert ((Get-FileHash $fast.bank).Hash -ceq $baselineHash) 'Checkpoint changed the combined bank.'
+
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+$job2 = New-TestBatch 2 25
+$delta = Export-OvernightBank $fixture $plan $checkpoint
+Assert ($delta.reused -eq 2 -and $delta.verified -eq 1 -and $delta.accepted -eq 6) 'New completed batch was not verified exactly once.'
+$deltaHash = (Get-FileHash $delta.bank).Hash
+$full = Export-OvernightBank $fixture $plan
+Assert ((Get-FileHash $full.bank).Hash -ceq $deltaHash) 'Incremental and full exports differ.'
+
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+$job1.failures=1
+Write-FilterAtomicJson (Join-Path $fixture 'jobs/00000001.json') $job1
+$changed = Export-OvernightBank $fixture $plan $checkpoint
+Assert ($changed.reused -eq 2 -and $changed.verified -eq 1) 'Changed journal entry bypassed full validation.'
+
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+$job2.state='running'
+$job2.bankHash=$null
+Write-FilterAtomicJson (Join-Path $fixture 'jobs/00000002.json') $job2
+$partial = Export-OvernightBank $fixture $plan $checkpoint
+Assert ($partial.accepted -eq 4 -and $partial.reused -eq 2) 'Uncommitted attempt leaked into checkpoint bank.'
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+# The supervisor recovers this exact finished attempt, not a new family range.
+$recovered = Read-OvernightBatch $fixture $job2 $plan.policies.temple
+$job2.state='complete'
+$job2.bankHash=$recovered.hash
+Write-FilterAtomicJson (Join-Path $fixture 'jobs/00000002.json') $job2
+$recoveredExport = Export-OvernightBank $fixture $plan $checkpoint
+Assert ($recoveredExport.reused -eq 2 -and $recoveredExport.verified -eq 1 -and $recoveredExport.accepted -eq 6) 'Recovered attempt was lost or duplicated.'
+Assert ((Get-FileHash $recoveredExport.bank).Hash -ceq $deltaHash) 'Recovery changed export ordering.'
+
+$checkpointPath = Join-Path $fixture 'checkpoint.json'
+$savedCheckpoint = [IO.File]::ReadAllText($checkpointPath)
+[IO.File]::WriteAllText($checkpointPath,'{broken')
+Assert ($null -eq (Read-OvernightCheckpoint $fixture $plan)) 'Corrupt checkpoint was trusted.'
+[IO.File]::WriteAllText($checkpointPath,$savedCheckpoint,[Text.UTF8Encoding]::new($false))
+$envelope = Read-FilterJson $checkpointPath
+$envelope.hash='wrong'
+Write-FilterAtomicJson $checkpointPath $envelope
+Assert ($null -eq (Read-OvernightCheckpoint $fixture $plan)) 'Checkpoint checksum was ignored.'
+[IO.File]::WriteAllText($checkpointPath,$savedCheckpoint,[Text.UTF8Encoding]::new($false))
+$plan.policies.temple.familyCap=3
+Assert ($null -eq (Read-OvernightCheckpoint $fixture $plan)) 'Different plan reused checkpoint.'
+$plan.policies.temple.familyCap=2
+[IO.File]::AppendAllText((Join-Path $fixture 'bank.jsonl'),"`n")
+Assert ($null -eq (Read-OvernightCheckpoint $fixture $plan)) 'Bank/checkpoint publication mismatch was ignored.'
+$rebuilt = Export-OvernightBank $fixture $plan
+Assert ((Get-FileHash $rebuilt.bank).Hash -ceq $deltaHash) 'Full recovery did not repair combined bank.'
+
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+$job2.startOffset=18
+Write-FilterAtomicJson (Join-Path $fixture 'jobs/00000002.json') $job2
+Expect-Failure { Export-OvernightBank $fixture $plan $checkpoint }
+$job2 = New-TestBatch 2 25
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+$jobPath=Join-Path $fixture 'jobs/00000001.json'
+[IO.File]::Move($jobPath,$jobPath+'.held')
+try { Expect-Failure { Export-OvernightBank $fixture $plan $checkpoint } }
+finally { [IO.File]::Move($jobPath+'.held',$jobPath) }
+$jobPath=Join-Path $fixture 'jobs/00000002.json'
+[IO.File]::Move($jobPath,$jobPath+'.held')
+try { Expect-Failure { Export-OvernightBank $fixture $plan $checkpoint } }
+finally { [IO.File]::Move($jobPath+'.held',$jobPath) }
+
+# Full verification still checks archived shard bytes even when a checkpoint exists.
+$checkpoint = Read-OvernightCheckpoint $fixture $plan
+[IO.File]::AppendAllText($source,"`n")
+$cached = Export-OvernightBank $fixture $plan $checkpoint
+Assert ($cached.accepted -eq 6) 'Validated snapshot should not depend on reopening archived shards.'
+Expect-Failure { Export-OvernightBank $fixture $plan }
+[IO.File]::WriteAllText($source,$saved,[Text.UTF8Encoding]::new($false))
+Write-Output 'Passed: checkpoint reuse, delta-only validation, changed jobs, interrupted attempts, full-export parity, checksums, plan binding, crash recovery, range/gap guards and explicit archive verification.'
+
+$empty = Join-Path $directory 'empty'
+$null = New-Item -ItemType Directory -Path (Join-Path $empty 'jobs')
+$emptyExport = Export-OvernightBank $empty $plan $null @()
+$emptyCheckpoint = Read-OvernightCheckpoint $empty $plan
+Assert ($null -ne $emptyCheckpoint -and $emptyExport.accepted -eq 0) 'Empty bank checkpoint failed.'
+$emptyExport = Export-OvernightBank $empty $plan $emptyCheckpoint
+Assert ($emptyExport.verified -eq 0 -and $emptyExport.accepted -eq 0) 'Empty checkpoint resume failed.'
+
+if ($BenchmarkBatches -gt 0) {
+    $fixture = Join-Path $directory 'benchmark'
+    $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
+    Write-Output "Creating isolated benchmark fixture with $BenchmarkBatches batches..."
+    for ($i=0; $i -lt $BenchmarkBatches; $i++) { $null = New-TestBatch $i (17+4*$i) }
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $full = Export-OvernightBank $fixture $plan
+    $fullSeconds = $clock.Elapsed.TotalSeconds
+    $expectedHash = (Get-FileHash $full.bank).Hash
+    $clock.Restart()
+    $checkpoint = Read-OvernightCheckpoint $fixture $plan
+    Assert ($null -ne $checkpoint) 'Benchmark checkpoint failed to load.'
+    $fast = Export-OvernightBank $fixture $plan $checkpoint
+    $fastSeconds = $clock.Elapsed.TotalSeconds
+    Assert ($fast.verified -eq 0 -and $fast.reused -eq $BenchmarkBatches) 'Benchmark revalidated cached shards.'
+    Assert ((Get-FileHash $fast.bank).Hash -ceq $expectedHash) 'Benchmark export mismatch.'
+    [pscustomobject]@{batches=$BenchmarkBatches;fullSeconds=[Math]::Round($fullSeconds,3);
+        checkpointSeconds=[Math]::Round($fastSeconds,3);reused=$fast.reused;verified=$fast.verified} | ConvertTo-Json -Compress | Write-Output
+}
 
 if ($Integration) {
     $start = Join-Path $PSScriptRoot 'Start-OvernightFilterBank.ps1'

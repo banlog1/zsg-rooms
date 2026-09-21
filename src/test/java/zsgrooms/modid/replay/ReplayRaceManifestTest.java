@@ -16,6 +16,39 @@ class ReplayRaceManifestTest {
     private static final UUID RECORDING = new UUID(3L, 4L);
     private static final long MS = 1000000L;
 
+    @Test void loadingTransitionsRemainExplicitAcrossLongTickGaps() {
+        ReplayRaceManifest manifest = manifest(0L);
+        manifest.recordLoading(0, true);
+        manifest.recordLoading(100, true);
+        manifest.recordLoading(2000, false);
+        manifest.recordLoading(3000, false);
+        manifest.recordLoading(5000, true);
+        manifest.recordLoading(25000, false);
+        assertEquals("[[0,2000],[5000,25000]]", finish(manifest, 30000).get("loadingIntervals").toString());
+    }
+
+    @Test void loadingIsClampedToWrittenPacketsAndSealed() {
+        ReplayRaceManifest manifest = manifest(0L);
+        manifest.recordLoading(0, true);
+        manifest.recordLoading(5000, false);
+        manifest.recordLoading(6000, true);
+        assertEquals("[[0,4000]]", finish(manifest, 4000).get("loadingIntervals").toString());
+        manifest.recordLoading(1000, true);
+        assertEquals("[[0,4000]]", finish(manifest, 4000).get("loadingIntervals").toString());
+    }
+
+    @Test void unfinishedLoadClosesAndIntervalCountIsBounded() {
+        ReplayRaceManifest manifest = manifest(0L);
+        for (int i = 0; i < ReplayRaceManifest.MAX_INTERVALS + 2; i++) {
+            manifest.recordLoading(i * 2, true);
+            manifest.recordLoading(i * 2 + 1, false);
+        }
+        assertEquals(ReplayRaceManifest.MAX_INTERVALS, finish(manifest, 10000).getAsJsonArray("loadingIntervals").size());
+        ReplayRaceManifest open = manifest(0L);
+        open.recordLoading(100, true);
+        assertEquals("[[100,5000]]", finish(open, 5000).get("loadingIntervals").toString());
+    }
+
     @Test void timingSamplesAreRateLimitedButPauseAndWorldChangesAreImmediate() {
         ReplayRaceManifest manifest = manifest(0L);
         manifest.recordTiming(10, 0, 0, 0, 0);

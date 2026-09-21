@@ -57,6 +57,14 @@ foreach ($type in @('temple', 'shipwreck')) {
             if ($LASTEXITCODE -ne 0 -or $inspected.Count -ne $rows.Count -or ($inspected | Where-Object { -not $_.exposed })) {
                 throw 'Bank exposure recheck failed'
             }
+            $wooded = @($inputRows | & (Join-Path $root 'run/filter-worker/surface-query-test.exe') --temple-wood |
+                ForEach-Object { $_ | ConvertFrom-Json })
+            if ($LASTEXITCODE -ne 0 -or $wooded.Count -ne $rows.Count -or ($wooded | Where-Object { -not $_.wooded })) {
+                throw 'Accepted temple lacks a tree-bearing biome near the temple'
+            }
+            foreach ($row in $rows) {
+                if (($row.wood -join ',') -cne ($row.structure -join ',')) { throw 'Temple wood check anchored at the wrong location' }
+            }
             Assert-ModelWater $rows
         } elseif ($exposure.reached -ne 0 -or $report.checks.nearby_water.reached -ne 0 -or ($rows | Where-Object { $null -ne $_.water })) {
             throw 'Temple exposure or water policy ran for shipwrecks'
@@ -83,7 +91,8 @@ if ($Village) {
     $report = $reportLines | Where-Object { $_.StartsWith('{') } | Select-Object -First 1 | ConvertFrom-Json
     if ($report.accepted -ne 1 -or $report.minecraftWorlds -ne 0) { throw 'Village model smoke test did not accept a seed' }
     $row = Get-Content -LiteralPath $file | ConvertFrom-Json
-    if ($row.chestIron -lt 4 -or $row.type -cne 'village') { throw 'Village smith resources not satisfied' }
+    $resources = $row.chestIron -ge 4 -or ($row.chestIron -ge 1 -and ($row.ironPickaxes -ge 1 -or $row.diamonds -ge 3))
+    if (-not $resources -or $row.type -cne 'village' -or $row.villageResourceRule -cne 'pickaxe-credit-v1') { throw 'Village smith resources not satisfied' }
     if ($row.profile -cne 'zsg-model-only-v5' -or
         $report.checks.nearby_water.reached - $report.checks.nearby_water.rejected -ne $report.checks.smith_loot.reached) {
         throw 'Village water gate was not applied before smith loot'

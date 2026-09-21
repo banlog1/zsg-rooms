@@ -27,9 +27,9 @@ import java.util.Random;
 import java.util.Set;
 
 public final class StructureSpawnProximity {
-    static final int MIN_TARGET_DISTANCE = 70;
-    static final int MAX_TARGET_DISTANCE = 128;
-    static final int RELOCATION_THRESHOLD = 140;
+    static final int MIN_TARGET_DISTANCE = 24;
+    static final int MAX_TARGET_DISTANCE = 48;
+    static final int RELOCATION_THRESHOLD = MAX_TARGET_DISTANCE;
     private static final int SEARCH_RADIUS_CHUNKS = 160;
     private static final int MAX_RUINED_PORTAL_CANDIDATES = 4;
     static final int MAX_TERRAIN_CHUNKS = 8;
@@ -47,8 +47,27 @@ public final class StructureSpawnProximity {
     private static volatile boolean minimumNearbyAnimalsEnabled;
     private static volatile boolean preparedSpawn;
     private static String filterId = "";
+    private static volatile String pendingLaunchSeed;
 
     private StructureSpawnProximity() {
+    }
+
+    public static void prepareNextLaunch(String seed) {
+        pendingLaunchSeed = seed;
+    }
+
+    static String consumeLaunchFilter(long worldSeed, String fallback) {
+        String seed = pendingLaunchSeed;
+        pendingLaunchSeed = null;
+        if (seed != null) {
+            try {
+                if (Long.parseLong(ZsgSeedBridge.extractMinecraftSeed(seed)) == worldSeed) {
+                    return ZsgSeedBridge.resolveStructure(seed);
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return fallback;
     }
 
     public static synchronized void configure(boolean shouldEnable, String selectedFilter) {
@@ -74,7 +93,7 @@ public final class StructureSpawnProximity {
         BlockPos originalSpawn = world.getSpawnPos();
         SpawnCacheKey cacheKey = new SpawnCacheKey(world.getSeed(), filterId);
         BlockPos cachedSpawn = SPAWN_CACHE.get(cacheKey);
-        if (cachedSpawn != null && !minimumNearbyAnimalsEnabled && !preparePools) {
+        if (enabled && cachedSpawn != null && !minimumNearbyAnimalsEnabled && !preparePools) {
             BlockPos refreshedSpawn = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
                     new BlockPos(cachedSpawn.getX(), 0, cachedSpawn.getZ()));
             if (isSafeSpawn(world, refreshedSpawn)) {
@@ -125,7 +144,11 @@ public final class StructureSpawnProximity {
         }
 
         long originalDistanceSquared = horizontalDistanceSquared(originalSpawn, target);
-        if (originalDistanceSquared <= (long) RELOCATION_THRESHOLD * RELOCATION_THRESHOLD) {
+        if (!needsRelocation(originalSpawn, target, filterId)
+                && (isShipwreck(filterId) || isSafeSpawn(world, originalSpawn))) {
+            // Pin the player here even with RNG standardization off; vanilla's spawn-radius
+            // scatter could otherwise put them outside the 48-block limit.
+            preparedSpawn = !isShipwreck(filterId);
             SeedDebugLog.info("Keeping original spawn; {} is already {} blocks away (located in {} ms{})",
                     filterId, Math.round(Math.sqrt(originalDistanceSquared)), locateMillis, located.verificationLog());
             return;
@@ -134,8 +157,8 @@ public final class StructureSpawnProximity {
         long terrainSearchStarted = System.nanoTime();
         SafeSpawnResult result = findSafeSpawn(world, target, originalSpawn, filterId);
         if (result.spawn == null) {
-            ZsgRooms.LOGGER.warn("Could not find a safe surface near the {} structure after checking {} chunks",
-                    filterId, result.chunksChecked);
+            ZsgRooms.LOGGER.warn("Could not find a safe surface within {} blocks of the {} structure after checking {} chunks; keeping original spawn",
+                    maximumTargetDistance(filterId), filterId, result.chunksChecked);
             return;
         }
         BlockPos safeSpawn = result.spawn;
@@ -272,13 +295,31 @@ public final class StructureSpawnProximity {
 
     static int targetDistance(long worldSeed, String selectedFilter) {
         Random random = deterministicRandom(worldSeed, selectedFilter);
-        return MIN_TARGET_DISTANCE + random.nextInt(MAX_TARGET_DISTANCE - MIN_TARGET_DISTANCE + 1);
+        int minimum = minimumTargetDistance(selectedFilter);
+        return minimum + random.nextInt(maximumTargetDistance(selectedFilter) - minimum + 1);
     }
 
     static long horizontalDistanceSquared(BlockPos first, BlockPos second) {
         long x = (long) first.getX() - second.getX();
         long z = (long) first.getZ() - second.getZ();
         return x * x + z * z;
+    }
+
+    static boolean needsRelocation(BlockPos spawn, BlockPos target, String selectedFilter) {
+        int threshold = isShipwreck(selectedFilter) ? 140 : RELOCATION_THRESHOLD;
+        return horizontalDistanceSquared(spawn, target) > (long) threshold * threshold;
+    }
+
+    private static boolean isShipwreck(String selectedFilter) {
+        return "shipwreck".equals(structureKeyForFilter(selectedFilter));
+    }
+
+    static int minimumTargetDistance(String selectedFilter) {
+        return isShipwreck(selectedFilter) ? 70 : MIN_TARGET_DISTANCE;
+    }
+
+    static int maximumTargetDistance(String selectedFilter) {
+        return isShipwreck(selectedFilter) ? 128 : MAX_TARGET_DISTANCE;
     }
 
     static long[] candidateChunkKeys(long worldSeed, String selectedFilter, BlockPos target, BlockPos originalSpawn) {
@@ -298,7 +339,7 @@ public final class StructureSpawnProximity {
             chunksChecked++;
             BlockPos safeSpawn;
             try {
-                safeSpawn = findSafeSpawnInChunk(world, target, candidate);
+                safeSpawn = findSafeSpawnInChunk(world, target, candidate, selectedFilter);
             } catch (RuntimeException exception) {
                 SeedDebugLog.warn("Could not inspect terrain chunk {}, {} for {}: {}",
                         candidate.chunkX, candidate.chunkZ, selectedFilter, exception.getMessage());
@@ -314,8 +355,9 @@ public final class StructureSpawnProximity {
     private static List<ChunkCandidate> buildChunkCandidates(
             long worldSeed, String selectedFilter, BlockPos target, BlockPos originalSpawn) {
         Random random = deterministicRandom(worldSeed, selectedFilter);
-        int preferredDistance = MIN_TARGET_DISTANCE
-                + random.nextInt(MAX_TARGET_DISTANCE - MIN_TARGET_DISTANCE + 1);
+        int minimumDistance = minimumTargetDistance(selectedFilter);
+        int maximumDistance = maximumTargetDistance(selectedFilter);
+        int preferredDistance = minimumDistance + random.nextInt(maximumDistance - minimumDistance + 1);
         long towardSpawnX = (long) originalSpawn.getX() - target.getX();
         long towardSpawnZ = (long) originalSpawn.getZ() - target.getZ();
         double startingAngle = towardSpawnX == 0L && towardSpawnZ == 0L
@@ -331,7 +373,7 @@ public final class StructureSpawnProximity {
                 attempt < MAX_CHUNK_CANDIDATE_ATTEMPTS && candidates.size() < MAX_TERRAIN_CHUNKS;
                 attempt++) {
             int distanceOffset = distanceOffsets[attempt % distanceOffsets.length];
-            int distance = clamp(preferredDistance + distanceOffset, MIN_TARGET_DISTANCE, MAX_TARGET_DISTANCE);
+            int distance = clamp(preferredDistance + distanceOffset, minimumDistance, maximumDistance);
             double angle = startingAngle + angleStep * attempt;
             int preferredX = target.getX() + (int) Math.round(Math.cos(angle) * distance);
             int preferredZ = target.getZ() + (int) Math.round(Math.sin(angle) * distance);
@@ -345,12 +387,12 @@ public final class StructureSpawnProximity {
         return candidates;
     }
 
-    private static BlockPos findSafeSpawnInChunk(ServerWorld world, BlockPos target, ChunkCandidate candidate) {
+    private static BlockPos findSafeSpawnInChunk(ServerWorld world, BlockPos target, ChunkCandidate candidate, String selectedFilter) {
         world.getChunk(candidate.chunkX, candidate.chunkZ);
         int startX = candidate.chunkX << 4;
         int startZ = candidate.chunkZ << 4;
-        long minimumDistanceSquared = (long) MIN_TARGET_DISTANCE * MIN_TARGET_DISTANCE;
-        long maximumDistanceSquared = (long) MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE;
+        long minimumDistanceSquared = (long) minimumTargetDistance(selectedFilter) * minimumTargetDistance(selectedFilter);
+        long maximumDistanceSquared = (long) maximumTargetDistance(selectedFilter) * maximumTargetDistance(selectedFilter);
         long bestScore = Long.MAX_VALUE;
         BlockPos best = null;
 

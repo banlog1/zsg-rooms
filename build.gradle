@@ -13,6 +13,8 @@ loom {
 			vmArg "-Dzsgrooms.replayPrototype.smokeEnd=${project.findProperty('replayEnd') ?: 'quit'}"
 			vmArg "-Dzsgrooms.replayPrototype.smokeResets=${project.findProperty('replayResets') ?: 0}"
 			vmArg "-Dzsgrooms.replayPrototype.smokePerformance=${project.findProperty('replayPerformance') ?: false}"
+			vmArg "-Dzsgrooms.replayPrototype.benchmark=${project.findProperty('replayCaptureBenchmark') ?: false}"
+			vmArg "-Dzsgrooms.replayPrototype.smokeKeepSeedChanges=${project.findProperty('replayKeepSeedChanges') ?: false}"
 		}
 		perchBenchmark {
 			server()
@@ -113,6 +115,8 @@ if (project.hasProperty('replayPlaybackFile')) {
 				vmArg "-Dzsgrooms.replayPlaybackEnd=${project.findProperty('replayPlaybackEnd') ?: 118000}"
 				vmArg "-Dzsgrooms.replayViewerSmoke=${project.findProperty('replayViewerSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayRaceSmoke=${project.findProperty('replayRaceSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayStartupSmoke=${project.findProperty('replayStartupSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayDetailsSmoke=${project.findProperty('replayDetailsSmoke') ?: false}"
 			}
 		}
 	}
@@ -132,6 +136,9 @@ task copyFsgModToRunMods {
 
 build.dependsOn copyFsgModToRunMods
 apply from: 'gradle/release.gradle'
+if (project.hasProperty('filterPickerTest')) {
+	apply from: 'gradle/filter-picker-test.gradle'
+}
 runClient.dependsOn copyFsgModToRunMods
 
 processResources {
@@ -203,11 +210,15 @@ tasks.named('runReplayPrototype') {
 tasks.matching { it.name == 'runReplayPlaybackTest' }.configureEach {
 	doFirst { ext.testStartedAt = System.currentTimeMillis() }
 	doLast {
-		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true') {
-			def marker = project.findProperty('replayRaceSmoke') == 'true' ? '[ReplayRaceSmoke] PASS:' : '[ReplayViewerSmoke] PASS:'
+		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true'
+				|| project.findProperty('replayStartupSmoke') == 'true' || project.findProperty('replayDetailsSmoke') == 'true') {
+			def marker = project.findProperty('replayDetailsSmoke') == 'true' ? '[ReplayDetailsSmoke] PASS:'
+					: project.findProperty('replayStartupSmoke') == 'true' ? '[ReplayStartupSmoke] PASS:'
+					: project.findProperty('replayRaceSmoke') == 'true' ? '[ReplayRaceSmoke] PASS:' : '[ReplayViewerSmoke] PASS:'
 			def log = file('run/replay-playback-test/logs/latest.log')
 			if (!log.exists() || log.lastModified() < testStartedAt
 					|| !log.text.contains(marker)
+					|| project.findProperty('replayViewerSmoke') == 'true' && !log.text.contains('[ReplayAnalysisSmoke] PASS:')
 					|| log.text.contains('[ReplayPlaybackTest] Failed')) {
 				throw new GradleException('Replay viewer smoke failed; see replay-playback-test/logs/latest.log')
 			}

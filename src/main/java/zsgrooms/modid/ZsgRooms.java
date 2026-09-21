@@ -243,6 +243,10 @@ public class ZsgRooms implements ModInitializer {
 			applyRoomSnapshot(value);
 			return;
 		}
+		if ("rules".equals(action)) {
+			changeRoomRules(roomName, playerName, value);
+			return;
+		}
 		if ("leave_room".equals(action)) {
 			removeRoomPlayer(roomName, playerName);
 			return;
@@ -322,6 +326,17 @@ public class ZsgRooms implements ModInitializer {
 		return zsgrooms.modid.net.RaceFinishArbiter.reason(value);
 	}
 
+	public static boolean changeRoomRules(String roomName, String playerName, String value) {
+		Room room = ACTIVE_ROOMS.get(roomName);
+		InGame game = ACTIVE_GAMES.get(roomName);
+		if (!RoomRuleSettings.canEdit(room, game, playerName)) return false;
+		RoomRuleSettings rules = RoomRuleSettings.fromJson(value);
+		if (rules == null || rules.toJson().equals(RoomRuleSettings.capture(game).toJson())) return false;
+		rules.applyTo(game);
+		shareChat(roomName, "Host updated the room game rules");
+		return true;
+	}
+
 	public static void changeRoomFilter(String roomName, String seedType) {
 		Room room = ACTIVE_ROOMS.get(roomName);
 		InGame game = ACTIVE_GAMES.get(roomName);
@@ -396,7 +411,7 @@ public class ZsgRooms implements ModInitializer {
 		}
 
 		String seed = game.getSeed();
-		if (SeedBankProfile.find(game.targetStructure) != null
+		if ((SeedBankProfile.find(game.targetStructure) != null || ZsgRoomsSeedMode.SPECIFICATION.equals(game.targetStructure))
 				&& (seed == null || ZsgSeedBridge.extractMinecraftSeed(seed).startsWith("pending-"))) {
 			return false;
 		}
@@ -719,6 +734,22 @@ public class ZsgRooms implements ModInitializer {
 		return fallback == null || fallback.trim().isEmpty() ? "In progress" : fallback;
 	}
 
+	public static void prepareRoomSpawn(MinecraftServer server) {
+		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()
+				|| SharedNetherEntryHeadlessTest.isEnabled() || Boolean.getBoolean("zsgrooms.filterProbe")) {
+			return;
+		}
+		Room room = getActiveRoom();
+		InGame game = room == null ? null : ACTIVE_GAMES.get(room.roomName);
+		String filter = StructureSpawnProximity.consumeLaunchFilter(server.getOverworld().getSeed(),
+				game == null ? "" : game.getActiveFilter());
+		StructureSpawnProximity.configure(game != null && game.spawnsNearFilterStructure(),
+				game != null && game.hasMinimumNearbyAnimals(), game == null ? "" : filter);
+		// Preserve the original reference before moving spawn, so Nether linking does not change.
+		SharedNetherEntry.configure(server, game != null && game.hasSharedNetherEntry());
+		StructureSpawnProximity.prepare(server.getOverworld());
+	}
+
 	private void onServerStarted(MinecraftServer server) {
 		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()
 				|| SharedNetherEntryHeadlessTest.isEnabled() || Boolean.getBoolean("zsgrooms.filterProbe")) {
@@ -746,10 +777,6 @@ public class ZsgRooms implements ModInitializer {
 		SeedDebugLog.info(
 				"[ZSG-Rooms/StriderJockeys] enabled={}",
 				removeNaturalStriderJockeys);
-		StructureSpawnProximity.configure(spawnNearFilterStructure, minimumNearbyAnimals,
-				game == null ? "" : game.targetStructure);
-		SharedNetherEntry.configure(server, game != null && game.hasSharedNetherEntry());
-		StructureSpawnProximity.prepare(server.getOverworld());
 		LOGGER.info("Server started for ZSG room; cheats allowed: {}, RNG standardized: {}, boosted barters: {}, minimum bastion iron: {}, no bastion zombified piglins: {}, near filter structure spawn: {}, minimum nearby animals: {}, Nether entry warmup: {}, pause world saves disabled: {}, reduced zero-cycle fly-aways: {}",
 				cheatsAllowed, rngStandardized, boostedBarters, minimumBastionIron,
 				removeBastionZombifiedPiglins, spawnNearFilterStructure, minimumNearbyAnimals,

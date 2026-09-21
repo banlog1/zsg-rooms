@@ -106,7 +106,7 @@ static void test_search_policies(void) {
 }
 
 /* Offline bank inspection: private seed/anchor input; only row numbers/heights leave stdout. */
-static int inspect_surfaces(int water_mode) {
+static int inspect_surfaces(int mode) {
     Generator g;
     setupGenerator(&g,MC_1_16_1,0);
     SurfaceNoiseCache cache={0};
@@ -116,8 +116,12 @@ static int inspect_surfaces(int water_mode) {
     while ((fields=scanf("%" SCNd64 " %d %d",&seed,&anchor.x,&anchor.z))==3) {
         if (anchor.x<-1000000 || anchor.x>1000000 || anchor.z<-1000000 || anchor.z>1000000) return 2;
         applySeed(&g,DIM_OVERWORLD,(uint64_t)seed);
+        if (mode==2) {
+            printf("{\"index\":%d,\"wooded\":%s}\n",index++,tree_biome(&g,anchor,20)?"true":"false");
+            continue;
+        }
         SurfaceNoise *noise=surface_noise_for_seed(&cache,(uint64_t)seed);
-        if (water_mode) {
+        if (mode==1) {
             Pos water;
             int found=nearby_water(&g,noise,anchor,&water);
             printf("{\"index\":%d,\"found\":%s,\"water\":",index++,found?"true":"false");
@@ -137,6 +141,7 @@ static int inspect_surfaces(int water_mode) {
 int main(int argc,char **argv) {
     if (argc==2 && !strcmp(argv[1],"--temple-exposure")) return inspect_surfaces(0);
     if (argc==2 && !strcmp(argv[1],"--nearby-water")) return inspect_surfaces(1);
+    if (argc==2 && !strcmp(argv[1],"--temple-wood")) return inspect_surfaces(2);
     if (argc!=1) return 2;
     test_temple_policy();
     test_search_policies();
@@ -162,12 +167,22 @@ int main(int argc,char **argv) {
     Generator g;
     setupGenerator(&g,MC_1_16_1,0);
     SurfaceNoiseCache cache={0};
-    int wood_passes=0, pool_passes=0, water_passes=0, fallback_tests=0, ship_passes=0;
+    int wood_passes=0, pool_passes=0, water_passes=0, fallback_tests=0, ship_passes=0, temple_wood_rejections=0;
     for (int i=0;i<256;i++) {
         uint64_t seed=(i+1024)*STEP;
         applySeed(&g,DIM_OVERWORLD,seed);
         SurfaceNoise *noise=surface_noise_for_seed(&cache,seed);
         Pos anchor={(i%17-8)*16+(i%4),(i%19-9)*16+(i%3)};
+        if (isViableStructurePos(Desert_Pyramid,&g,anchor.x,anchor.z,0) && !tree_biome(&g,anchor,20)) {
+            Family temple={0};
+            temple.zsg_search_main=anchor;
+            Result result={0};
+            uint64_t rejected_before=failed[BIOMES], surface_before=reached[SURFACE];
+            assert(!sister_check(seed,TEMPLE,&temple,&g,&cache,&result));
+            // A dry temple biome must reject before any pool is considered, even without lake candidates.
+            assert(failed[BIOMES]==rejected_before+1 && reached[SURFACE]==surface_before);
+            temple_wood_rejections++;
+        }
         if (i<64) {
             Pos water={0,0}, repeated={0,0};
             int found=nearby_water(&g,noise,anchor,&water);
@@ -252,6 +267,8 @@ int main(int argc,char **argv) {
     assert(pool_passes>0 && pool_passes<2560);
     assert(water_passes>0 && water_passes<64 && fallback_tests>0);
     assert(ship_passes>0 && ship_passes<256);
+    assert(temple_wood_rejections>0);
+    printf("Temple wood policy passed: %d biome-valid temples rejected at the structure before pool search.\n",temple_wood_rejections);
     printf("Surface query parity passed: 256 wooded searches and 2560 pool checks (%d/%d passes).\n",wood_passes,pool_passes);
     printf("Temple exposure passed: 65536 masks, boundary/invalid heights and 256 deterministic terrain grids.\n");
     printf("Water policy passed: biome/height boundaries, 64 deterministic searches and alternative-pool selection (%d wet).\n",water_passes);

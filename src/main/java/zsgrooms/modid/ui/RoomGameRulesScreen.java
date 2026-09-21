@@ -7,10 +7,14 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.text.StringRenderable;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import zsgrooms.modid.RoomRuleSettings;
+import zsgrooms.modid.ZsgRooms;
+import zsgrooms.modid.ZsgRoomsClient;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.function.BiConsumer;
 
 public class RoomGameRulesScreen extends Screen {
     private static final int HELP_WIDTH = 18;
@@ -21,12 +25,18 @@ public class RoomGameRulesScreen extends Screen {
     private static final int RACE_RULE_COUNT = 6;
     private static final int WORLD_RULE_COUNT = 6;
 
-    private final RoomSetupScreen parent;
+    private final Screen parent;
+    private final BooleanSupplier editable;
+    private final BiConsumer<RoomRuleSettings, RoomRulePreset> save;
+    private final List<ButtonWidget> editControls = new ArrayList<ButtonWidget>();
+    private String roomName;
     private final List<RuleRow> ruleRows = new ArrayList<RuleRow>();
     private RoomRulePreset preset;
     private ButtonWidget presetButton;
     private ButtonWidget presetHelpButton;
     private boolean twoColumnLayout;
+    private boolean tabbedGroups;
+    private boolean worldTab;
     private int firstGroupHeaderY;
     private int secondGroupHeaderY;
     private int firstGroupX;
@@ -52,7 +62,35 @@ public class RoomGameRulesScreen extends Screen {
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
             boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
             RoomRulePreset preset) {
+        this(parent, allowCheats, rngStandardization, boostedBarters, minimumBastionIron,
+                removeBastionZombifiedPiglins, removeNaturalStriderJockeys, spawnNearFilterStructure,
+                minimumNearbyAnimals, netherEntryWarmup, disablePauseWorldSaves, reduceZeroCycleFlyAways,
+                sharedNetherEntry, preset, () -> true,
+                (rules, selected) -> parent.setGameRules(
+                        rules.allowCheats,
+                        rules.rngStandardization,
+                        rules.boostedBarters,
+                        rules.minimumBastionIron,
+                        rules.removeBastionZombifiedPiglins,
+                        rules.removeNaturalStriderJockeys,
+                        rules.spawnNearFilterStructure,
+                        rules.minimumNearbyAnimals,
+                        rules.netherEntryWarmup,
+                        rules.disablePauseWorldSaves,
+                        rules.reduceZeroCycleFlyAways,
+                        rules.sharedNetherEntry, selected));
+    }
+
+    private RoomGameRulesScreen(Screen parent, boolean allowCheats, boolean rngStandardization,
+            boolean boostedBarters, boolean minimumBastionIron, boolean removeBastionZombifiedPiglins,
+            boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
+            boolean minimumNearbyAnimals, boolean netherEntryWarmup,
+            boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
+            RoomRulePreset preset,
+            BooleanSupplier editable, BiConsumer<RoomRuleSettings, RoomRulePreset> save) {
         super(new LiteralText("Room Game Rules"));
+        this.editable = editable;
+        this.save = save;
         this.parent = parent;
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
@@ -69,9 +107,73 @@ public class RoomGameRulesScreen extends Screen {
         this.preset = preset == null ? RoomRulePreset.CUSTOM : preset;
     }
 
+    public static RoomGameRulesScreen forRoom(Screen parent, String roomName) {
+        RoomRuleSettings rules = RoomRuleSettings.capture(ZsgRooms.getGame(roomName));
+        RoomGameRulesScreen screen = new RoomGameRulesScreen(parent,
+                rules.allowCheats,
+                rules.rngStandardization,
+                rules.boostedBarters,
+                rules.minimumBastionIron,
+                rules.removeBastionZombifiedPiglins,
+                rules.removeNaturalStriderJockeys,
+                rules.spawnNearFilterStructure,
+                rules.minimumNearbyAnimals,
+                rules.netherEntryWarmup,
+                rules.disablePauseWorldSaves,
+                rules.reduceZeroCycleFlyAways,
+                rules.sharedNetherEntry, RoomRulePreset.matching(rules),
+                () -> RoomRuleSettings.canEdit(ZsgRooms.getRoom(roomName), ZsgRooms.getGame(roomName),
+                        ZsgRoomsClient.localPlayerName(net.minecraft.client.MinecraftClient.getInstance())),
+                (updated, preset) -> ZsgRoomsClient.sendRoomAction("rules", roomName, updated.toJson()));
+        screen.roomName = roomName;
+        return screen;
+    }
+
+    private RoomRuleSettings currentRules() {
+        RoomRuleSettings rules = new RoomRuleSettings();
+        rules.allowCheats = this.allowCheats;
+        rules.rngStandardization = this.rngStandardization;
+        rules.boostedBarters = this.boostedBarters;
+        rules.minimumBastionIron = this.minimumBastionIron;
+        rules.removeBastionZombifiedPiglins = this.removeBastionZombifiedPiglins;
+        rules.removeNaturalStriderJockeys = this.removeNaturalStriderJockeys;
+        rules.spawnNearFilterStructure = this.spawnNearFilterStructure;
+        rules.minimumNearbyAnimals = this.minimumNearbyAnimals;
+        rules.netherEntryWarmup = this.netherEntryWarmup;
+        rules.disablePauseWorldSaves = this.disablePauseWorldSaves;
+        rules.reduceZeroCycleFlyAways = this.reduceZeroCycleFlyAways;
+        rules.sharedNetherEntry = this.sharedNetherEntry;
+        return rules;
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        boolean enabled = editable.getAsBoolean();
+        for (ButtonWidget button : editControls) button.active = enabled;
+        if (roomName != null && !enabled) {
+            RoomRuleSettings rules = RoomRuleSettings.capture(ZsgRooms.getGame(roomName));
+            this.allowCheats = rules.allowCheats;
+            this.rngStandardization = rules.rngStandardization;
+            this.boostedBarters = rules.boostedBarters;
+            this.minimumBastionIron = rules.minimumBastionIron;
+            this.removeBastionZombifiedPiglins = rules.removeBastionZombifiedPiglins;
+            this.removeNaturalStriderJockeys = rules.removeNaturalStriderJockeys;
+            this.spawnNearFilterStructure = rules.spawnNearFilterStructure;
+            this.minimumNearbyAnimals = rules.minimumNearbyAnimals;
+            this.netherEntryWarmup = rules.netherEntryWarmup;
+            this.disablePauseWorldSaves = rules.disablePauseWorldSaves;
+            this.reduceZeroCycleFlyAways = rules.reduceZeroCycleFlyAways;
+            this.sharedNetherEntry = rules.sharedNetherEntry;
+            this.preset = RoomRulePreset.matching(rules);
+            refreshButtonLabels();
+        }
+    }
+
     @Override
     protected void init() {
         this.ruleRows.clear();
+        this.editControls.clear();
 
         int panelX = panelX();
         int contentX = panelX + 16;
@@ -85,7 +187,7 @@ public class RoomGameRulesScreen extends Screen {
                 PRESET_ARROW_WIDTH * 2 + presetLabelWidth + HELP_WIDTH + CONTROL_GAP * 3;
         int presetX = this.width / 2 - presetControlWidth / 2;
 
-        this.addButton(new ButtonWidget(
+        addEditButton(new ButtonWidget(
                 presetX,
                 presetY,
                 PRESET_ARROW_WIDTH,
@@ -99,10 +201,10 @@ public class RoomGameRulesScreen extends Screen {
                 buttonHeight,
                 presetText(),
                 button -> cyclePreset(1));
-        this.addButton(this.presetButton);
+        addEditButton(this.presetButton);
         int nextPresetX =
                 presetX + PRESET_ARROW_WIDTH + CONTROL_GAP + presetLabelWidth + CONTROL_GAP;
-        this.addButton(new ButtonWidget(
+        addEditButton(new ButtonWidget(
                 nextPresetX,
                 presetY,
                 PRESET_ARROW_WIDTH,
@@ -120,6 +222,7 @@ public class RoomGameRulesScreen extends Screen {
         this.addButton(this.presetHelpButton);
 
         this.twoColumnLayout = useTwoColumns(panelWidth(), this.height);
+        this.tabbedGroups = !this.twoColumnLayout && this.height < 370;
         int groupTop = presetY + buttonHeight + (isCompact() ? 5 : 10);
         this.firstGroupHeaderY = groupTop;
         this.firstGroupX = contentX;
@@ -133,6 +236,21 @@ public class RoomGameRulesScreen extends Screen {
             int rowGap = twoColumnRowGap(rowTop, buttonHeight);
             addRaceRules(this.firstGroupX, rowTop, this.groupWidth, buttonHeight, rowGap);
             addWorldRules(this.secondGroupX, rowTop, this.groupWidth, buttonHeight, rowGap);
+        } else if (this.tabbedGroups) {
+            this.groupWidth = contentWidth;
+            this.secondGroupX = contentX;
+            this.secondGroupHeaderY = groupTop;
+            int tabWidth = (contentWidth - CONTROL_GAP) / 2;
+            ButtonWidget race = this.addButton(new ButtonWidget(contentX, groupTop, tabWidth, buttonHeight,
+                    new LiteralText("Race Rules"), button -> selectGroup(false)));
+            ButtonWidget world = this.addButton(new ButtonWidget(contentX + tabWidth + CONTROL_GAP, groupTop,
+                    tabWidth, buttonHeight, new LiteralText("World & Performance"), button -> selectGroup(true)));
+            race.active = this.worldTab;
+            world.active = !this.worldTab;
+            int rowTop = groupTop + buttonHeight + 5;
+            int rowGap = twoColumnRowGap(rowTop, buttonHeight);
+            if (this.worldTab) addWorldRules(contentX, rowTop, contentWidth, buttonHeight, rowGap);
+            else addRaceRules(contentX, rowTop, contentWidth, buttonHeight, rowGap);
         } else {
             this.groupWidth = contentWidth;
             this.secondGroupX = contentX;
@@ -187,8 +305,10 @@ public class RoomGameRulesScreen extends Screen {
                 false);
         addRuleRow(
                 "Spawn Near Filter Structure",
-                "If the selected route structure is farther than 140 blocks away, moves world spawn "
-                        + "to safe terrain 70-128 blocks from it.",
+                "Moves distant world spawn to safe terrain 24-48 blocks from the selected route structure. "
+                        + "Shipwrecks retain the 140-block trigger and 70-128-block range. "
+                        + "The destination is prepared during world loading. If no safe surface is found, "
+                        + "keeps the original spawn.",
                 x, y + rowGap * 3, width, height,
                 () -> this.spawnNearFilterStructure,
                 () -> this.spawnNearFilterStructure = !this.spawnNearFilterStructure,
@@ -284,6 +404,7 @@ public class RoomGameRulesScreen extends Screen {
         int stateX = helpX - CONTROL_GAP - STATE_WIDTH;
         ButtonWidget stateButton = new ButtonWidget(
                 stateX, y, STATE_WIDTH, height, stateText(enabled.getAsBoolean()), button -> {
+            if (!editable.getAsBoolean()) return;
             updatePresetForRuleToggle(performanceOverride);
             toggle.run();
             button.setMessage(stateText(enabled.getAsBoolean()));
@@ -291,7 +412,7 @@ public class RoomGameRulesScreen extends Screen {
         ButtonWidget helpButton = new ButtonWidget(
                 helpX, y, HELP_WIDTH, height, new LiteralText("?"), button -> {
                 });
-        this.addButton(stateButton);
+        addEditButton(stateButton);
         this.addButton(helpButton);
         this.ruleRows.add(new RuleRow(
                 label, help, x, y, width, height, stateX, stateButton, helpButton, enabled));
@@ -308,15 +429,18 @@ public class RoomGameRulesScreen extends Screen {
         fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 29, 0xCC1A120C);
         fill(matrices, panelX, panelY + 29, panelX + panelWidth(), panelY + 30, 0xFF000000);
         drawCenteredString(
-                matrices, this.textRenderer, "Room Game Rules", this.width / 2, panelY + 10, 0xFFFFFF);
+                matrices, this.textRenderer, editable.getAsBoolean() ? "Room Game Rules" : "Room Game Rules (View Only)",
+                this.width / 2, panelY + 10, 0xFFFFFF);
 
-        drawGroupHeader(matrices, "Race Rules", this.firstGroupX, this.firstGroupHeaderY, this.groupWidth);
-        drawGroupHeader(
+        if (!this.tabbedGroups) {
+            drawGroupHeader(matrices, "Race Rules", this.firstGroupX, this.firstGroupHeaderY, this.groupWidth);
+            drawGroupHeader(
                 matrices,
                 "World & Performance",
                 this.secondGroupX,
                 this.secondGroupHeaderY,
                 this.groupWidth);
+        }
         for (RuleRow row : this.ruleRows) {
             int background = row.helpButton.isHovered() || row.stateButton.isHovered()
                     ? 0x66303A40
@@ -358,8 +482,8 @@ public class RoomGameRulesScreen extends Screen {
             renderHelpTooltip(
                     matrices,
                     "Rule Presets",
-                    "Presets choose a complete starting ruleset. Changing any individual rule switches "
-                            + "the selection to Custom.",
+                    "Presets choose a complete starting ruleset. Performance overrides preserve the two "
+                            + "standard presets. Other changes select Custom; verifiable rules require all defaults.",
                     mouseX,
                     mouseY);
             return;
@@ -392,12 +516,19 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private void saveAndClose() {
-        this.parent.setGameRules(this.allowCheats, this.rngStandardization, this.boostedBarters,
-                this.minimumBastionIron, this.removeBastionZombifiedPiglins,
-                this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
-                this.minimumNearbyAnimals, this.netherEntryWarmup,
-                this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.sharedNetherEntry, this.preset);
+        if (editable.getAsBoolean()) this.save.accept(currentRules(), this.preset);
         this.client.openScreen(this.parent);
+    }
+
+    private void addEditButton(ButtonWidget button) {
+        button.active = editable.getAsBoolean();
+        this.editControls.add(button);
+        this.addButton(button);
+    }
+
+    private void selectGroup(boolean world) {
+        this.worldTab = world;
+        this.init(this.client, this.width, this.height);
     }
 
     private void applyPreset() {
@@ -419,6 +550,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private void cyclePreset(int direction) {
+        if (!editable.getAsBoolean()) return;
         RoomRulePreset[] presets = RoomRulePreset.values();
         int index = (this.preset.ordinal() + direction + presets.length) % presets.length;
         this.preset = presets[index];
@@ -441,7 +573,9 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private LiteralText presetText() {
-        return new LiteralText("Preset: " + this.preset.getLabel());
+        int labelWidth = Math.min(PRESET_LABEL_WIDTH,
+                panelWidth() - 32 - PRESET_ARROW_WIDTH * 2 - HELP_WIDTH - CONTROL_GAP * 3);
+        return new LiteralText(trimWithEllipsis("Preset: " + this.preset.getLabel(), labelWidth - 8));
     }
 
     private Text stateText(boolean enabled) {
@@ -458,7 +592,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private int panelHeight() {
-        return Math.min(useTwoColumns(panelWidth(), this.height) ? 300 : 390, this.height - 12);
+        return Math.min(useTwoColumns(panelWidth(), this.height) || this.height < 370 ? 300 : 390, this.height - 12);
     }
 
     private int panelY() {
@@ -488,7 +622,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     static boolean useTwoColumns(int panelWidth, int screenHeight) {
-        return panelWidth >= 540 || screenHeight < 370;
+        return panelWidth >= 540;
     }
 
     static RoomRulePreset presetAfterRuleToggle(

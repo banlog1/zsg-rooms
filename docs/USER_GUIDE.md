@@ -38,9 +38,12 @@ contains:
 | Game Rules | Host-only gameplay modifications copied into the room snapshot. |
 
 `Spawn Near Filter Structure` can move an unusually distant filtered route to
-a deterministic safe spawn 70-128 blocks from its target whenever the original
-distance exceeds 140 blocks. It only applies to FSG filters with a known route
-structure; manual, random, and room-code seeds are unchanged.
+a deterministic safe spawn 24-48 blocks from its target whenever the original
+distance exceeds 48 blocks. Shipwreck filters keep their original 140-block
+threshold and 70-128-block target range. The loading screen prepares the final
+destination. If no safe dry spot is found, the original spawn is retained.
+It applies to filters with a known route structure, including ZSG Rooms bank
+filters; manual, random, and room-code seeds are unchanged.
 
 Room codes are hidden by default on both the setup screen and in the lobby.
 `Show` reveals the code locally, while `Copy` always copies the real code even

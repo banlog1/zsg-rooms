@@ -16,6 +16,7 @@ param(
     [ValidateRange(0.9,4)][double]$WorkerStartupGiB = 0.9,
     [switch]$AllowSleep,
     [switch]$ExportOnly,
+    [switch]$FullVerify,
     [string]$Java = 'java'
 )
 $ErrorActionPreference = 'Stop'
@@ -45,6 +46,8 @@ $totals = [pscustomobject]@{completed=0;counts=@{temple=0;shipwreck=0;village=0}
 $lastReservedEnd = 0L
 $samples = [Collections.Generic.List[object]]::new()
 $lastSample = [datetime]::MinValue
+$checkpoint = $null
+$lastCheckpointCount = 0
 $previousCpu = [ZsgFilterHost]::CpuTimes()
 $sampleClock = [Diagnostics.Stopwatch]::StartNew()
 
@@ -84,6 +87,7 @@ function Save-Status([string]$State) {
         $State,$totals.completed,$totals.counts.temple,$totals.counts.shipwreck,$totals.counts.village,$active.Count)
 }
 try {
+    Write-Output 'Preparing overnight bank: checking the saved runtime and plan...'
     $capacity = Get-FilterHostCapacity
     $workerLimit = if ($AllowFullCpu) { $capacity.physicalCores } else { [Math]::Max(1,$capacity.physicalCores-2) }
     if (-not $ExportOnly -and ($Workers -gt $workerLimit -or ($Workers -gt 4 -and -not $AllowFullCpu))) {
@@ -131,7 +135,10 @@ try {
         Write-FilterAtomicJson $planPath @{version=1;profile='zsg-model-only-v5';fingerprint=$fingerprint;java=(Get-Command $Java).Source;types=@($Types);policies=$requestedPolicies}
         $plan = Read-FilterJson $planPath
     }
-    foreach ($job in @(Get-OvernightJobs $Directory)) {
+    Write-Output 'Preparing overnight bank: loading checkpoint and job journal...'
+    if (-not $FullVerify) { $checkpoint = Read-OvernightCheckpoint $Directory $plan }
+    if (-not $checkpoint) { Write-Output 'Full verification required; this first pass can take several minutes for a large bank.' }
+    foreach ($job in @(Get-OvernightJobs $Directory $checkpoint)) {
         if ($job.type -notin $plan.types -or $job.families -ne $plan.policies.($job.type).families) { throw 'Job does not match its saved plan.' }
         $jobs.Add($job)
     }
@@ -141,9 +148,10 @@ try {
         else { $job.state='pending'; Save-Job $job }
     }
     # Committed shards are authoritative. A crash during an export cannot corrupt the journal.
-    $null = Export-OvernightBank $Directory $plan
-    $seen.Clear()
-    foreach ($line in [IO.File]::ReadLines((Join-Path $Directory 'bank.jsonl'))) { $null=$seen.Add([string](($line | ConvertFrom-Json).seed)) }
+    $export = Export-OvernightBank $Directory $plan $checkpoint $jobs.ToArray()
+    $checkpoint = $export.checkpoint
+    $seen = $export.seen
+    Write-Output "Bank ready: $($export.reused) batches reused from checkpoint; $($export.verified) fully verified."
     $totals.completed=0
     $totals.counts=@{temple=0;shipwreck=0;village=0}
     foreach ($job in $jobs) {
@@ -152,7 +160,11 @@ try {
         else { $pending.Enqueue($job) }
     }
     $ready = $true
+    $lastCheckpointCount = $totals.completed
     if ($ExportOnly) { $reason='export_only'; return }
+    $endUtc = [datetime]::UtcNow.AddMinutes($Minutes)
+    $sampleClock.Restart()
+    $previousCpu = [ZsgFilterHost]::CpuTimes()
     if (-not $AllowSleep) { [ZsgFilterHost]::KeepAwake($true); $awake=$true }
     $workerJob = [ZsgFilterHost+WorkerJob]::new()
     Write-Output "Overnight bank: $Directory"
@@ -189,6 +201,13 @@ try {
             $lastSample=[datetime]::UtcNow
         }
         if ($available -lt $ReserveGiB) { $reason='memory_reserve'; break }
+        if ($totals.completed-$lastCheckpointCount -ge 500) {
+            Write-Output 'Saving incremental bank checkpoint...'
+            $export = Export-OvernightBank $Directory $plan $checkpoint
+            $checkpoint = $export.checkpoint
+            $lastCheckpointCount = $totals.completed
+        }
+        if ([datetime]::UtcNow -ge $endUtc) { break }
         $stopping = [IO.File]::Exists((Join-Path $Directory 'STOP'))
         $completeCount = $totals.completed
         if ($MaxCompletedBatches -gt 0 -and $completeCount -ge $MaxCompletedBatches) { $reason='batch_target'; break }
@@ -249,7 +268,7 @@ finally {
         }
         $active.Clear()
         if ($ready) {
-            $export = Export-OvernightBank $Directory $plan
+            $export = Export-OvernightBank $Directory $plan $checkpoint
             Save-Status $reason
             if ($CollectSamples -and $samples.Count) { Write-FilterAtomicJson (Join-Path $Directory 'samples.json') @($samples.ToArray()) }
             Write-Output "Private combined bank: $($export.bank)"

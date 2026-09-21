@@ -19,6 +19,7 @@ public final class ReplaySettingsScreen extends Screen {
     private CheckboxWidget recording;
     private CheckboxWidget coexistence;
     private CheckboxWidget performance;
+    private CheckboxWidget keepSeedChanges;
     private ButtonWidget browse;
     private ButtonWidget check;
     private ButtonWidget automatic;
@@ -41,6 +42,7 @@ public final class ReplaySettingsScreen extends Screen {
         recording = null;
         coexistence = null;
         performance = null;
+        keepSeedChanges = null;
         browse = null;
         check = null;
         automatic = null;
@@ -110,10 +112,17 @@ public final class ReplaySettingsScreen extends Screen {
                     refresh();
                 }
             });
-            performance = this.addButton(new CheckboxWidget(left, 184, contentWidth, 20,
+            performance = this.addButton(new CheckboxWidget(left, 184, half, 20,
                     new LiteralText("Performance Mode"), preferences.performanceMode) {
                 @Override public void onPress() {
                     ReplayPrototype.configurePerformance(!ReplayPrototype.getPreferences().performanceMode);
+                    refresh();
+                }
+            });
+            keepSeedChanges = this.addButton(new CheckboxWidget(left + half + 6, 184, half, 20,
+                    new LiteralText("Save on Seed Change"), preferences.keepSeedChanges) {
+                @Override public void onPress() {
+                    ReplayPrototype.configureSeedRetention(!ReplayPrototype.getPreferences().keepSeedChanges);
                     refresh();
                 }
             });
@@ -168,6 +177,10 @@ public final class ReplaySettingsScreen extends Screen {
                     ? "Default: this Minecraft instance's zsgrooms/replay-libraries. First setup downloads verified libraries from JitPack and Maven Central. Blank override uses automatic setup. Custom folders must contain the writer and all dependencies."
                     : "Record Local Worlds starts automatic library setup on first use (internet required). Wait until ready, then enter a local world. The REC badge confirms recording. Room results, returning to the room, and quitting to title save automatically to replay_recordings. Playback: ReplayMod Replay Viewer. Client HUD overlays are not recorded.";
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(text), Math.min(280, this.width - 32)), mouseX, mouseY);
+        } else if (keepSeedChanges != null && keepSeedChanges.isHovered()) {
+            this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
+                    "OFF discards unfinished replays when a different seed loads. ON saves them as separate files. Returning to the room still saves normally. Same-seed resets stay in one replay; completed recordings are kept."),
+                    Math.min(280, this.width - 32)), mouseX, mouseY);
         } else if (performance != null && performance.isHovered()) {
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
                     "Skips unchanged player metadata. Keeps full-rate movement, terrain, entities, sounds and timers. Choose before recording; file-size savings vary."),
