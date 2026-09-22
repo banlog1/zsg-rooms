@@ -75,6 +75,7 @@ public final class PlaybackTest implements ClientModInitializer {
                 if (detailsChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {
                     done = true;
                     handler.getClass().getMethod("endReplay").invoke(handler);
+                    AudioSmokeChecks.outsideReplay();
                     client.scheduleStop();
                 }
                 return;

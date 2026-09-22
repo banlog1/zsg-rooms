@@ -17,9 +17,25 @@ final class ReplayRaceManifest {
     private Interval currentInterval;
     private boolean sealed;
     private long[] loading;
+    private long[] screen;
+
+    /** Screen kind: 0 = none, 1 = inventory, 2 = crafting table. Only transitions allocate. */
+    synchronized void recordScreen(long time, int kind) {
+        if (sealed || time < 0 || kind < 0 || kind > 2) return;
+        if (screen != null) {
+            if (time < screen[0] || screen[2] == kind) return;
+            screen[1] = time;
+            screen = null;
+        }
+        if (kind != 0 && data.screenIntervals.size() < MAX_INTERVALS) {
+            screen = new long[]{time, time, kind};
+            data.screenIntervals.add(screen);
+        }
+    }
 
     synchronized void recordLoading(long time, boolean active) {
         if (sealed || time < 0) return;
+        if (active) recordScreen(time, 0);
         if (active && loading == null && data.loadingIntervals.size() < MAX_INTERVALS) {
             loading = new long[]{time, time};
             data.loadingIntervals.add(loading);
@@ -74,6 +90,7 @@ final class ReplayRaceManifest {
     }
 
     synchronized void closeInterval(long replayMillis) {
+        recordScreen(replayMillis, 0);
         if (sealed || currentInterval == null) return;
         currentInterval.endReplayMillis = Math.max(currentInterval.startReplayMillis, replayMillis);
         currentInterval = null;
@@ -100,6 +117,8 @@ final class ReplayRaceManifest {
         data.timingSamples.removeIf(sample -> sample[0] > durationMillis);
         data.loadingIntervals.removeIf(interval -> interval[0] >= durationMillis);
         for (long[] interval : data.loadingIntervals) interval[1] = Math.min(interval[1], durationMillis);
+        data.screenIntervals.removeIf(interval -> interval[0] >= durationMillis);
+        for (long[] interval : data.screenIntervals) interval[1] = Math.min(interval[1], durationMillis);
         for (Interval interval : data.intervals) {
             interval.startReplayMillis = Math.min(interval.startReplayMillis, durationMillis);
             interval.endReplayMillis = Math.min(interval.endReplayMillis, durationMillis);
@@ -124,6 +143,8 @@ final class ReplayRaceManifest {
         // [replay ms, world index, active/paused/unavailable (0/1/2), RTA ms, IGT ms]
         final List<long[]> timingSamples = new ArrayList<>();
         final List<long[]> loadingIntervals = new ArrayList<>();
+        // [start replay ms, end replay ms, inventory/crafting table (1/2)]
+        final List<long[]> screenIntervals = new ArrayList<>();
         long durationMillis;
         boolean complete;
         boolean truncated;

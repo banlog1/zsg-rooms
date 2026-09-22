@@ -39,6 +39,7 @@ final class ReplaySmokeTest {
     private static int ticks;
     private static long started;
     private static long pauseUntil;
+    private static long screenUntil;
     private static int menuTicks;
     private static int resets;
     private static Object recording;
@@ -65,6 +66,11 @@ final class ReplaySmokeTest {
             return;
         }
         try {
+            if (screenUntil != 0L) {
+                if (System.nanoTime() < screenUntil) return;
+                client.openScreen(null);
+                screenUntil = 0L;
+            }
             if (pauseUntil != 0L) {
                 if (System.nanoTime() < pauseUntil) return;
                 if (!client.isPaused()) throw new IllegalStateException("Pause test did not pause the player");
@@ -197,10 +203,30 @@ final class ReplaySmokeTest {
                     screenshot(client, "replay-hud");
                     client.options.keyForward.setPressed(false);
                     client.player.swingHand(Hand.MAIN_HAND);
+                    onServer(client, player -> {
+                        // Keep status screenshots clear of the spawn's trees and camera collisions.
+                        BlockPos platform = player.getBlockPos().add(0, 16, 0);
+                        for (int x = -2; x <= 2; x++) {
+                            for (int z = -2; z <= 2; z++) player.getServerWorld().setBlockState(
+                                    platform.add(x, 0, z), Blocks.STONE.getDefaultState());
+                        }
+                        player.teleport(player.getServerWorld(), platform.getX() + 0.5,
+                                platform.getY() + 1, platform.getZ() + 0.5, 0, 0);
+                    });
                 }
                 if (ticks == 70) {
                     client.openScreen(new net.minecraft.client.gui.screen.GameMenuScreen(true));
                     pauseUntil = System.nanoTime() + 2000000000L;
+                }
+                if (ticks == 80) {
+                    client.openScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(client.player));
+                    screenUntil = System.nanoTime() + 2000000000L;
+                }
+                if (ticks == 85) {
+                    client.openScreen(new net.minecraft.client.gui.screen.ingame.CraftingScreen(
+                            new net.minecraft.screen.CraftingScreenHandler(1, client.player.inventory),
+                            client.player.inventory, new LiteralText("Crafting")));
+                    screenUntil = System.nanoTime() + 2000000000L;
                 }
                 if (ticks >= 100) {
                     stage = 2;

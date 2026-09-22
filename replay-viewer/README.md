@@ -9,6 +9,17 @@ ZSG recording mod remains independently usable without this companion.
 
 - Compact bottom playback bar, with an extra control row at smaller GUI sizes.
 - ReplayMod's play/pause, speed slider, and marker timeline.
+- **Analysis > Quick Mode (experimental)** switches to ReplayMod's indexed
+  playback for faster seeking. Off when opening a replay, including another
+  player's recording. The first enable prepares an index; progress appears in
+  Analysis. Switching retains playback speed and pause state. Turn it off for
+  normal playback fidelity; returning to normal can require a longer rebuild.
+  Quick Mode omits some visual details, including particles and second skin layers.
+  ZSG's detailed HUD and timers still read their separate timestamped tracks.
+  This setting does not change the recorder or recording Performance Mode.
+  The companion corrects ReplayMod 2.6.27's chunk-section fluid-count version
+  check during indexed playback and uses separate `zsg-quick-v1` cache entries
+  so previously generated Quick Mode caches cannot supply malformed terrain.
 - Five-second backward/forward buttons, clamped to the recording's bounds.
 - Number-row 3 skips back five seconds; 4 skips forward. Rebind these under
   Minecraft Controls > Replay Mod as "ZSG: Back 5 seconds" and "ZSG: Forward
@@ -27,6 +38,12 @@ ZSG recording mod remains independently usable without this companion.
   and beside the timers, including reset gaps when no player is visible. It follows
   explicit recorded loading intervals, not missing data or the viewer's own loading
   screen. Its animation follows replay time and stops when playback is paused.
+  New recordings also distinguish an open player inventory (pixel-art drawstring
+  pouch) from an open crafting table (Minecraft's textured crafting-table item,
+  including resource-pack changes). These icons appear above the player and
+  beside the timers, including first-person follow. They describe the recorded
+  player's screen, not the viewer's inventory overlay; pause remains a separate icon.
+  Release the cursor and hover an overhead or HUD indicator for its explanation.
   F1 and the camera-path editor hide this overlay along with the compact HUD.
 - **Players** pauses playback and lists locally available matching race recordings.
   **Import Replay...** adds manually shared MCPRs without moving their originals.
@@ -143,6 +160,14 @@ interpolated. Capture is bounded to 12,000 samples per file; missing or stale
 coverage becomes unavailable rather than showing an indefinitely paused player.
 Metadata is read asynchronously from the archive without seeking playback.
 
+Screen coverage uses optional `screenIntervals` rows `[startMs, endMs, kind]` in
+the same race manifest, with kind 1 for inventory (including creative inventory)
+and 2 for a crafting table. The existing client tick captures only transitions,
+with no extra inventory serialization or packets in either recording mode.
+Intervals close on loading, world changes and recording end, and are bounded to
+4,096 entries. Seeking uses the recorded timestamp. Older recordings without this
+field show neither icon; other screens such as chests do not imply either state.
+
 Loading coverage is stored separately as optional `loadingIntervals` in the race
 manifest, capped at 4,096 intervals. It survives long gaps without client ticks and
 is clamped to the written recording duration. Older recordings without this field
@@ -162,7 +187,7 @@ From the repository root, prepare the pinned reference and build:
 .\gradlew.bat -p replay-viewer build --offline
 ```
 
-Artifact: `build/libs/zsg-replay-viewer-0.1.0.jar` inside this directory.
+Artifact: `build/libs/zsg-replay-viewer-0.2.0.jar` inside this directory.
 The version comes from `viewer_version` in this directory's `gradle.properties`;
 both the filename and `fabric.mod.json` use it. The core's playback test resolves
 the same version automatically. See [release packaging](../RELEASING.md).
@@ -188,7 +213,9 @@ first-open hang necessarily has this cause.
 Use `-PreplayDetailsSmoke=true` for detailed-follow checks against a fresh
 `runReplayPrototype -PreplaySmoke=true -PreplayResets=1` capture. It checks captured
 inventory/status, actual inventory-key dispatch, both display modes, small/wide
-windows, backward seeking, dimension changes and a same-file world reset.
+windows, backward seeking, dimension changes and a same-file world reset. It also
+checks inventory/crafting indicators in drone and first-person follow, verifies
+that the viewer's own inventory controls do not change them, and captures screenshots.
 
 The extended smoke driver uses the local `7bbdc52d-751b-4136-8a03-ff65922ffe6f`
 fixture: a dimension transfer before 22 seconds, a world reset around 66 seconds,
@@ -248,6 +275,41 @@ with multiple players. Disable testing when done.
 Older files without race metadata remain individually playable. Automatic
 upload/download, recording authenticity, and approximate manual alignment of
 legacy files are not provided. Manual sharing needs no relay deployment.
+
+## Experimental Player Sounds
+
+**Analysis > Player sounds (experimental)** reconstructs the recorded player's
+footsteps, mining hits, nearby held-block placements, water/lava bucket filling
+and emptying, eating/drinking, hurt/death, shield/thorns and damaging fall impacts.
+It is off for each newly opened replay. This is entirely viewer-side: existing
+recordings work, with no change to capture performance or file size. Sounds remain
+positional and use Minecraft's sound-category volume controls.
+
+Movement, swings and block updates are approximations of the original inputs.
+Mining requires repeated swings at the same block, not just one interaction's
+animation; menus, buckets and recent placements suppress mining. This deliberately
+misses some very short mining actions rather than making ordinary interactions noisy.
+Placements accept a matching currently or very recently held block to tolerate
+packet ordering. Bucket sounds require a matching held/recent bucket, a source-fluid
+change, and the recorded player's aim at that position. Ordinary fluid flow is
+silent. Evaporation and interactions without an observable fluid change are not
+reconstructed. Hurt sounds use vanilla's recorded damage-status events, including
+burning, drowning and berry bushes, rather than guesses from health changes.
+Fall impacts require a continuous recorded descent from the ground and a generic
+damage event within 250 ms of landing. They include the small/big player impact
+and landing-block sound. This is approximate: the protocol does not identify fall
+damage separately from other generic damage. Missing movement, unusual landing
+blocks and overlapping combat can prevent accurate classification. Water, flying,
+climbing and slime landings are excluded; seeks and toggles clear fall evidence.
+Crafting items remains silent, matching vanilla 1.16.1. Quick
+Mode may omit action information, so it cannot reproduce every sound. This option
+is intended for ZSG recordings; captures that already include local-player audio
+may produce duplicate action sounds and should leave it off.
+
+Forward/backward seeking is always silent, regardless of this option. Existing
+and queued sounds are stopped, incoming seek sounds are discarded, and audio
+resumes after the replay sender settles. This also covers Quick Mode changes.
+Live gameplay and the recorder are unaffected.
 
 ## Maintenance And License
 

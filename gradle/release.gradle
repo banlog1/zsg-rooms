@@ -3,13 +3,22 @@ import java.security.MessageDigest
 import java.util.zip.ZipFile
 
 // Build the companion separately first. Stage only explicitly named, validated artifacts.
+def galleryPack = tasks.register('filterGalleryPack', Zip) {
+    from('optional-assets/filter-gallery') {
+        include 'pack.mcmeta', 'assets/zsg-rooms/textures/gui/filters/*.png', 'assets/zsg-rooms/textures/gui/loading/*.png'
+    }
+    archiveFileName = 'zsg-rooms-filter-gallery.zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+}
+
 tasks.register('stageRelease', Sync) {
-    dependsOn tasks.named('build')
+    dependsOn tasks.named('build'), galleryPack
     def coreJar = file("build/libs/zsg-rooms-${project.version}.jar")
     def viewerJar = file("replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}.jar")
     def viewerSources = file("replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}-sources.jar")
     def destination = layout.buildDirectory.dir('release')
     from(coreJar, viewerJar, viewerSources)
+    from(galleryPack.flatMap { it.archiveFile })
     into(destination)
     outputs.upToDateWhen { false }
 
@@ -64,17 +73,19 @@ tasks.register('stageRelease', Sync) {
 - **${coreJar.name}**: the main mod. ReplayMod is not required for racing or recording.
 - **${viewerJar.name}**: optional playback controls. Install alongside [ReplayMod **1.16.1-2.6.27**](https://www.replaymod.com/download/), on Minecraft 1.16.1 with Fabric Loader 0.19.3+.
 - **${viewerSources.name}**: viewer source, not an installable mod. GPL-3.0-or-later; the core remains CC0-1.0. Full build scripts are in the tagged source archive.
+- **zsg-rooms-filter-gallery.zip**: optional picker and loading artwork. Put it in `resourcepacks` and enable it in Minecraft, not in `mods`. The images are not bundled in either mod.
 
 Enable recording under **Settings > Replays**. If ReplayMod is installed, disable its Record Singleplayer, Record Server, and Automatic Recording options first. SpeedRunIGT is needed during recording for RTA/IGT data. Player switching currently uses manually shared files.
 
 The in-game updater updates the core only. Install the viewer and ReplayMod separately. [Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
 
 <details>
-<summary>Companion SHA-256</summary>
+<summary>Optional Download SHA-256</summary>
 
 ```text
 ${hash(viewerJar)}  ${viewerJar.name}
 ${hash(viewerSources)}  ${viewerSources.name}
+${hash(new File(output, 'zsg-rooms-filter-gallery.zip'))}  zsg-rooms-filter-gallery.zip
 ```
 
 </details>

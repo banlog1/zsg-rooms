@@ -16,6 +16,48 @@ class ReplayRaceManifestTest {
     private static final UUID RECORDING = new UUID(3L, 4L);
     private static final long MS = 1000000L;
 
+    @Test void screenTransitionsStaySeparateAndDoNotSampleUnchangedState() {
+        ReplayRaceManifest manifest = manifest(0L);
+        manifest.recordScreen(100, 1);
+        for (int time = 101; time < 200; time++) manifest.recordScreen(time, 1);
+        manifest.recordScreen(200, 2);
+        manifest.recordScreen(300, 0);
+        manifest.recordScreen(400, 1);
+        assertEquals("[[100,200,1],[200,300,2],[400,500,1]]",
+                finish(manifest, 500).get("screenIntervals").toString());
+    }
+
+    @Test void loadingAndWorldChangesCloseScreensEvenWithoutAnotherTick() {
+        ReplayRaceManifest manifest = manifest(0L);
+        manifest.recordScreen(100, 1);
+        manifest.recordLoading(200, true);
+        manifest.recordLoading(300, false);
+        manifest.recordScreen(400, 2);
+        manifest.closeInterval(500);
+        assertEquals("[[100,200,1],[400,500,2]]", finish(manifest, 600).get("screenIntervals").toString());
+    }
+
+    @Test void screenTimelineIsBoundedClampedAndSealedWithoutInvalidatingReplay() {
+        ReplayRaceManifest manifest = manifest(0L);
+        manifest.recordScreen(-1, 1);
+        manifest.recordScreen(0, 3);
+        manifest.recordScreen(100, 2);
+        manifest.recordScreen(600, 0);
+        manifest.recordScreen(700, 1);
+        String result = manifest.finish(500, true);
+        assertEquals("[[100,500,2]]", new JsonParser().parse(result).getAsJsonObject().get("screenIntervals").toString());
+        manifest.recordScreen(200, 1);
+        assertEquals(result, manifest.finish(500, true));
+        ReplayRaceManifest capped = manifest(0L);
+        for (int i = 0; i < ReplayRaceManifest.MAX_INTERVALS + 2; i++) {
+            capped.recordScreen(i * 2, 1);
+            capped.recordScreen(i * 2 + 1, 0);
+        }
+        JsonObject data = finish(capped, 10000);
+        assertEquals(ReplayRaceManifest.MAX_INTERVALS, data.getAsJsonArray("screenIntervals").size());
+        assertFalse(data.get("truncated").getAsBoolean());
+    }
+
     @Test void loadingTransitionsRemainExplicitAcrossLongTickGaps() {
         ReplayRaceManifest manifest = manifest(0L);
         manifest.recordLoading(0, true);

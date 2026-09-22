@@ -24,6 +24,7 @@ public final class ReplayViewer implements ClientModInitializer {
     public void onInitializeClient() {
         instance = this;
         new EventRegistrations().on(PreRenderCallback.EVENT, () -> {
+            ReplayAudio.frame();
             if (switching || ReplayModReplay.instance == null) return;
             ReplayHandler handler = ReplayModReplay.instance.getReplayHandler();
             if (handler != current) {
@@ -44,6 +45,10 @@ public final class ReplayViewer implements ClientModInitializer {
     }
 
     static java.util.UUID recordedUuid() { return recorder; }
+    public static void worldProjection(net.minecraft.util.math.Matrix4f projection) { IndicatorTooltips.projection = projection; }
+    static boolean recordedMenuOpen(int time) {
+        return recording != null && recording.screens.at(time) != ReplayScreens.NONE;
+    }
     static RaceReplayLibrary library() { return instance.library; }
 
     static void raceContext(RaceRecording value) {

@@ -15,6 +15,12 @@ import zsgrooms.replayviewer.ReplayViewer;
 
 @Mixin(WorldRenderer.class)
 public abstract class DragonTrailRenderMixin {
+    @Inject(method = "render", at = @At("HEAD"))
+    private void zsgViewer$projection(MatrixStack matrices, float delta, long limit, boolean outline, Camera camera,
+                                     GameRenderer renderer, LightmapTextureManager lightmap, Matrix4f projection, CallbackInfo ci) {
+        ReplayViewer.worldProjection(projection);
+    }
+
     @Inject(method = "render", at = @At("TAIL"))
     private void zsgViewer$trail(MatrixStack matrices, float delta, long limit, boolean outline, Camera camera,
                                  GameRenderer renderer, LightmapTextureManager lightmap, Matrix4f projection, CallbackInfo ci) {

@@ -53,5 +53,5 @@ jobs:
           fi
           printf '\n\n' >> "$NOTES"
           cat build/release/release-details.md >> "$NOTES"
-          gh release create "$GITHUB_REF_NAME" build/release/*.jar build/release/*.sha256 \
+          gh release create "$GITHUB_REF_NAME" build/release/*.jar build/release/*.sha256 build/release/*.zip \
             --title "ZSG Rooms $VERSION" --notes-file "$NOTES" "${RELEASE_FLAGS[@]}"

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package zsgrooms.replayviewer;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawableHelper;
 import net.minecraft.client.render.RenderLayer;
@@ -8,16 +9,39 @@ import net.minecraft.client.render.RenderPhase;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.render.model.json.ModelTransformation;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.util.math.Matrix4f;
 
-/** A depth-tested, camera-facing pause symbol; never visible through terrain. */
+/** Depth-tested, camera-facing player status symbols; never visible through terrain. */
 final class PauseIndicator extends RenderPhase {
     private static final int OUTLINE = 0xFF201B13;
     private static final int AMBER = 0xFFFFD080;
     private static final int[] RING_X = {0, 4, 6, 4, 0, -4, -6, -4};
     private static final int[] RING_Y = {-6, -4, 0, 4, 6, 4, 0, -4};
+    private static final ItemStack CRAFTING_TABLE = new ItemStack(Items.CRAFTING_TABLE);
+    private static final String[] POUCH = {
+            ".....######.....",
+            "....#hhmmms#....",
+            ".....#mms#......",
+            "......#s#.......",
+            ".....#rrr##.....",
+            ".....#mms#r#....",
+            "....#hmms#r#....",
+            "...#hhmmss#r#...",
+            "..#hhmmmsss##...",
+            "..#hhmmmssss#...",
+            ".#hhmmmmsssss#..",
+            ".#hhmmmmsssss#..",
+            ".#hmmmmssssss#..",
+            "..#mmmmsssss#...",
+            "...##sssss##....",
+            ".....#####......"
+    };
     private static final RenderLayer LAYER = RenderLayer.of("zsg_replay_pause", VertexFormats.POSITION_COLOR,
             7, 256, false, true, RenderLayer.MultiPhaseParameters.builder()
                     .texture(NO_TEXTURE).transparency(TRANSLUCENT_TRANSPARENCY).cull(DISABLE_CULLING)
@@ -31,6 +55,11 @@ final class PauseIndicator extends RenderPhase {
 
     static void renderAbove(PlayerEntity player, MatrixStack matrices, VertexConsumerProvider consumers,
                             boolean loading, int time) {
+        renderAbove(player, matrices, consumers, loading, true, time, ReplayScreens.NONE);
+    }
+
+    static void renderAbove(PlayerEntity player, MatrixStack matrices, VertexConsumerProvider consumers,
+                            boolean loading, boolean paused, int time, int screen) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (player.isInvisible() || client.getEntityRenderManager().getSquaredDistanceToCamera(player) > 4096) return;
         matrices.push();
@@ -42,7 +71,22 @@ final class PauseIndicator extends RenderPhase {
             Matrix4f transform = matrices.peek().getModel();
             VertexConsumer vertices = consumers.getBuffer(LAYER);
             Rectangle rectangle = (left, top, right, bottom, color) -> quad(vertices, transform, left, top, right, bottom, color);
-            if (loading) ring(rectangle, time); else bars(rectangle);
+            boolean status = loading || paused;
+            if (status) {
+                IndicatorTooltips.worldIcon(transform, screen == ReplayScreens.NONE ? 0 : -11,
+                        loading ? IndicatorTooltips.LOADING : IndicatorTooltips.PAUSED, player);
+                Rectangle shifted = offset(rectangle, screen == ReplayScreens.NONE ? 0 : -11);
+                if (loading) ring(shifted, time); else bars(shifted);
+            }
+            if (screen != ReplayScreens.NONE) IndicatorTooltips.worldIcon(transform, status ? 11 : 0, screen, player);
+            if (screen == ReplayScreens.INVENTORY) pouch(offset(rectangle, status ? 11 : 0));
+            if (screen == ReplayScreens.CRAFTING) {
+                matrices.translate(status ? 11 : 0, 0, 0);
+                // Match the GUI model orientation in the camera-facing, downward-Y label space.
+                matrices.scale(16, -16, -16);
+                client.getItemRenderer().renderItem(CRAFTING_TABLE, ModelTransformation.Mode.GUI,
+                        15728880, OverlayTexture.DEFAULT_UV, matrices, consumers);
+            }
         } finally { matrices.pop(); }
     }
 
@@ -54,6 +98,44 @@ final class PauseIndicator extends RenderPhase {
     static void renderLoadingHud(MatrixStack matrices, int x, int y, int time) {
         ring((left, top, right, bottom, color) -> DrawableHelper.fill(matrices,
                 x + left, y + top, x + right, y + bottom, color), time);
+    }
+
+    static void renderScreenHud(MatrixStack matrices, int x, int y, int kind) {
+        if (kind == ReplayScreens.INVENTORY) {
+            pouch((left, top, right, bottom, color) -> DrawableHelper.fill(matrices,
+                    x + left, y + top, x + right, y + bottom, color));
+        } else if (kind == ReplayScreens.CRAFTING) {
+            // Minecraft 1.16's GUI item renderer uses the global model-view matrix.
+            RenderSystem.pushMatrix();
+            RenderSystem.multMatrix(matrices.peek().getModel());
+            try {
+                RenderSystem.enableDepthTest();
+                MinecraftClient.getInstance().getItemRenderer().renderGuiItemIcon(CRAFTING_TABLE, x - 8, y - 8);
+            } finally {
+                RenderSystem.popMatrix();
+                RenderSystem.disableDepthTest();
+            }
+        }
+    }
+
+    private static Rectangle offset(Rectangle rectangle, int x) {
+        return (left, top, right, bottom, color) -> rectangle.draw(left + x, top, right + x, bottom, color);
+    }
+
+    private static void pouch(Rectangle rectangle) {
+        // Merge adjacent pixels, sharing one crisp silhouette between the HUD and nameplate.
+        for (int y = 0; y < POUCH.length; y++) {
+            String row = POUCH[y];
+            for (int x = 0; x < row.length();) {
+                char pixel = row.charAt(x);
+                int end = x + 1;
+                while (end < row.length() && row.charAt(end) == pixel) end++;
+                int color = pixel == '#' ? 0xFF3C2814 : pixel == 'h' ? 0xFFF0CD7A
+                        : pixel == 'm' ? 0xFFD49B43 : pixel == 's' ? 0xFFA16A25 : 0xFF79502C;
+                if (pixel != '.') rectangle.draw(x - 8, y - 8, end - 8, y - 7, color);
+                x = end;
+            }
+        }
     }
 
     private static void ring(Rectangle rectangle, int time) {

@@ -495,6 +495,11 @@ public final class ReplayPrototype {
                     || client.currentScreen instanceof net.minecraft.client.gui.screen.LevelLoadingScreen;
             session.manifest.recordLoading(timestamp, loading);
             int state = loading || client.world == null || client.player == null ? 2 : client.isPaused() ? 1 : 0;
+            int screen = state == 2 ? 0
+                    : client.currentScreen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen
+                            || client.currentScreen instanceof net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen ? 1
+                    : client.currentScreen instanceof net.minecraft.client.gui.screen.ingame.CraftingScreen ? 2 : 0;
+            session.manifest.recordScreen(timestamp, screen);
             session.hudCapture.capture(session.hud, timestamp, session.worldIndex, state == 2 ? null : client.player);
             if (session.manifest.needsTiming(timestamp, session.worldIndex, state)) {
                 long[] clocks = state == 2 ? ReplayTimerCapture.UNAVAILABLE : ReplayTimerCapture.read();

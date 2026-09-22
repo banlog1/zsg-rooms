@@ -37,6 +37,7 @@ final class RaceRecording {
     final List<Interval> intervals;
     final ReplayTimings timing;
     final ReplayLoading loading;
+    final ReplayScreens screens;
 
     private RaceRecording(Path path, JsonObject data, JsonObject standard) throws IOException {
         this.path = path.toAbsolutePath().normalize();
@@ -88,6 +89,7 @@ final class RaceRecording {
         intervals = Collections.unmodifiableList(parsedIntervals);
         timing = new ReplayTimings(data.getAsJsonArray("timingSamples"), duration);
         loading = new ReplayLoading(data.getAsJsonArray("loadingIntervals"), duration);
+        screens = new ReplayScreens(data.getAsJsonArray("screenIntervals"), duration);
     }
 
     static RaceRecording read(Path path) throws IOException {

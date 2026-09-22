@@ -207,7 +207,7 @@ Add these to the same Minecraft instance's `mods` folder, then restart Minecraft
 | --- | --- |
 | `zsg-rooms-<version>.jar` | Records and automatically saves replays. Use 1.0.26 or newer. |
 | ReplayMod **1.16.1-2.6.27** | Plays the saved files through its Replay Viewer. |
-| `zsg-replay-viewer-0.1.0.jar` | Optional companion: speedrunning playback controls, timers, milestones, and switching between racers. Requires the ReplayMod version above. |
+| `zsg-replay-viewer-0.2.0.jar` | Optional companion: speedrunning playback controls, timers, milestones, and switching between racers. Requires the ReplayMod version above. |
 | SpeedRunIGT | Optional; install when recording to capture RTA and IGT for playback. |
 
 Get ZSG Rooms and the companion from

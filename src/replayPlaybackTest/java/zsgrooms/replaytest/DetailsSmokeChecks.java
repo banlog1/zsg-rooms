@@ -19,8 +19,12 @@ final class DetailsSmokeChecks {
     private int target;
     private int loadingTarget = -1;
     private final java.util.ArrayList<Object> transitions = new java.util.ArrayList<>();
+    private final java.util.ArrayList<String> terrain = new java.util.ArrayList<>();
     private int transition;
     private net.minecraft.client.util.InputUtil.Key inventoryBinding;
+    private final ScreenSmokeChecks screens = new ScreenSmokeChecks();
+    private final QuickModeSmokeChecks quickMode = new QuickModeSmokeChecks();
+    private boolean screensDone;
 
     boolean started() { return step > 0; }
 
@@ -124,6 +128,7 @@ final class DetailsSmokeChecks {
             require(get(get(controls, "detailHud"), "state") != null, "Seeking forward did not restore details");
             seekFrame(handler, transitions.get(0));
         } else if (step == 6) {
+            terrain.add(QuickModeSmokeChecks.terrain(client));
             Object state = get(get(controls, "detailHud"), "state");
             Object expected = decode((byte[]) get(transitions.get(transition), "payload"));
             require(state != null && get(state, "food").equals(get(expected, "food"))
@@ -153,7 +158,13 @@ final class DetailsSmokeChecks {
             handler.doJump(loadingTarget, true);
             handler.getReplaySender().setReplaySpeed(0);
         } else {
-            if (loadingTarget >= 0) require(loading(controls), "Loading indicator did not return after forward seek");
+            if (loadingTarget >= 0 && !screens.started()) require(loading(controls), "Loading indicator did not return after forward seek");
+            if (!screensDone) {
+                if (!screens.tick(handler, client, controls)) return false;
+                screensDone = true;
+            }
+            if (!quickMode.tick(handler, client, controls, transitions, terrain)) return false;
+            AudioSmokeChecks.run(handler, client);
             ZsgRooms.LOGGER.info("[ReplayDetailsSmoke] PASS: recorded inventory, health/hunger, hotbar/offhand, keyboard toggle, optional always mode, small GUI, seeking and {} world intervals", transitions.size());
             ZsgRooms.LOGGER.info("[ReplayDetailsSmoke] Loading interval playback checked: {}", loadingTarget >= 0);
             return true;
@@ -168,7 +179,7 @@ final class DetailsSmokeChecks {
         return (Boolean) method.invoke(controls);
     }
     private static void seekFrame(ReplayHandler handler, Object frame) throws Exception {
-        handler.doJump((Integer) get(frame, "time"), true);
+        AudioSmokeChecks.seek(handler, (Integer) get(frame, "time"));
         handler.getReplaySender().setReplaySpeed(0);
     }
     private static Object decode(byte[] payload) throws Exception {
