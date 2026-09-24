@@ -38,6 +38,11 @@ final class RaceRecording {
     final ReplayTimings timing;
     final ReplayLoading loading;
     final ReplayScreens screens;
+    final List<ChestOpening> chests;
+    final Long predictionSeed;
+    final List<ChestLoot> chestLoot;
+    final boolean lootMetadata;
+    final List<String> stewOrder;
 
     private RaceRecording(Path path, JsonObject data, JsonObject standard) throws IOException {
         this.path = path.toAbsolutePath().normalize();
@@ -90,6 +95,12 @@ final class RaceRecording {
         timing = new ReplayTimings(data.getAsJsonArray("timingSamples"), duration);
         loading = new ReplayLoading(data.getAsJsonArray("loadingIntervals"), duration);
         screens = new ReplayScreens(data.getAsJsonArray("screenIntervals"), duration);
+        chests = ChestOpening.read(data.getAsJsonArray("chestOpenings"), duration);
+        predictionSeed = data.has("templePredictionSeed") && !data.get("templePredictionSeed").isJsonNull()
+                ? number(data, "templePredictionSeed") : null;
+        lootMetadata = data.has("chestLoot");
+        chestLoot = predictionSeed == null ? Collections.emptyList() : ChestLoot.read(data.getAsJsonArray("chestLoot"), duration);
+        stewOrder = predictionSeed == null ? Collections.emptyList() : PredictionStewOrder.read(data.getAsJsonArray("stewOrder"));
     }
 
     static RaceRecording read(Path path) throws IOException {

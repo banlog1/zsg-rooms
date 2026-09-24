@@ -13,6 +13,7 @@ import zsgrooms.replayviewer.ReplayViewer;
 public abstract class DroneClickMixin {
     @Inject(method = "handleInputEvents", at = @At("HEAD"), cancellable = true)
     private void zsgViewer$reserveOrbitClick(CallbackInfo ci) {
+        if (ReplayViewer.inspectChest()) { ci.cancel(); return; }
         if (!ReplayViewer.droneActive()) return;
         MinecraftClient client = MinecraftClient.getInstance();
         // Avoid ReplayMod's click-to-spectate stealing an orbit drag or queuing it for another mode.

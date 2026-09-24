@@ -3,5 +3,6 @@
   "package": "zsgrooms.replayviewer.mixin",
   "compatibilityLevel": "JAVA_8",
   "client": ["ChatHudMixin", "DirectSpeedAccessor", "ClassicSpeedAccessor", "OverlayScreenAccessor", "ReplayModInitializationMixin", "ReplayFileAccessor", "DelegatingReplayFileAccessor", "FullReplaySenderAccessor", "QuickReplaySenderAccessor", "QuickChunkFormatMixin", "QuickCacheMixin", "ReplayTerrainScreenMixin", "ReplayStatusHudMixin", "PlayerPauseIndicatorMixin", "DroneLookMixin", "DroneClickMixin", "ReplayTrailSeekMixin", "DragonTrailRenderMixin", "DetailedFollowMixin", "DetailedInventoryKeyMixin", "ReplayAudioMixin", "ReplayPlayerSoundsMixin", "ReplayConsumptionSoundMixin", "ReplayPlacementSoundMixin", "ReplaySeekAudioMixin", "ReplayFallSoundMixin"],
+  "mixins": ["PredictionLootContextAccessor", "PredictionStewAccessor"],
   "injectors": { "defaultRequire": 1 }
 }

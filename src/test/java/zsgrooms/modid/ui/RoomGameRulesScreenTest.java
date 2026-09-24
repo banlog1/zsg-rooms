@@ -9,6 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class RoomGameRulesScreenTest {
 
     @Test
+    public void rawPresetUsesTheNewDisplayName() {
+        assertEquals("Raw", RoomRulePreset.REGULAR_VERIFIABLE_ZSG.getLabel());
+    }
+
+    @Test
     public void lobbyRecognizesPresetsButRequiresExactVerifiableDefaults() {
         for (RoomRulePreset preset : RoomRulePreset.values()) {
             if (preset.isCustom()) continue;

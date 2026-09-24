@@ -49,6 +49,47 @@ ZSG recording mod remains independently usable without this companion.
   **Import Replay...** adds manually shared MCPRs without moving their originals.
 - Direct freecam, accelerated Classic freecam, first-person Follow Player, and
   Follow: Drone (an independently controlled orbit around the recorded player).
+- In Direct or Classic freecam, use Minecraft's Use Item key (normally right-click)
+  while looking at a nearby chest to inspect its last recorded contents. The window
+  is read-only and leaves playback running (or paused if already paused). Close it
+  with Done, Escape or your inventory key. It supports normal, trapped and double chests.
+  Fresh recordings are required for the chest-position markers, in either recorder
+  mode. Contents come from existing inventory packets, indexed alongside milestones,
+  and work with normal or Quick playback. Seeking never reveals future loot.
+  Chests without recorded contents or usable prediction metadata show unavailable contents. Closed chests
+  show the last observed contents, not guaranteed current contents; breaking,
+  changing or reloading a chest's chunk invalidates them until another opening.
+  The recorder never scans containers, loads extra chunks or generates unopened loot.
+- Fresh recordings finalized after a room match result, returning to the room, or quitting ordinary
+  singleplayer, can also show **Predicted vanilla loot** for generated block chests
+  across all vanilla structures, including villages, bastions, fortresses, shipwrecks,
+  buried treasure and ruined portals. Normal, trapped and double chests are supported.
+  The integrated-server recorder attaches the existing loot-table ID and loot seed
+  when Minecraft already sends a chest's chunk. This adds no tick scan, inventory
+  reads, extra chunk generation or loot rolls, and leaves live packet NBT unchanged.
+  Metadata is capped at 2,048 chest observations per recording. Only recorded chunks
+  are covered; custom loot tables, zero loot seeds, chest minecarts and ender chests
+  are not predicted. Player-placed items still require recorded inventory contents.
+  The viewer generates items on inspection using Minecraft 1.16.1's built-in tables
+  and inventory shuffling, including enchantments and stew effects. Predictions
+  use the recorded vanilla effect order for shipwreck stews, since that order varies
+  between JVM launches. This six-entry list is captured once per recording. Treasure maps
+  have an explicitly unresolved destination; no structure lookup or map generation
+  is performed. No seed-finding library or Minecraft world is started by the viewer.
+  Predictions are original vanilla loot, not observed/current contents; custom
+  world generation, data packs and other loot-changing mods are not modeled.
+  The metadata is bound to original packet order, world/reset, dimension and block
+  position. Chunk replacement, unloading or a changed chest invalidates that identity
+  until a fresh observation. Older temple-only recordings retain their geometry-checked
+  seed-model preview. Predictions do not include the bastion first-chest iron top-up.
+  Recorded contents take priority, and invalidated recorded contents stay unknown.
+  Loot metadata and the seed are not exported on
+  a manual recording stop, same-seed reset, individual finish or an unannounced room
+  disconnect. Returning to the room releases predictions for the saved replay even
+  if the shared room race is still active. Starting another run revokes that local
+  viewing permission. This does not change other players' runs or relay results.
+  This is a normal-client safeguard, not anti-cheat protection against modified files
+  or clients. Old files without the released seed remain usable without predictions.
 - **Follow: Details** adds recorded health, hunger, armor, XP, air, status effects,
   hotbar and offhand to first-person follow using Minecraft's normal HUD layout.
   The hotbar stays bottom-center with health/hunger above it. The playback bar
@@ -281,7 +322,7 @@ legacy files are not provided. Manual sharing needs no relay deployment.
 **Analysis > Player sounds (experimental)** reconstructs the recorded player's
 footsteps, mining hits, nearby held-block placements, water/lava bucket filling
 and emptying, eating/drinking, hurt/death, shield/thorns and damaging fall impacts.
-It is off for each newly opened replay. This is entirely viewer-side: existing
+It is on for each newly opened replay and can be disabled in Analysis. This is entirely viewer-side: existing
 recordings work, with no change to capture performance or file size. Sounds remain
 positional and use Minecraft's sound-category volume controls.
 

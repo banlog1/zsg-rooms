@@ -19,11 +19,30 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class RuinedPortalChestRepair {
     private static final Identifier RUINED_PORTAL_LOOT = new Identifier("minecraft", "chests/ruined_portal");
     private static final int WATCH_TICKS = 2400;
+    private static volatile LaunchFilter launchFilter;
     private static final Map<ChestKey, PendingChest> PENDING = new ConcurrentHashMap<ChestKey, PendingChest>();
     private static final Map<ChestKey, PendingPortalBlock> PENDING_PORTAL_BLOCKS =
             new ConcurrentHashMap<ChestKey, PendingPortalBlock>();
 
     private RuinedPortalChestRepair() {
+    }
+
+    static void prepareNextLaunch(String seed) {
+        LaunchFilter next = null;
+        if (seed != null) {
+            try {
+                next = new LaunchFilter(Long.parseLong(ZsgSeedBridge.extractMinecraftSeed(seed)),
+                        "rpseedbank".equals(ZsgSeedBridge.resolveStructure(seed)));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        launchFilter = next;
+    }
+
+    static boolean isPortalWorld(long worldSeed, String fallbackFilter) {
+        LaunchFilter launch = launchFilter;
+        return launch == null ? "rpseedbank".equals(fallbackFilter)
+                : launch.seed == worldSeed && launch.repair;
     }
 
     public static void capture(ChestBlockEntity chest, BlockState state, CompoundTag tag) {
@@ -45,21 +64,24 @@ public final class RuinedPortalChestRepair {
     }
 
     public static void captureGeneratedObsidian(ServerWorldAccess worldAccess, BlockPos pos) {
-        if (!isEnabledForCurrentRoom() || worldAccess == null
+        if (worldAccess == null
                 || !(worldAccess.getWorld() instanceof ServerWorld) || pos == null) {
+            return;
+        }
+        ServerWorld world = (ServerWorld) worldAccess.getWorld();
+        if (!isEnabledForCurrentRoom(world)) {
             return;
         }
         BlockState state = worldAccess.getBlockState(pos);
         if (!state.isOf(Blocks.OBSIDIAN) && !state.isOf(Blocks.CRYING_OBSIDIAN)) {
             return;
         }
-        ServerWorld world = (ServerWorld) worldAccess.getWorld();
         pos = pos.toImmutable();
         PENDING_PORTAL_BLOCKS.put(new ChestKey(world, pos), new PendingPortalBlock(world, pos, state));
     }
 
     private static void capture(ServerWorld world, BlockPos pos, BlockState state, CompoundTag tag) {
-        if (!isEnabledForCurrentRoom() || world == null || pos == null || state == null || tag == null
+        if (!isEnabledForCurrentRoom(world) || pos == null || state == null || tag == null
                 || !RUINED_PORTAL_LOOT.toString().equals(tag.getString("LootTable"))) {
             return;
         }
@@ -70,7 +92,7 @@ public final class RuinedPortalChestRepair {
     }
 
     public static void tick(MinecraftServer server) {
-        if (!isEnabledForCurrentRoom()) {
+        if (!isEnabledForCurrentRoom(server.getOverworld())) {
             PENDING.clear();
             PENDING_PORTAL_BLOCKS.clear();
             return;
@@ -150,12 +172,24 @@ public final class RuinedPortalChestRepair {
         }
     }
 
-    private static boolean isEnabledForCurrentRoom() {
+    private static boolean isEnabledForCurrentRoom(ServerWorld world) {
         Room room = ZsgRooms.getActiveRoom();
         InGame game = room == null ? null : ZsgRooms.getGame(room.roomName);
         return RoomUiPreferences.isRuinedPortalChestRepairEnabled()
                 && game != null
-                && "rpseedbank".equals(game.getActiveFilter());
+                && world != null
+                && isPortalWorld(world.getSeed(), game.getActiveFilter());
+    }
+
+    /** Atum can finish world generation before the room commits the new random-mode seed. */
+    private static final class LaunchFilter {
+        private final long seed;
+        private final boolean repair;
+
+        private LaunchFilter(long seed, boolean repair) {
+            this.seed = seed;
+            this.repair = repair;
+        }
     }
 
     private static final class ChestKey {

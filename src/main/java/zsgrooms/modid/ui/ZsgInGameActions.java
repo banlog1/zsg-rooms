@@ -84,6 +84,7 @@ public class ZsgInGameActions {
         }
 
         String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
+        ReplayPrototype.matchEnded();
         if ((localPlayerName(client).equals(winner) && isExitPortalResult(result)
                 || zsgrooms.modid.net.RaceFinishArbiter.DRAW_REASON.equals(result)
                 && client.currentScreen instanceof CreditsScreen)
@@ -221,7 +222,7 @@ public class ZsgInGameActions {
         if (client == null || roomName == null) {
             return;
         }
-        ReplayPrototype.stopRecording();
+        ReplayPrototype.returnedToRoom();
         if (client.world != null) {
             client.world.disconnect();
             client.disconnect(new SaveLevelScreen(new LiteralText("Returning to room")));

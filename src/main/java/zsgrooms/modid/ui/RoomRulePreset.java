@@ -7,7 +7,7 @@ public enum RoomRulePreset {
     STANDARD_ZSG_VANILLA_BARTERS(
             "Standard - Vanilla Barters", false, true, false, true, true, true, true, true, true, true),
     REGULAR_VERIFIABLE_ZSG(
-            "Regular Verifiable ZSG", false, false, false, false, false, false, false, false, false, false),
+            "Raw", false, false, false, false, false, false, false, false, false, false),
     CUSTOM("Custom", false, false, false, false, false, false, false, false, false, false);
 
     private final String label;

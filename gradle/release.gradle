@@ -77,7 +77,7 @@ tasks.register('stageRelease', Sync) {
 
 Enable recording under **Settings > Replays**. If ReplayMod is installed, disable its Record Singleplayer, Record Server, and Automatic Recording options first. SpeedRunIGT is needed during recording for RTA/IGT data. Player switching currently uses manually shared files.
 
-The in-game updater updates the core only. Install the viewer and ReplayMod separately. [Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
+The in-game updater updates ZSG Rooms and an already-installed Replay Viewer. Install the viewer manually the first time; ReplayMod and resource packs remain manual updates. Updaters through ZSG Rooms 1.0.28 update only the core. [Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
 
 <details>
 <summary>Optional Download SHA-256</summary>

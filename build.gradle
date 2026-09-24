@@ -15,6 +15,12 @@ loom {
 			vmArg "-Dzsgrooms.replayPrototype.smokePerformance=${project.findProperty('replayPerformance') ?: false}"
 			vmArg "-Dzsgrooms.replayPrototype.benchmark=${project.findProperty('replayCaptureBenchmark') ?: false}"
 			vmArg "-Dzsgrooms.replayPrototype.smokeKeepSeedChanges=${project.findProperty('replayKeepSeedChanges') ?: false}"
+			vmArg "-Dzsgrooms.replayTempleSmoke=${project.findProperty('replayTempleSmoke') ?: false}"
+			if (project.hasProperty('replayRecorderJfr')) {
+				vmArg '-Xms512m'
+				vmArg '-Xmx1536m'
+				vmArg "-XX:StartFlightRecording=filename=${file(project.property('replayRecorderJfr')).absolutePath},settings=profile,dumponexit=true"
+			}
 		}
 		perchBenchmark {
 			server()
@@ -117,6 +123,8 @@ if (project.hasProperty('replayPlaybackFile')) {
 				vmArg "-Dzsgrooms.replayRaceSmoke=${project.findProperty('replayRaceSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayStartupSmoke=${project.findProperty('replayStartupSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayDetailsSmoke=${project.findProperty('replayDetailsSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayChestSmoke=${project.findProperty('replayChestSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayTempleSmoke=${project.findProperty('replayTempleSmoke') ?: false}"
 			}
 		}
 	}
@@ -160,6 +168,20 @@ tasks.withType(JavaCompile).configureEach {
 
 test {
 	useJUnitPlatform()
+}
+
+tasks.register('replayRecorderBenchmark', Test) {
+	description = 'Opt-in recorder cost/equivalence experiments; does not change production capture.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	filter { includeTestsMatching 'zsgrooms.modid.replay.ReplayRecorderBenchmark' }
+	systemProperty 'zsgrooms.recorderBenchmark', 'true'
+	maxHeapSize = '512m'
+	maxParallelForks = 1
+	outputs.upToDateWhen { false }
+	testLogging { showStandardStreams = true }
 }
 
 // Developer-only terrain probe. It is not included in the release JAR or run during races.
@@ -211,8 +233,11 @@ tasks.matching { it.name == 'runReplayPlaybackTest' }.configureEach {
 	doFirst { ext.testStartedAt = System.currentTimeMillis() }
 	doLast {
 		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true'
-				|| project.findProperty('replayStartupSmoke') == 'true' || project.findProperty('replayDetailsSmoke') == 'true') {
-			def marker = project.findProperty('replayDetailsSmoke') == 'true' ? '[ReplayDetailsSmoke] PASS:'
+				|| project.findProperty('replayStartupSmoke') == 'true' || project.findProperty('replayDetailsSmoke') == 'true'
+				|| project.findProperty('replayChestSmoke') == 'true' || project.findProperty('replayTempleSmoke') == 'true') {
+			def marker = project.findProperty('replayTempleSmoke') == 'true' ? '[ReplayTempleSmoke] PASS:'
+					: project.findProperty('replayChestSmoke') == 'true' ? '[ReplayChestSmoke] PASS:'
+					: project.findProperty('replayDetailsSmoke') == 'true' ? '[ReplayDetailsSmoke] PASS:'
 					: project.findProperty('replayStartupSmoke') == 'true' ? '[ReplayStartupSmoke] PASS:'
 					: project.findProperty('replayRaceSmoke') == 'true' ? '[ReplayRaceSmoke] PASS:' : '[ReplayViewerSmoke] PASS:'
 			def log = file('run/replay-playback-test/logs/latest.log')

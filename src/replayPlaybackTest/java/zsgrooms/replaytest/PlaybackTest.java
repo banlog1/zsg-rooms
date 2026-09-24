@@ -29,6 +29,8 @@ public final class PlaybackTest implements ClientModInitializer {
     private final ViewerSmokeChecks viewerChecks = new ViewerSmokeChecks();
     private final RaceSwitchSmoke raceChecks = new RaceSwitchSmoke();
     private final DetailsSmokeChecks detailsChecks = new DetailsSmokeChecks();
+    private final ChestSmokeChecks chestChecks = new ChestSmokeChecks();
+    private final TempleSmokeChecks templeChecks = new TempleSmokeChecks();
 
     @Override
     public void onInitializeClient() {
@@ -70,6 +72,24 @@ public final class PlaybackTest implements ClientModInitializer {
                 return;
             }
             int timestamp = (Integer) time.invoke(sender);
+            if (Boolean.getBoolean("zsgrooms.replayTempleSmoke")) {
+                if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Temple viewer test timed out");
+                if (templeChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {
+                    done = true;
+                    handler.getClass().getMethod("endReplay").invoke(handler);
+                    client.scheduleStop();
+                }
+                return;
+            }
+            if (Boolean.getBoolean("zsgrooms.replayChestSmoke")) {
+                if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Chest viewer test timed out");
+                if (chestChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {
+                    done = true;
+                    handler.getClass().getMethod("endReplay").invoke(handler);
+                    client.scheduleStop();
+                }
+                return;
+            }
             if (Boolean.getBoolean("zsgrooms.replayDetailsSmoke") && (timestamp >= 2500 || detailsChecks.started())) {
                 if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Details test timed out");
                 if (detailsChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {

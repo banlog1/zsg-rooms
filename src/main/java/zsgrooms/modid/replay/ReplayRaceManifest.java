@@ -19,6 +19,28 @@ final class ReplayRaceManifest {
     private long[] loading;
     private long[] screen;
 
+    synchronized void allowTemplePrediction(Long seed) {
+        if (!sealed) data.templePredictionSeed = seed;
+    }
+
+    synchronized void recordStewOrder(List<String> order) {
+        if (!sealed && data.stewOrder == null) data.stewOrder = new ArrayList<>(order);
+    }
+
+    synchronized void recordChest(long time, int opening, int world, int syncId, String dimension,
+                                  long first, long second, int stateFirst, int stateSecond) {
+        if (sealed || data.chestOpenings.size() >= MAX_INTERVALS) return;
+        data.chestOpenings.add(new ChestOpening(time, opening, world, syncId, dimension, first, second, stateFirst, stateSecond));
+    }
+
+    synchronized void recordChestLoot(long time, int chunk, int world, List<ReplayChestLootPacket.Loot> loot) {
+        if (sealed || world < 0 || loot == null) return;
+        for (ReplayChestLootPacket.Loot entry : loot) {
+            if (data.chestLoot.size() >= 2048) break;
+            data.chestLoot.add(new ChestLoot(time, chunk, world, entry));
+        }
+    }
+
     /** Screen kind: 0 = none, 1 = inventory, 2 = crafting table. Only transitions allocate. */
     synchronized void recordScreen(long time, int kind) {
         if (sealed || time < 0 || kind < 0 || kind > 2) return;
@@ -114,7 +136,11 @@ final class ReplayRaceManifest {
         sealed = true;
         data.durationMillis = durationMillis;
         data.complete = complete;
+        if (!complete || data.truncated) data.templePredictionSeed = null;
+        if (data.templePredictionSeed == null) { data.chestLoot.clear(); data.stewOrder = null; }
+        else data.chestLoot.removeIf(chest -> chest.time > durationMillis);
         data.timingSamples.removeIf(sample -> sample[0] > durationMillis);
+        data.chestOpenings.removeIf(chest -> chest.time > durationMillis);
         data.loadingIntervals.removeIf(interval -> interval[0] >= durationMillis);
         for (long[] interval : data.loadingIntervals) interval[1] = Math.min(interval[1], durationMillis);
         data.screenIntervals.removeIf(interval -> interval[0] >= durationMillis);
@@ -145,6 +171,10 @@ final class ReplayRaceManifest {
         final List<long[]> loadingIntervals = new ArrayList<>();
         // [start replay ms, end replay ms, inventory/crafting table (1/2)]
         final List<long[]> screenIntervals = new ArrayList<>();
+        final List<ChestOpening> chestOpenings = new ArrayList<>();
+        final List<ChestLoot> chestLoot = new ArrayList<>();
+        Long templePredictionSeed;
+        List<String> stewOrder;
         long durationMillis;
         boolean complete;
         boolean truncated;
@@ -153,6 +183,38 @@ final class ReplayRaceManifest {
             this.recordingId = recordingId.toString();
             this.recorderUuid = recorder.toString();
             this.displayName = displayName;
+        }
+    }
+
+    private static final class ChestOpening {
+        final long time, first, second;
+        final int opening, world, syncId, stateFirst, stateSecond;
+        final String dimension;
+
+        ChestOpening(long time, int opening, int world, int syncId, String dimension,
+                     long first, long second, int stateFirst, int stateSecond) {
+            this.time = time;
+            this.opening = opening;
+            this.world = world;
+            this.syncId = syncId;
+            this.dimension = dimension;
+            this.first = first;
+            this.second = second;
+            this.stateFirst = stateFirst;
+            this.stateSecond = stateSecond;
+        }
+    }
+
+    private static final class ChestLoot {
+        final long time;
+        final int chunk, world;
+        final ReplayChestLootPacket.Loot loot;
+
+        ChestLoot(long time, int chunk, int world, ReplayChestLootPacket.Loot loot) {
+            this.time = time;
+            this.chunk = chunk;
+            this.world = world;
+            this.loot = loot;
         }
     }
 

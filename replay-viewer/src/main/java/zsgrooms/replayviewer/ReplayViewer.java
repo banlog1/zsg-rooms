@@ -172,6 +172,11 @@ public final class ReplayViewer implements ClientModInitializer {
         return detailedActive() && instance.controls.inventoryKey(key, scanCode, action);
     }
 
+    public static boolean inspectChest() {
+        return !switching && instance != null && instance.controls != null
+                && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.inspectChest();
+    }
+
     public static boolean orbitInput(net.minecraft.entity.Entity entity, double x, double y) {
         if (!droneActive() || entity != instance.current.getCameraEntity()) return false;
         net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();

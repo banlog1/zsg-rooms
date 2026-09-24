@@ -483,7 +483,7 @@ public class RoomGameRulesScreen extends Screen {
                     matrices,
                     "Rule Presets",
                     "Presets choose a complete starting ruleset. Performance overrides preserve the two "
-                            + "standard presets. Other changes select Custom; verifiable rules require all defaults.",
+                            + "standard presets. Other changes select Custom; Raw requires all defaults.",
                     mouseX,
                     mouseY);
             return;

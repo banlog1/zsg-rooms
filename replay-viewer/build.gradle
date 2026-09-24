@@ -26,5 +26,5 @@ processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand(version: project.version) }
 }
-jar { from('LICENSE') }
-sourcesJar { from('LICENSE') }
+jar { from('LICENSE', 'THIRD_PARTY.md') }
+sourcesJar { from('LICENSE', 'THIRD_PARTY.md') }

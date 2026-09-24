@@ -37,7 +37,7 @@ public final class ReplayAudio {
     private static final FallSoundTracker falls = new FallSoundTracker();
     private static ReplayHandler current;
     private static PlayerEntity tracked;
-    private static boolean enabled;
+    private static boolean enabled = true;
     private static int lastPlacement = -1;
     private static int lastBucketTime = -1;
     private static BucketSoundRules.Action lastBucket = BucketSoundRules.Action.NONE;
@@ -50,7 +50,7 @@ public final class ReplayAudio {
         ReplayHandler value = ReplayModReplay.instance == null ? null : ReplayModReplay.instance.getReplayHandler();
         if (value != current) {
             current = value;
-            enabled = false;
+            enabled = true;
             reset();
             if (value != null) gate.begin();
         }

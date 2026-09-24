@@ -35,6 +35,10 @@ public final class FilterTerrainProbe implements ModInitializer {
     }
 
     private static void run(MinecraftServer server) {
+        if (Boolean.getBoolean("zsgrooms.portalRepairCalibration")) {
+            RuinedPortalRepairCalibration.run(server);
+            return;
+        }
         if (Boolean.getBoolean("zsgrooms.villageCalibration")) {
             VillageLootCalibration.run(server);
             return;

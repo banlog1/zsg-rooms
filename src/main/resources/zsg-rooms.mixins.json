@@ -56,6 +56,9 @@
 		"ReplayAtumResetMixin",
 		"ReplayClientDisconnectMixin",
 		"ReplayConnectionMixin",
+		"ReplayChestInteractionMixin",
+		"ReplayChestLootPacketMixin",
+		"ReplayLootableAccessor",
 		"ReplayWorldChangeMixin"
 	],
 	"injectors": {

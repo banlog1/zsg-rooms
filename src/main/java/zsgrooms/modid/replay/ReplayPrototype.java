@@ -55,11 +55,12 @@ public final class ReplayPrototype {
     private static volatile boolean libraryReady;
     private static Path loadedDirectory;
     private static String loadedSelection;
-    private static final int MAX_PACKET_BYTES = 4 * 1024 * 1024;
     private static final EquipmentSlot[] SLOTS = EquipmentSlot.values();
     private static final AtomicReference<Session> CURRENT = new AtomicReference<>();
     private static final java.util.Set<Session> WRITERS = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static Library library;
+    private static volatile zsgrooms.modid.InGame returnedGame;
+    private static String returnedRaceId;
 
     private ReplayPrototype() {
     }
@@ -113,6 +114,11 @@ public final class ReplayPrototype {
     public static boolean isRecording() {
         Session session = CURRENT.get();
         return session != null && session.buffer.isOpen() && session.writerReady;
+    }
+
+    public static boolean isCapturingChestLoot() {
+        Session session = CURRENT.get();
+        return session != null && session.buffer.isOpen();
     }
 
     public static String getHudStatus() {
@@ -195,10 +201,13 @@ public final class ReplayPrototype {
     }
 
     public static void armRace(String raceId, boolean solo) {
+        returnedGame = null;
         Session session = CURRENT.get();
         if (session == null) return;
         synchronized (session.connections) {
             session.testRaceId = raceId;
+            session.prediction.joinedRoom();
+            session.manifest.allowTemplePrediction(null);
             session.testGroup = solo ? preferences.soloTestGroup : "";
         }
     }
@@ -248,11 +257,41 @@ public final class ReplayPrototype {
         }
     }
 
+    public static void matchEnded() {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        synchronized (session.connections) {
+            if (!session.buffer.isOpen()) return;
+            session.prediction.matchEnded();
+            session.manifest.allowTemplePrediction(session.prediction.releasedSeed());
+        }
+    }
+
+    public static void returnedToRoom() {
+        zsgrooms.modid.Room room = ZsgRooms.getActiveRoom();
+        zsgrooms.modid.InGame game = room == null ? null : ZsgRooms.getGame(room.roomName);
+        returnedRaceId = game == null ? null : game.getRaceId();
+        returnedGame = game;
+        // Release before closing the buffer: the writer may finalize immediately on close.
+        matchEnded();
+        stopRecording();
+    }
+
+    public static boolean hasReturnedToRoom() {
+        zsgrooms.modid.InGame game = returnedGame;
+        zsgrooms.modid.Room room = ZsgRooms.getActiveRoom();
+        return game != null && room != null && ZsgRooms.getGame(room.roomName) == game
+                && java.util.Objects.equals(returnedRaceId, game.getRaceId())
+                && MinecraftClient.getInstance().getServer() == null;
+    }
+
     public static void raceStarted(String raceId, UUID player, long startNanos) {
         Session session = CURRENT.get();
         if (session == null || raceId == null) return;
         synchronized (session.connections) {
             if (session.buffer.isOpen() && session.connections.current() != null) {
+                session.prediction.joinedRoom();
+                session.manifest.allowTemplePrediction(null);
                 session.manifest.startRace(raceId, player, startNanos,
                         raceId.equals(session.testRaceId) ? session.testGroup : "", session.worldIndex);
             }
@@ -289,6 +328,11 @@ public final class ReplayPrototype {
         synchronized (session.connections) {
             session.manifest.closeInterval(session.timestamp());
             boolean finished = session.connections.disconnect();
+            if (session.buffer.isOpen()) {
+                session.prediction.disconnected(finished);
+                Long seed = session.prediction.releasedSeed();
+                if (seed != null) session.manifest.allowTemplePrediction(seed);
+            }
             session.buffer.cancelPending();
             session.player = null;
             session.worldChanging = true;
@@ -388,6 +432,28 @@ public final class ReplayPrototype {
         capture(session, attachment, packet, packet instanceof GameJoinS2CPacket || packet instanceof PlayerRespawnS2CPacket);
     }
 
+    public static void chestInteraction(net.minecraft.client.world.ClientWorld world, net.minecraft.util.math.BlockPos pos) {
+        Session session = CURRENT.get();
+        if (session == null || !session.buffer.isOpen()) return;
+        session.chests.clear();
+        if (session.worldChanging || world != MinecraftClient.getInstance().world) return;
+        net.minecraft.block.BlockState state = world.getBlockState(pos);
+        if (!(state.getBlock() instanceof net.minecraft.block.ChestBlock)) return;
+        net.minecraft.util.math.BlockPos other = pos;
+        if (state.get(net.minecraft.block.ChestBlock.CHEST_TYPE) != net.minecraft.block.enums.ChestType.SINGLE) {
+            other = pos.offset(net.minecraft.block.ChestBlock.getFacing(state));
+            if (!world.isChunkLoaded(other) || world.getBlockState(other).getBlock() != state.getBlock()) return;
+        }
+        session.chests.interaction(session.timestamp(), session.worldIndex, world.getRegistryKey().getValue().toString(),
+                pos.asLong(), other.asLong(), net.minecraft.block.Block.getRawIdFromState(state),
+                net.minecraft.block.Block.getRawIdFromState(world.getBlockState(other)));
+    }
+
+    public static void clearChestInteraction() {
+        Session session = CURRENT.get();
+        if (session != null) session.chests.clear();
+    }
+
     public static void worldApplied(ClientConnection connection) {
         Session session = CURRENT.get();
         ReplayConnectionState.Attachment<ClientConnection> attachment = session == null ? null : session.connections.current();
@@ -416,8 +482,7 @@ public final class ReplayPrototype {
     private static void capture(Session session, ReplayConnectionState.Attachment<ClientConnection> attachment,
                                 Packet<?> packet, boolean worldChanging) {
         if (!session.buffer.isOpen()) return;
-        PacketByteBuf encoded = session.performance ? ReplayEncodingBuffers.acquire()
-                : new PacketByteBuf(Unpooled.buffer(256, MAX_PACKET_BYTES));
+        PacketByteBuf encoded = ReplayEncodingBuffers.acquire();
         ReplayBuffer.Record record = null;
         try {
             NetworkState phase = NetworkState.getPacketHandlerState(packet);
@@ -453,15 +518,28 @@ public final class ReplayPrototype {
                         }
                         long timestamp = session.timestamp();
                         if (!session.buffer.commit(submitted, timestamp)) return;
+                        if (packet instanceof ReplayChestLootPacket) {
+                            session.manifest.recordChestLoot(timestamp, ++session.chestChunks, session.worldIndex,
+                                    ((ReplayChestLootPacket) packet).zsgRooms$getChestLoot());
+                        }
                         if (session.trackedState != null && packet instanceof EntityTrackerUpdateS2CPacket) {
                             session.trackedState.observe((EntityTrackerUpdateS2CPacket) packet);
                         }
                         if (worldChanging) {
+                            session.chests.clear();
                             session.manifest.closeInterval(timestamp);
                             session.manifest.recordLoading(timestamp, true);
                             session.worldChanging = true;
                         }
                         if (login) session.loggedIn = true;
+                        if (packet instanceof net.minecraft.network.packet.s2c.play.OpenScreenS2CPacket) {
+                            net.minecraft.network.packet.s2c.play.OpenScreenS2CPacket open =
+                                    (net.minecraft.network.packet.s2c.play.OpenScreenS2CPacket) packet;
+                            net.minecraft.screen.ScreenHandlerType<?> type = open.getScreenHandlerType();
+                            int slots = type == net.minecraft.screen.ScreenHandlerType.GENERIC_9X3 ? 27
+                                    : type == net.minecraft.screen.ScreenHandlerType.GENERIC_9X6 ? 54 : 0;
+                            session.chests.opened(session.manifest, timestamp, session.worldIndex, open.getSyncId(), slots);
+                        }
                         if (join != null) {
                             session.joined = true;
                             session.worldIndex++;
@@ -483,7 +561,7 @@ public final class ReplayPrototype {
             if (record != null) session.buffer.cancel(record);
             session.fail("packet capture " + e.getClass().getSimpleName());
         } finally {
-            if (session.performance) ReplayEncodingBuffers.recycle(encoded); else encoded.release();
+            ReplayEncodingBuffers.recycle(encoded);
         }
     }
 
@@ -632,6 +710,7 @@ public final class ReplayPrototype {
     private static final class Session {
         private final ReplayConnectionState<ClientConnection> connections;
         private final ReplaySeedRetention retention;
+        private final ReplayPredictionPolicy prediction;
         private volatile boolean discard;
         private final ReplayWorldReset worldReset = new ReplayWorldReset();
         private boolean loggedIn;
@@ -641,10 +720,12 @@ public final class ReplayPrototype {
         private final long epochMillis = System.currentTimeMillis();
         private final UUID recordingId = UUID.randomUUID();
         private final ReplayRaceManifest manifest;
+        private final ReplayChestCapture chests = new ReplayChestCapture();
         private final ReplayHudTrack hud = new ReplayHudTrack();
         private final boolean performance = preferences.performanceMode;
         private final ReplayHudCapture hudCapture = new ReplayHudCapture(performance);
         private int worldIndex = -1;
+        private int chestChunks;
         private String testRaceId = "";
         private String testGroup = "";
         private final Path root;
@@ -661,8 +742,10 @@ public final class ReplayPrototype {
         private Session(ClientConnection connection, Path root, long seed) {
             this.connections = new ReplayConnectionState<>(connection);
             this.retention = new ReplaySeedRetention(seed);
+            this.prediction = new ReplayPredictionPolicy(seed, ZsgRooms.getActiveRoom() != null);
             com.mojang.authlib.GameProfile profile = MinecraftClient.getInstance().getSession().getProfile();
             manifest = new ReplayRaceManifest(recordingId, profile.getId(), profile.getName(), originNanos);
+            manifest.recordStewOrder(ReplayStewOrder.vanilla());
             manifest.recordLoading(0, true);
             this.root = root;
             worker = new Thread(this::writeReplay, "ZSG replay prototype writer");

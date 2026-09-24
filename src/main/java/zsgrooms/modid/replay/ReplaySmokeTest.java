@@ -47,6 +47,7 @@ final class ReplaySmokeTest {
     private static boolean replacedRecording;
     private static volatile long raceStart;
     private static net.minecraft.network.ClientConnection oldConnection;
+    private static ReplayChestSmoke chestSmoke;
 
     private ReplaySmokeTest() {
     }
@@ -66,6 +67,10 @@ final class ReplaySmokeTest {
             return;
         }
         try {
+            if (chestSmoke != null) {
+                if (!chestSmoke.tick(client)) return;
+                chestSmoke = null;
+            }
             if (screenUntil != 0L) {
                 if (System.nanoTime() < screenUntil) return;
                 client.openScreen(null);
@@ -228,6 +233,7 @@ final class ReplaySmokeTest {
                             client.player.inventory, new LiteralText("Crafting")));
                     screenUntil = System.nanoTime() + 2000000000L;
                 }
+                if (ticks == 90) chestSmoke = new ReplayChestSmoke();
                 if (ticks >= 100) {
                     stage = 2;
                     ticks = 0;
@@ -275,7 +281,10 @@ final class ReplaySmokeTest {
                     client.openScreen(new TitleScreen());
                 } else if ("room".equals(end)) {
                     ZsgRooms.createRoom("Replay smoke room", 2, 1, "12345", client.getSession().getUsername());
+                    ZsgRooms.getGame("Replay smoke room").startGame();
                     ZsgInGameActions.returnToRoom(client);
+                    if (!ReplayPrototype.hasReturnedToRoom()) throw new IllegalStateException("Room return kept prediction blocked");
+                    if (!ZsgRooms.getGame("Replay smoke room").getIsInGame()) throw new IllegalStateException("Room return changed shared race state");
                 } else {
                     String winner = "victory".equals(end) ? client.getSession().getUsername() : "Other player";
                     String reason;

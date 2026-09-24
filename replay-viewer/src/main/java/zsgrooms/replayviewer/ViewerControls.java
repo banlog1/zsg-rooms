@@ -258,6 +258,43 @@ final class ViewerControls {
     }
 
     boolean hideChat() { return !showChat.isChecked(); }
+    boolean inspectChest() {
+        if (editing || playback.busy() || camera.getSelected() > 1 || !handler.isCameraView()
+                || client.world == null || client.currentScreen != null || !client.mouse.isCursorLocked()
+                || handler.getCameraEntity() == null || !overlay.isAllowUserInput()) return false;
+        ReplaySender sender = handler.getReplaySender();
+        if (!sender.isAsyncMode() || sender instanceof FullReplaySender && ((FullReplaySender) sender).isHurrying()) return false;
+        net.minecraft.util.math.Vec3d start = handler.getCameraEntity().getCameraPosVec(1.0F);
+        net.minecraft.util.math.Vec3d end = start.add(handler.getCameraEntity().getRotationVec(1.0F).multiply(6.0));
+        net.minecraft.util.hit.HitResult hit = client.world.rayTrace(new net.minecraft.world.RayTraceContext(start, end,
+                net.minecraft.world.RayTraceContext.ShapeType.OUTLINE, net.minecraft.world.RayTraceContext.FluidHandling.NONE,
+                handler.getCameraEntity()));
+        if (!(hit instanceof net.minecraft.util.hit.BlockHitResult) || hit.getType() != net.minecraft.util.hit.HitResult.Type.BLOCK) return false;
+        net.minecraft.util.math.BlockPos pos = ((net.minecraft.util.hit.BlockHitResult) hit).getBlockPos();
+        net.minecraft.block.BlockState block = client.world.getBlockState(pos);
+        if (!(block.getBlock() instanceof net.minecraft.block.ChestBlock) || !client.options.keyUse.wasPressed()) return false;
+        while (client.options.keyUse.wasPressed()) { }
+        int time = sender.currentTimeStamp();
+        RaceRecording recording = recordingIndex.recording;
+        RaceRecording.Interval interval = recording == null ? null : recording.intervalAt(time);
+        ChestHistory<net.minecraft.item.ItemStack> history = milestoneIndex.chests;
+        ChestHistory.Frame<net.minecraft.item.ItemStack> frame = history == null || interval == null ? null
+                : history.at(interval.world, client.world.getRegistryKey().getValue().toString(), pos.asLong(), time);
+        boolean recorded = frame != null;
+        if (frame != null) {
+            ChestOpening opening = frame.opening;
+            net.minecraft.util.math.BlockPos first = net.minecraft.util.math.BlockPos.fromLong(opening.first);
+            net.minecraft.util.math.BlockPos second = net.minecraft.util.math.BlockPos.fromLong(opening.second);
+            if (!client.world.isChunkLoaded(first) || !client.world.isChunkLoaded(second)
+                    || net.minecraft.block.Block.getRawIdFromState(client.world.getBlockState(first)) != opening.stateFirst
+                    || net.minecraft.block.Block.getRawIdFromState(client.world.getBlockState(second)) != opening.stateSecond) frame = null;
+        }
+        int rows = block.get(net.minecraft.block.ChestBlock.CHEST_TYPE) == net.minecraft.block.enums.ChestType.SINGLE ? 3 : 6;
+        java.util.List<net.minecraft.item.ItemStack> predicted = !recorded && interval != null && milestoneIndex.chestStatus.isEmpty()
+                ? ChestLootPrediction.predict(recording, milestoneIndex.chestLoot, client.world, pos, interval.world, time) : null;
+        client.openScreen(new ChestInspectionScreen(handler, frame, milestoneIndex.chestStatus, rows, predicted));
+        return true;
+    }
     private int hudInset() { return camera.getSelected() == 4 && !client.options.hudHidden ? detailHud.reservedHeight() : 0; }
     boolean detailedActive() { return camera.getSelected() == 4 && statusVisible(); }
     boolean inventoryKey(int key, int scanCode, int action) {

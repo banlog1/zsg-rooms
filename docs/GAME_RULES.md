@@ -375,7 +375,11 @@ Raw game-state and Custom preset default: Off.
 ## Ruined Portal Corruption Repair
 
 This is a local Room Settings preference rather than a host game rule. It only
-activates while the current room filter is `Ruined Portal Seedbank`.
+activates for `Ruined Portal Seedbank`, including rounds selected by ZSG Rooms
+random mode. The launched seed and concrete filter are captured before Atum starts
+world generation, so repair does not depend on the room committing its new seed
+first. This context is matched to the world seed, retained through spawn preparation,
+and replaced or cleared on the next launch, cancellation or room-control release.
 
 During ruined-portal structure generation, the mod records:
 
@@ -393,6 +397,14 @@ The repair does not search for arbitrary missing chests. It can only restore
 blocks captured from the ruined-portal structure template during generation.
 
 Default local preference: On.
+
+Offline regression: `./gradlew runFilterBank -PfilterProbe=true
+-PfilterCalibration=true -PportalRepairCalibration=true`. It generates fresh test
+worlds for seed `3818903892210348937`, where portal terrain replaces the chest at
+`1, 72, 29` with magma. It checks restoration with both immediate and delayed room
+seed updates, matching original loot/state, and no refilling after looting. It does
+not modify player saves. An already-corrupted save whose chest was never captured
+needs a fresh same-seed world for this fix; repair does not invent missing loot seeds.
 
 ## Advancement and Progress Reporting
 

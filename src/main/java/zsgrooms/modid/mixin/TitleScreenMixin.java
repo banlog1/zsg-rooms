@@ -48,7 +48,7 @@ public abstract class TitleScreenMixin extends Screen {
     private void zsgRooms$showUpdate(UpdateRelease release) {
         this.zsgRooms$release = release;
         if (this.zsgRooms$updateButton != null) {
-            this.zsgRooms$updateButton.setMessage(new LiteralText("Update available: " + release.version));
+            this.zsgRooms$updateButton.setMessage(new LiteralText("Mod update available"));
             this.zsgRooms$updateButton.visible = true;
         }
     }

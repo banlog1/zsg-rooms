@@ -5,11 +5,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.metadata.ModOrigin;
 import zsgrooms.modid.ZsgRooms;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
@@ -18,12 +20,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public final class UpdateManager {
     public static final String DEFAULT_RELEASE_API = "https://api.github.com/repos/banlog1/zsg-rooms/releases/latest";
@@ -31,6 +38,7 @@ public final class UpdateManager {
     private static final Path UPDATE_DIR = Paths.get("config", "zsg-rooms", "update");
     private static final Path PENDING_CONFIG = UPDATE_DIR.resolve("pending.properties");
     private static final Path HELPER_JAR = UPDATE_DIR.resolve("updater-helper.jar");
+    private static final Pattern VIEWER_JAR = Pattern.compile("zsg-replay-viewer-([0-9]+\\.[0-9]+\\.[0-9]+)\\.jar");
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "ZSG Rooms Update");
         thread.setDaemon(true);
@@ -65,7 +73,7 @@ public final class UpdateManager {
         EXECUTOR.execute(() -> {
             try {
                 UpdateRelease release = fetchLatestRelease();
-                if (release != null && isNewer(release.version, currentVersion())
+                if (release != null && !updates(release).isEmpty()
                         && !UpdatePreferences.isSkipped(release.version)) {
                     availableRelease = release;
                     callback.accept(release);
@@ -87,55 +95,70 @@ public final class UpdateManager {
         }
         status = "Downloading " + release.version + "...";
         EXECUTOR.execute(() -> {
+            List<Path> staged = new ArrayList<>();
+            Path directory = null;
+            boolean committed = false;
             try {
-                byte[] jar = requestBytes(release.downloadUrl, 32 * 1024 * 1024);
-                String expectedHash = release.sha256;
-                if ((expectedHash == null || expectedHash.isEmpty()) && release.checksumUrl != null) {
-                    expectedHash = firstToken(new String(requestBytes(release.checksumUrl, 4096), StandardCharsets.UTF_8));
+                if (Files.exists(PENDING_CONFIG)) {
+                    throw new IOException("An update is already staged. Restart Minecraft first.");
                 }
-                if (expectedHash == null || expectedHash.isEmpty()) {
-                    throw new IOException("Release has no SHA-256 digest");
-                }
-                String actualHash = sha256(jar);
-                if (!actualHash.equalsIgnoreCase(expectedHash)) {
-                    throw new IOException("Downloaded JAR failed SHA-256 verification");
-                }
-
-                Path target = currentJar();
+                List<UpdateArtifact> updates = updates(release);
+                if (updates.isEmpty()) throw new IOException("Installed mods are already up to date");
+                // Resolve every installed jar before downloading or staging either component.
+                List<Path> targets = new ArrayList<>();
+                for (UpdateArtifact artifact : updates) targets.add(installedJar(artifact.modId));
                 Files.createDirectories(UPDATE_DIR);
-                Path pending = UPDATE_DIR.resolve("zsg-rooms-" + safeVersion(release.version) + ".jar.pending");
-                Files.write(pending, jar);
-                writePending(target, pending);
+                directory = Files.createTempDirectory(UPDATE_DIR, "batch-");
+                Properties properties = new Properties();
+                properties.setProperty("count", Integer.toString(updates.size()));
+                for (int index = 0; index < updates.size(); index++) {
+                    UpdateArtifact artifact = updates.get(index);
+                    status = "Downloading " + artifact.label + " " + artifact.version + "...";
+                    byte[] jar = requestBytes(artifact.downloadUrl, 32 * 1024 * 1024);
+                    String expectedHash = artifact.sha256;
+                    if ((expectedHash == null || expectedHash.isEmpty()) && artifact.checksumUrl != null) {
+                        expectedHash = firstToken(new String(requestBytes(artifact.checksumUrl, 4096), StandardCharsets.UTF_8));
+                    }
+                    verifyDownload(artifact, jar, expectedHash);
+                    Path pending = directory.resolve(artifact.fileName + ".pending");
+                    staged.add(pending);
+                    Files.write(pending, jar);
+                    String prefix = index + ".";
+                    properties.setProperty(prefix + "target", targets.get(index).toAbsolutePath().toString());
+                    properties.setProperty(prefix + "pending", pending.toAbsolutePath().toString());
+                    properties.setProperty(prefix + "sha256", expectedHash.toLowerCase(Locale.ROOT));
+                }
+                Path manifest = directory.resolve("pending.properties");
+                staged.add(manifest);
+                try (java.io.OutputStream output = Files.newOutputStream(manifest)) {
+                    properties.store(output, "ZSG Rooms and Replay Viewer pending updates");
+                }
+                Files.move(manifest, PENDING_CONFIG, StandardCopyOption.ATOMIC_MOVE);
+                committed = true;
                 status = "Update ready. Restart Minecraft to install.";
                 success.accept(status);
             } catch (Exception exception) {
                 status = "Update failed: " + usefulMessage(exception);
                 failure.accept(status);
+            } finally {
+                if (!committed && directory != null) {
+                    for (Path path : staged) {
+                        try { Files.deleteIfExists(path); } catch (IOException ignored) { }
+                    }
+                    try { Files.deleteIfExists(directory); } catch (IOException ignored) { }
+                }
             }
         });
     }
 
     public static void installOnExit() {
         try {
-            Properties pending = readPending();
-            if (pending == null) {
-                return;
-            }
-            Path target = Paths.get(pending.getProperty("target"));
-            Path update = Paths.get(pending.getProperty("pending"));
-            if (!Files.isRegularFile(update)) {
-                Files.deleteIfExists(PENDING_CONFIG);
-                return;
-            }
-            if (!Files.isRegularFile(target)) {
-                return;
-            }
+            if (!Files.isRegularFile(PENDING_CONFIG)) return;
             Files.createDirectories(UPDATE_DIR);
-            Files.copy(target, HELPER_JAR, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(currentJar(), HELPER_JAR, StandardCopyOption.REPLACE_EXISTING);
             String javaExecutable = javaExecutable();
             new ProcessBuilder(javaExecutable, "-cp", HELPER_JAR.toAbsolutePath().toString(),
-                    UpdaterHelper.class.getName(), target.toAbsolutePath().toString(), update.toAbsolutePath().toString(),
-                    PENDING_CONFIG.toAbsolutePath().toString())
+                    UpdaterHelper.class.getName(), PENDING_CONFIG.toAbsolutePath().toString())
                     .start();
         } catch (Exception exception) {
             ZsgRooms.LOGGER.warn("[ZSG-Rooms] Could not start update installer: " + usefulMessage(exception));
@@ -144,6 +167,12 @@ public final class UpdateManager {
 
     public static String getStatus() {
         return status;
+    }
+
+    public static List<UpdateArtifact> updates(UpdateRelease release) {
+        String viewerVersion = FabricLoader.getInstance().getModContainer("zsg-replay-viewer")
+                .map(container -> container.getMetadata().getVersion().getFriendlyString()).orElse(null);
+        return release.updates(currentVersion(), viewerVersion);
     }
 
     private static UpdateRelease fetchLatestRelease() throws Exception {
@@ -156,12 +185,20 @@ public final class UpdateManager {
         String releaseUrl = string(root, "html_url");
         JsonArray assets = root.getAsJsonArray("assets");
         JsonObject jarAsset = null;
+        JsonObject viewerAsset = null;
+        String viewerVersion = null;
         String checksumUrl = null;
         String jarName = "zsg-rooms-" + version + ".jar";
         if (assets != null) {
             for (JsonElement element : assets) {
                 JsonObject asset = element.getAsJsonObject();
                 String name = string(asset, "name");
+                Matcher viewerMatch = VIEWER_JAR.matcher(name);
+                if (viewerMatch.matches()) {
+                    if (viewerAsset != null) throw new IOException("Release has multiple Replay Viewer JARs");
+                    viewerAsset = asset;
+                    viewerVersion = viewerMatch.group(1);
+                }
                 if (name.equals(jarName + ".sha256")) {
                     checksumUrl = string(asset, "browser_download_url");
                 } else if (name.equals(jarName)) {
@@ -172,14 +209,31 @@ public final class UpdateManager {
         if (version.isEmpty() || jarAsset == null) {
             throw new IOException("Latest release has no ZSG Rooms JAR");
         }
-        String digest = string(jarAsset, "digest");
+        UpdateArtifact viewer = null;
+        if (viewerAsset != null) {
+            String viewerName = string(viewerAsset, "name");
+            String viewerChecksum = null;
+            for (JsonElement element : assets) {
+                JsonObject asset = element.getAsJsonObject();
+                if ((viewerName + ".sha256").equals(string(asset, "name"))) {
+                    viewerChecksum = string(asset, "browser_download_url");
+                }
+            }
+            viewer = new UpdateArtifact("zsg-replay-viewer", "Replay Viewer", viewerVersion,
+                    string(viewerAsset, "browser_download_url"), digest(viewerAsset), viewerChecksum, viewerName);
+        }
+        return new UpdateRelease(version, releaseUrl, string(jarAsset, "browser_download_url"), digest(jarAsset),
+                checksumUrl, string(jarAsset, "name"), viewer);
+    }
+
+    private static String digest(JsonObject asset) {
+        String digest = string(asset, "digest");
         if (digest.startsWith("sha256:")) {
             digest = digest.substring("sha256:".length());
         } else {
             digest = "";
         }
-        return new UpdateRelease(version, releaseUrl, string(jarAsset, "browser_download_url"), digest,
-                checksumUrl, string(jarAsset, "name"));
+        return digest;
     }
 
     private static byte[] requestBytes(String address, int limit) throws Exception {
@@ -219,24 +273,46 @@ public final class UpdateManager {
         return path;
     }
 
-    private static void writePending(Path target, Path pending) throws IOException {
-        Properties properties = new Properties();
-        properties.setProperty("target", target.toAbsolutePath().toString());
-        properties.setProperty("pending", pending.toAbsolutePath().toString());
-        try (java.io.OutputStream output = Files.newOutputStream(PENDING_CONFIG)) {
-            properties.store(output, "ZSG Rooms pending update");
+    private static Path installedJar(String modId) throws Exception {
+        if ("zsg-rooms".equals(modId)) return currentJar();
+        ModOrigin origin = FabricLoader.getInstance().getModContainer(modId)
+                .orElseThrow(() -> new IOException("Replay Viewer is not installed")).getOrigin();
+        if (origin.getKind() != ModOrigin.Kind.PATH || origin.getPaths().size() != 1) {
+            throw new IOException("Replay Viewer must be installed as a separate mod JAR");
         }
+        Path path = origin.getPaths().get(0).toAbsolutePath().normalize();
+        if (!Files.isRegularFile(path) || !path.getFileName().toString().endsWith(".jar")) {
+            throw new IOException("Replay Viewer updates require a packaged mod JAR");
+        }
+        return path;
     }
 
-    private static Properties readPending() throws IOException {
-        if (!Files.isRegularFile(PENDING_CONFIG)) {
-            return null;
+    static void verifyDownload(UpdateArtifact artifact, byte[] jar, String expectedHash) throws Exception {
+        if (expectedHash == null || !expectedHash.matches("(?i)[a-f0-9]{64}")) {
+            throw new IOException(artifact.label + " release has no valid SHA-256 digest");
         }
-        Properties properties = new Properties();
-        try (InputStream input = Files.newInputStream(PENDING_CONFIG)) {
-            properties.load(input);
+        if (!UpdaterHelper.sha256(jar).equalsIgnoreCase(expectedHash)) {
+            throw new IOException(artifact.label + " JAR failed SHA-256 verification");
         }
-        return properties;
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(jar))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (!"fabric.mod.json".equals(entry.getName())) continue;
+                ByteArrayOutputStream metadata = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = zip.read(buffer)) != -1) {
+                    if (metadata.size() + read > 65536) throw new IOException("Mod metadata is too large");
+                    metadata.write(buffer, 0, read);
+                }
+                JsonObject root = new JsonParser().parse(new String(metadata.toByteArray(), StandardCharsets.UTF_8)).getAsJsonObject();
+                if (!artifact.modId.equals(string(root, "id")) || !artifact.version.equals(string(root, "version"))) {
+                    throw new IOException(artifact.label + " JAR has unexpected mod metadata");
+                }
+                return;
+            }
+        }
+        throw new IOException(artifact.label + " JAR has no mod metadata");
     }
 
     private static String configuredApi() throws IOException {
@@ -278,13 +354,6 @@ public final class UpdateManager {
         }
     }
 
-    private static String sha256(byte[] data) throws Exception {
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(data);
-        StringBuilder value = new StringBuilder();
-        for (byte part : digest) value.append(String.format(Locale.ROOT, "%02x", part & 0xff));
-        return value.toString();
-    }
-
     private static String javaExecutable() {
         String executable = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "javaw.exe" : "java";
         return Paths.get(System.getProperty("java.home"), "bin", executable).toString();
@@ -300,14 +369,9 @@ public final class UpdateManager {
         return clean.startsWith("v") || clean.startsWith("V") ? clean.substring(1) : clean;
     }
 
-    private static String safeVersion(String version) {
-        return cleanVersion(version).replaceAll("[^A-Za-z0-9._-]", "_");
-    }
-
     private static String firstToken(String value) {
         String trimmed = value == null ? "" : value.trim();
-        int space = trimmed.indexOf(' ');
-        return space < 0 ? trimmed : trimmed.substring(0, space);
+        return trimmed.split("\\s+", 2)[0];
     }
 
     private static String usefulMessage(Throwable throwable) {

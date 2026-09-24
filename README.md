@@ -190,7 +190,7 @@ prepare two safe lava pools in different directions. It uses natural water
 within 48 blocks, never creates water, and never places pools beyond 128 blocks
 from the structure. If only one safe pool fits, it keeps that one. These are
 modified racing/practice worlds, **not vanilla-verifiable runs**, even with the
-Regular Verifiable preset. Model predictions are not block-perfect guarantees.
+Raw preset. Model predictions are not block-perfect guarantees.
 See [filter criteria](docs/MODEL_SEED_FINDER.md) and
 [terrain preparation](docs/SEED_BANK_TERRAIN.md) for the exact checks and limits.
 
@@ -213,8 +213,11 @@ Add these to the same Minecraft instance's `mods` folder, then restart Minecraft
 Get ZSG Rooms and the companion from
 [GitHub Releases](https://github.com/banlog1/zsg-rooms/releases), and ReplayMod
 from its [official downloads page](https://www.replaymod.com/download/).
-Do not install the `-sources.jar` in `mods`. The companion is updated manually,
-separately from ZSG Rooms' in-game updater.
+Do not install the `-sources.jar` in `mods`. The in-game updater checks ZSG Rooms
+and an installed Replay Viewer companion independently, verifies their downloads,
+and replaces the outdated jars when Minecraft closes. It does not install the
+companion if it is absent, or update ReplayMod or resource packs. Versions through
+1.0.28 update only ZSG Rooms; update the core first to get companion update support.
 
 ReplayMod and the companion are not needed just to record. They can be installed
 later for viewing.

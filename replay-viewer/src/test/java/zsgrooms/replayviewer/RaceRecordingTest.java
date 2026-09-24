@@ -17,6 +17,30 @@ import java.util.zip.ZipOutputStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RaceRecordingTest {
+    @Test void lootMetadataRequiresReleasedSeedAndDoesNotChangeLegacySupport() throws Exception {
+        JsonObject json = data(UUID.randomUUID().toString(), 0, GROUP);
+        assertFalse(RaceRecording.read(write(json)).lootMetadata);
+        JsonArray rows = new JsonArray();
+        JsonObject row = new JsonObject(), loot = new JsonObject();
+        row.addProperty("time", 2000); row.addProperty("chunk", 1); row.addProperty("world", 0);
+        loot.addProperty("pos", 123); loot.addProperty("state", 42); loot.addProperty("seed", Long.MIN_VALUE);
+        loot.addProperty("table", "minecraft:chests/bastion_other"); loot.addProperty("dimension", "minecraft:the_nether");
+        row.add("loot", loot); rows.add(row); json.add("chestLoot", rows);
+        assertTrue(RaceRecording.read(write(json)).chestLoot.isEmpty());
+        json.addProperty("templePredictionSeed", 12345);
+        RaceRecording recording = RaceRecording.read(write(json));
+        assertTrue(recording.lootMetadata);
+        assertEquals(1, recording.chestLoot.size());
+        assertEquals(Long.MIN_VALUE, recording.chestLoot.get(0).seed);
+    }
+    @Test void predictionSeedIsOptionalAndPreservesAllSixtyFourBits() throws Exception {
+        JsonObject json = data(UUID.randomUUID().toString(), 0, GROUP);
+        assertNull(RaceRecording.read(write(json)).predictionSeed);
+        json.addProperty("templePredictionSeed", Long.MIN_VALUE);
+        assertEquals(Long.valueOf(Long.MIN_VALUE), RaceRecording.read(write(json)).predictionSeed);
+        json.addProperty("templePredictionSeed", new java.math.BigDecimal("18446744073709551616"));
+        assertThrows(IOException.class, () -> RaceRecording.read(write(json)));
+    }
     @TempDir Path temp;
     private static final String RECORDER = "00000000-0000-0000-0000-000000000001";
     private static final String GROUP = "00000000-0000-0000-0000-000000000002";

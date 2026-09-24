@@ -39,14 +39,16 @@ final class AudioSmokeChecks {
 
     static void run(ReplayHandler handler, MinecraftClient client) throws Exception {
         require(!(Boolean) call("muted"), "Audio never resumed after seeking");
-        require(!(Boolean) call("enabled"), "Reconstructed sounds enabled by default");
+        require((Boolean) call("enabled"), "Reconstructed sounds disabled by default");
         handler.getOverlay().setMouseVisible(true);
         ViewerSmokeChecks.click(ViewerSmokeChecks.find(handler.getOverlay(), "Analysis"));
         CheckboxWidget option = null;
         for (net.minecraft.client.gui.Element child : client.currentScreen.children()) {
             if (child instanceof CheckboxWidget && ((CheckboxWidget) child).getMessage().getString().equals("Player sounds (experimental)")) option = (CheckboxWidget) child;
         }
-        require(option != null && !option.isChecked(), "Missing opt-in audio setting");
+        require(option != null && option.isChecked(), "Default-on audio setting not checked");
+        option.onPress();
+        require(!(Boolean) call("enabled"), "Audio checkbox did not disable sounds");
         option.onPress();
         require((Boolean) call("enabled"), "Audio checkbox not wired");
         client.currentScreen.init(client, 320, 240);
@@ -158,7 +160,7 @@ final class AudioSmokeChecks {
             probe(client);
             require(!heard.isEmpty(), "Opt-out muted existing replay sounds");
             handler.getReplaySender().setReplaySpeed(0);
-            ZsgRooms.LOGGER.info("[ReplayAudioSmoke] PASS: opt-in UI, null swing hand, footsteps, eating/drinking, placements, repeated mining only, water/lava fill/empty, damage statuses, small/big falls, quiet flow, packet ordering, opt-out, silent normal/Quick seeks and delayed-queue discard");
+            ZsgRooms.LOGGER.info("[ReplayAudioSmoke] PASS: default-on UI, null swing hand, footsteps, eating/drinking, placements, repeated mining only, water/lava fill/empty, damage statuses, small/big falls, quiet flow, packet ordering, opt-out, silent normal/Quick seeks and delayed-queue discard");
         } finally { client.getSoundManager().unregisterListener(listener); }
     }
 

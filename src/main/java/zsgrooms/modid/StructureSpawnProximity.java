@@ -53,6 +53,7 @@ public final class StructureSpawnProximity {
     }
 
     public static void prepareNextLaunch(String seed) {
+        RuinedPortalChestRepair.prepareNextLaunch(seed);
         pendingLaunchSeed = seed;
     }
 

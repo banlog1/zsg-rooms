@@ -7,10 +7,14 @@ import net.minecraft.text.LiteralText;
 import zsgrooms.modid.update.UpdateManager;
 import zsgrooms.modid.update.UpdatePreferences;
 import zsgrooms.modid.update.UpdateRelease;
+import zsgrooms.modid.update.UpdateArtifact;
+
+import java.util.List;
 
 public class UpdateScreen extends Screen {
     private final Screen parent;
     private final UpdateRelease release;
+    private final List<UpdateArtifact> updates;
     private String status;
     private ButtonWidget downloadButton;
     private boolean downloading;
@@ -20,6 +24,7 @@ public class UpdateScreen extends Screen {
         super(new LiteralText("ZSG Rooms Update"));
         this.parent = parent;
         this.release = release;
+        this.updates = UpdateManager.updates(release);
         this.status = "A newer version is available.";
         this.downloading = false;
         this.updateReady = false;
@@ -29,7 +34,7 @@ public class UpdateScreen extends Screen {
     protected void init() {
         int panelX = (this.width - panelWidth()) / 2;
         int x = panelX + 16;
-        int y = panelY() + 72;
+        int y = panelY() + 76 + this.updates.size() * 14;
         int innerWidth = panelWidth() - 32;
 
         if (this.updateReady) {
@@ -82,15 +87,21 @@ public class UpdateScreen extends Screen {
         fill(matrices, 0, 0, this.width, this.height, 0x66000000);
         int panelX = (this.width - panelWidth()) / 2;
         int panelY = panelY();
-        fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 142, 0xEE080808);
+        fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + panelHeight(), 0xEE080808);
         fill(matrices, panelX, panelY, panelX + panelWidth(), panelY + 28, 0xCC1A120C);
-        drawCenteredString(matrices, this.textRenderer, "ZSG Rooms " + this.release.version, this.width / 2, panelY + 10, 0xFFFFFF);
-        drawCenteredString(matrices, this.textRenderer, this.status, this.width / 2, panelY + 42,
+        drawCenteredString(matrices, this.textRenderer, "Mod Updates", this.width / 2, panelY + 10, 0xFFFFFF);
+        for (int index = 0; index < this.updates.size(); index++) {
+            UpdateArtifact artifact = this.updates.get(index);
+            drawCenteredString(matrices, this.textRenderer, artifact.label + " " + artifact.version,
+                    this.width / 2, panelY + 36 + index * 14, 0xFFFFFF);
+        }
+        int statusY = panelY + 42 + this.updates.size() * 14;
+        drawFitted(matrices, this.status, statusY,
                 this.status.toLowerCase().contains("failed") ? 0xFF7777 : 0xA8D8FF);
         String detail = this.updateReady
                 ? "Close Minecraft to finish installing."
-                : (this.downloading ? "Please wait while the JAR is verified." : "You can keep using this version.");
-        drawCenteredString(matrices, this.textRenderer, detail, this.width / 2, panelY + 56, 0xAAAAAA);
+                : (this.downloading ? "Verifying downloads..." : "You can keep using your installed versions.");
+        drawFitted(matrices, detail, statusY + 14, 0xAAAAAA);
         super.render(matrices, mouseX, mouseY, delta);
     }
 
@@ -104,7 +115,20 @@ public class UpdateScreen extends Screen {
     }
 
     private int panelY() {
-        return Math.max(10, (this.height - 142) / 2);
+        return Math.max(10, (this.height - panelHeight()) / 2);
+    }
+
+    private int panelHeight() {
+        return 142 + this.updates.size() * 14;
+    }
+
+    private void drawFitted(MatrixStack matrices, String text, int y, int color) {
+        float scale = Math.min(1.0F, (panelWidth() - 24.0F) / Math.max(1, this.textRenderer.getWidth(text)));
+        matrices.push();
+        matrices.translate(this.width / 2.0F, y, 0);
+        matrices.scale(scale, scale, 1.0F);
+        drawCenteredString(matrices, this.textRenderer, text, 0, 0, color);
+        matrices.pop();
     }
 
     private void rebuildButtons() {

@@ -10,8 +10,39 @@ the separate seed-bank account on Workers Free, not the room-relay account.
 
 ## Current Publication
 
-Use `run/seed-service/publications/production-v5-20260921-wood-first` for uploads
+Use `run/seed-service/publications/production-v5-20260923-wood-first` for uploads
 and as the base for the next extension. Snapshot revision:
+`ddb6f61828bcfce137c99321db66c4ecfb10117a488b44c759f9ffda728a6b56`.
+The stable bank revision remains
+`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
+
+The latest `temple-village-wood-first` snapshot ended normally on September 21 at
+17:00 UTC, with zero active workers and 19,173 completed batches. It contains
+23,960 temple and 11,859 village seeds cumulatively. Extending the previous plan
+deduplicated the prior snapshot and added **17,950 new seeds**: 12,043 temple and
+5,907 village. All passed publication validation; previous slots and the older
+shipwreck backlog are preserved.
+
+- All 5,907 new village seeds are live: **14,089 active**, using 17,752 writes.
+- All 12,043 new temple seeds are live: **62,136 active**, using 36,190 writes.
+- Shipwreck remains **25,050 active**; 17,467 older seeds remain pending.
+- Active total: **101,275**. Desired plan total: **118,742**. Only the older
+  shipwreck backlog remains pending; every new seed from this snapshot is live.
+- Before uploading on September 23 UTC, the dedicated account's only D1 database
+  reported zero writes in the previous 24 hours. The completed uploads used
+  **53,942 writes** and 208,953 reads, excluding read-only preflight and final checks.
+  Allow for analytics lag and other activity before spending the remaining quota.
+- Final verification matched the registered plan, active counts and every newly
+  uploaded row against the private publication, including the preceding slot at
+  each boundary. Live delivery and recent-family exclusion passed for all three
+  types. No uploader remains running.
+- No Worker or relay deployment is part of this update. Seed data remains private
+  under ignored `run/`; no seed values are printed.
+
+## Previous Update, September 20 UTC
+
+Use `run/seed-service/publications/production-v5-20260921-wood-first` for uploads
+and as the base for that update (now superseded). Snapshot revision:
 `c789e12658087cc7fb555b9d0d21cb1cfa5f3ed953ed98e7f66a80c98d13b218`.
 The stable bank revision remains
 `fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
@@ -125,7 +156,7 @@ budget on several runs in the same UTC day.
 From the repository root, with at least 90,000 daily writes still available:
 
 ```powershell
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260921-wood-first --write-budget 90000
+node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260923-wood-first --write-budget 90000
 ```
 
 The uploader verifies existing rows privately against the desired publication,
@@ -145,13 +176,13 @@ For example, with at least 16,000 writes still available, add at most 5,000 temp
 seeds without adding other types:
 
 ```powershell
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260921-wood-first --write-budget 16000 --max-new-seeds 5000 --type temple
+node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260923-wood-first --write-budget 16000 --max-new-seeds 5000 --type temple
 ```
 
 To verify and activate already-uploaded rows without adding seeds:
 
 ```powershell
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260921-wood-first --write-budget 100 --max-new-seeds 0
+node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260923-wood-first --write-budget 100 --max-new-seeds 0
 ```
 
 No Worker deployment or full-publication activation is needed when adding seeds.
@@ -178,7 +209,7 @@ finder snapshots are skipped. Changed type assignments, invalid records and
 excess sister seeds are rejected. Nothing is uploaded by the extension command.
 
 ```powershell
-node seed-service/scripts/extend-bank.mjs run/seed-service/publications/production-v5-20260921-wood-first run/seed-service/publications/next-v5 run/model-bank/overnight/temple-village-wood-first/bank.jsonl
+node seed-service/scripts/extend-bank.mjs run/seed-service/publications/production-v5-20260923-wood-first run/seed-service/publications/next-v5 run/model-bank/overnight/temple-village-wood-first/bank.jsonl
 node seed-service/scripts/upload-bank.mjs run/seed-service/publications/next-v5 --write-budget 90000
 ```
 

@@ -26,6 +26,9 @@ import java.util.Map;
 final class MilestoneIndex implements AutoCloseable {
     volatile List<Milestones.Entry> entries = Collections.emptyList();
     volatile String status = "Indexing milestones...";
+    volatile ChestHistory<net.minecraft.item.ItemStack> chests;
+    volatile String chestStatus = "Indexing recorded chests...";
+    volatile ChestLootHistory chestLoot;
     private volatile boolean cancelled;
     private final Thread worker;
 
@@ -38,6 +41,13 @@ final class MilestoneIndex implements AutoCloseable {
 
     private void scan(ReplayFile file, int packetId) {
         Milestones tracker = new Milestones();
+        ChestPacketIndex chestIndex = null;
+        try {
+            java.io.File archive = RecordingIndex.file(file);
+            RaceRecording recording = archive == null ? null : RaceRecording.read(archive.toPath());
+            if (recording != null && (!recording.chests.isEmpty() || recording.predictionSeed != null)) chestIndex = new ChestPacketIndex(recording.chests, recording.chestLoot);
+            else chestStatus = "No recorded chest positions";
+        } catch (Exception ignored) { chestStatus = "No recorded chest positions"; }
         Map<Identifier, Advancement> definitions = new HashMap<>();
         try {
             if (file.getMetaData().getRawProtocolVersion() != 736) {
@@ -48,6 +58,14 @@ final class MilestoneIndex implements AutoCloseable {
                 PacketData data;
                 while (!cancelled && (data = input.readPacket()) != null) {
                     try {
+                        if (chestIndex != null) {
+                            try { chestIndex.packet(data); }
+                            catch (Exception error) {
+                                chestIndex = null;
+                                chestStatus = "Chest contents unavailable";
+                                LogManager.getLogger("ZSG Replay Viewer").warn("Chest indexing failed", error);
+                            }
+                        }
                         if (data.getPacket().getType() == PacketType.JoinGame) {
                             tracker.newWorld();
                             definitions.clear();
@@ -77,12 +95,14 @@ final class MilestoneIndex implements AutoCloseable {
                 }
             }
             if (!cancelled) {
+                if (chestIndex != null) { chests = chestIndex.history; chestLoot = chestIndex.lootHistory; chestStatus = ""; }
                 entries = tracker.snapshot();
                 status = entries.isEmpty() ? "No recorded milestones" : "Milestones";
                 LogManager.getLogger("ZSG Replay Viewer").info("Indexed {} replay milestones", entries.size());
             }
         } catch (Exception error) {
             if (!cancelled) {
+                chestStatus = "Chest contents unavailable";
                 status = "Milestone indexing unavailable";
                 LogManager.getLogger("ZSG Replay Viewer").warn("Milestone indexing failed: {}", error.getClass().getSimpleName());
             }
