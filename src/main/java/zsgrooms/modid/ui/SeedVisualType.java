@@ -19,11 +19,11 @@ enum SeedVisualType {
         if (filter == null) return UNKNOWN;
         if (filter.startsWith("manual:")) return MANUAL;
         switch (filter) {
-            case "zsg": case "zsgop": return TREASURE;
+            case "rooms-buried-treasure-v5": case "zsg": case "zsgop": return TREASURE;
             case "rooms-temple-v5": case "zsgtemple": case "zsgtempleop": return TEMPLE;
             case "rooms-village-v5": case "zsgvillage": case "zsgvillageop": return VILLAGE;
             case "rooms-shipwreck-v5": case "zsgshipwreck": case "zsgshipwreckop": return SHIPWRECK;
-            case "rpseedbank": return PORTAL;
+            case "rooms-ruined-portal-v5": case "rpseedbank": return PORTAL;
             case "zsgjungletemple": case "zsgjungletempleop": return JUNGLE;
             case "random": return RANDOM;
             case "manual": return MANUAL;

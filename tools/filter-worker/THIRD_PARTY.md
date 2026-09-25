@@ -1,5 +1,13 @@
 # Third-Party Model Sources
 
+- DuncanRuns' `ravines.c`, CC0/public domain:
+  https://gist.github.com/DuncanRuns/c458b56b50220bbaf9ac45d5deee6634/81a4f3fbf77ffc97845b2326e927f706cd7c4f21
+  `mapless_model.h` adapts initialization and midpoint simulation, making RNG
+  evaluation order explicit and omitting unused guesses and example programs.
+  https://creativecommons.org/publicdomain/zero/1.0/
+  This published C model is not proof of identity with ZSG's unpublished Zig
+  dependency or of exact terrain carving. Buried-treasure loot/resource rules
+  in the same header adapt the MIT ZSG sources pinned below.
 - Cubiomes, Cubitect and contributors:
   https://github.com/Cubitect/cubiomes/tree/e61f90580cbdd883214a8054670dacae655e59c0
   MIT. Built from a pinned external checkout; its LICENSE is copied beside local binaries.
@@ -33,6 +41,14 @@
   only. Preserve/review upstream notices before binary redistribution.
 
 ## MIT Notice For Adapted MIT Sources
+
+`portal_model.h` adapts the same ZSG `filter_common.zig` ruined-portal loot
+simulation and biome/surface predicates. `PortalCompletionModel` calls the
+existing SeedFinding layout/terrain APIs. `PortalLavaTemplates` contains only
+lava source coordinate measurements from the 13 vanilla 1.16.1 templates, not
+the NBT assets or Minecraft implementation. `PortalTemplateAudit` can reproduce
+the measurement check against an operator-supplied game jar without loading
+Minecraft classes. These are operator tools, not mod-jar dependencies.
 
 Copyright (c) 2023 AeroAstroid
 

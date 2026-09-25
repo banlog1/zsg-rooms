@@ -20,6 +20,12 @@ New-Item -ItemType Directory -Force -Path $output | Out-Null
 $files = @('noise.c', 'biomes.c', 'layers.c', 'biomenoise.c', 'generator.c', 'finders.c', 'util.c', 'quadbase.c') |
     ForEach-Object { Join-Path $source $_ }
 if ($TestsOnly) {
+    & $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-ffp-contract=off' '-I' $source `
+        (Join-Path $root 'tools/filter-worker/portal_test.c') @files '-lm' '-o' (Join-Path $output 'portal-test.exe')
+    if ($LASTEXITCODE -ne 0) { throw 'Portal model test build failed.' }
+    & $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-ffp-contract=off' '-I' $source `
+        (Join-Path $root 'tools/filter-worker/mapless_test.c') @files '-lm' '-o' (Join-Path $output 'mapless-test.exe')
+    if ($LASTEXITCODE -ne 0) { throw 'Mapless model test build failed.' }
     & $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-I' $source `
         (Join-Path $root 'tools/filter-worker/model_test.c') @files '-lm' '-o' (Join-Path $output 'model-test.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Standalone model test build failed.' }
@@ -39,7 +45,7 @@ if (-not $FinderOnly) {
         (Join-Path $root 'tools/filter-worker/spawn_model.c') @files '-lm' '-o' (Join-Path $output 'spawn-model.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Native spawn model build failed.' }
 }
-& $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-I' $source `
+& $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-ffp-contract=off' '-I' $source `
     (Join-Path $root 'tools/filter-worker/seed_finder.c') @files '-lm' '-o' (Join-Path $output 'seed-finder.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Standalone finder build failed.' }
 Copy-Item -LiteralPath (Join-Path $source 'LICENSE') -Destination (Join-Path $output 'CUBIOMES-LICENSE')

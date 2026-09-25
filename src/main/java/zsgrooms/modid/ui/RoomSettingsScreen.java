@@ -8,6 +8,7 @@ import zsgrooms.modid.update.UpdatePreferences;
 
 public class RoomSettingsScreen extends Screen {
     private final Screen parent;
+    private ButtonWidget rpRepairButton;
 
     public RoomSettingsScreen(Screen parent) {
         super(new LiteralText("Room Settings"));
@@ -34,9 +35,9 @@ public class RoomSettingsScreen extends Screen {
         this.addButton(new ButtonWidget(left + navigationWidth + 4, y + row, navigationWidth, buttonHeight,
                 new LiteralText("Loading Screen..."), button -> this.client.openScreen(new LoadingSettingsScreen(this))));
         int preferenceY = y + row * 2 + (compact ? 0 : 6);
-        this.addButton(new ButtonWidget(left, preferenceY, panelWidth() - 32, buttonHeight, rpRepairText(), button -> {
-            RoomUiPreferences.setRuinedPortalChestRepairEnabled(
-                    !RoomUiPreferences.isRuinedPortalChestRepairEnabled());
+        this.rpRepairButton = this.addButton(new ButtonWidget(left, preferenceY, panelWidth() - 32, buttonHeight, rpRepairText(), button -> {
+            RoomUiPreferences.setRuinedPortalRepairTestingEnabled(
+                    !RoomUiPreferences.isRuinedPortalRepairTestingEnabled());
             button.setMessage(rpRepairText());
         }));
         this.addButton(new ButtonWidget(left, preferenceY + row, panelWidth() - 32, buttonHeight, updateChecksText(), button -> {
@@ -73,6 +74,12 @@ public class RoomSettingsScreen extends Screen {
                     this.width / 2, panelY + 32, 0xA8D8FF);
         }
         super.render(matrices, mouseX, mouseY, delta);
+        if (this.rpRepairButton != null && this.rpRepairButton.isHovered()) {
+            this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
+                    "Testing only: repair newly generated ruined portals on any seed, including singleplayer. "
+                    + "RP room seeds are always repaired, even with this off. Existing chunks are not repaired retroactively."),
+                    Math.min(240, this.width - 20)), mouseX, mouseY);
+        }
     }
 
     @Override
@@ -97,8 +104,8 @@ public class RoomSettingsScreen extends Screen {
     }
 
     private LiteralText rpRepairText() {
-        return new LiteralText("Repair RP Corruption: "
-                + (RoomUiPreferences.isRuinedPortalChestRepairEnabled() ? "On" : "Off"));
+        return new LiteralText("RP Test All Seeds: "
+                + (RoomUiPreferences.isRuinedPortalRepairTestingEnabled() ? "On" : "Off"));
     }
 
     private LiteralText seedDebugLoggingText() {

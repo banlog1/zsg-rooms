@@ -3,7 +3,7 @@ package zsgrooms.modid;
 public final class ZsgRoomsSeedMode {
     public static final String SPECIFICATION = "rooms-mix";
     public static final String LABEL = "ZSG Rooms Mode";
-    public static final String DESCRIPTION = "Temple 20%, Village 20%, Shipwreck 20%, Ruined Portal 20%, Mapless 10%, Mapless OP 10%";
+    public static final String DESCRIPTION = "Temple 20%, Village 20%, Shipwreck 20%, Buried Treasure 20%, Rooms Ruined Portal 15%, RP Seedbank 5%";
 
     private ZsgRoomsSeedMode() {}
 
@@ -12,8 +12,8 @@ public final class ZsgRoomsSeedMode {
         if (roll < 20) return "rooms-temple-v5";
         if (roll < 40) return "rooms-village-v5";
         if (roll < 60) return "rooms-shipwreck-v5";
+        if (roll < 75) return "rooms-ruined-portal-v5";
         if (roll < 80) return "rpseedbank";
-        if (roll < 90) return "zsg";
-        return "zsgop";
+        return "rooms-buried-treasure-v5";
     }
 }

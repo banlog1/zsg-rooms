@@ -31,6 +31,8 @@ final class FilterCatalog {
             new Entry("rooms-temple-v5", Group.ROOMS, "dt"),
             new Entry("rooms-village-v5", Group.ROOMS, "village"),
             new Entry("rooms-shipwreck-v5", Group.ROOMS, "shipwreck"),
+            new Entry("rooms-buried-treasure-v5", Group.ROOMS, "bt"),
+            new Entry("rooms-ruined-portal-v5", Group.ROOMS, "rp"),
             new Entry("zsg", Group.EXISTING, "bt"),
             new Entry("zsgop", Group.EXISTING, "bt"),
             new Entry("zsgvillage", Group.EXISTING, "village"),
@@ -51,7 +53,8 @@ final class FilterCatalog {
     }
 
     static Entry find(String id) {
-        return ENTRIES.stream().filter(entry -> entry.id.equals(id)).findFirst().orElse(ENTRIES.get(4));
+        return ENTRIES.stream().filter(entry -> entry.id.equals(id)).findFirst()
+                .orElseGet(() -> ENTRIES.stream().filter(entry -> "zsg".equals(entry.id)).findFirst().get());
     }
 
     private FilterCatalog() {}

@@ -15,11 +15,13 @@ class ZsgRoomsSeedModeTest {
         Map<String, Integer> counts = new HashMap<String, Integer>();
         for (int roll = 0; roll < 100; roll++) counts.merge(ZsgRoomsSeedMode.filterForRoll(roll), 1, Integer::sum);
         assertEquals(6, counts.size());
-        for (String filter : new String[] {"rooms-temple-v5", "rooms-village-v5", "rooms-shipwreck-v5", "rpseedbank"}) {
+        for (String filter : new String[] {"rooms-temple-v5", "rooms-village-v5", "rooms-shipwreck-v5", "rooms-buried-treasure-v5"}) {
             assertEquals(20, counts.get(filter));
         }
-        assertEquals(10, counts.get("zsg"));
-        assertEquals(10, counts.get("zsgop"));
+        assertEquals(15, counts.get("rooms-ruined-portal-v5"));
+        assertEquals(5, counts.get("rpseedbank"));
+        assertFalse(counts.containsKey("zsg"));
+        assertFalse(counts.containsKey("zsgop"));
         assertThrows(IllegalArgumentException.class, () -> ZsgRoomsSeedMode.filterForRoll(-1));
         assertThrows(IllegalArgumentException.class, () -> ZsgRoomsSeedMode.filterForRoll(100));
     }

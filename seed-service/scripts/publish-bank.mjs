@@ -26,7 +26,7 @@ export async function publishBank(inputs, output, rowsPerPart = 25000) {
         if (rows.has(record.seed)) throw new Error("Duplicate seed in publication inputs.");
         const key = `${record.type}:${record.family}`;
         const count = (families.get(key) || 0) + 1;
-        if (count > (record.type === "shipwreck" ? 4 : 2)) throw new Error("Publication exceeds the profile family cap.");
+        if (count > (["shipwreck", "ruined_portal"].includes(record.type) ? 4 : 2)) throw new Error("Publication exceeds the profile family cap.");
         families.set(key, count);
         rows.set(record.seed, record);
       }

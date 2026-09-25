@@ -17,7 +17,7 @@ state, and player movement never pass through the room relay.
 - Supports the ZSG Mapless, Village, Shipwreck, Desert Temple, Jungle Temple,
   and Ruined Portal Seedbank filters, including OP variants where available.
 - Also supports random, room-code-derived, and manually entered seeds.
-- Adds ZSG Rooms Desert Temple, Village, and Shipwreck bank choices alongside
+- Adds ZSG Rooms Desert Temple, Village, Shipwreck, and Buried Treasure bank choices alongside
   the original filters, without running the bank's seed search on players' PCs.
 - Holds loaded players behind a synchronized start screen until every runner is
   ready.
@@ -32,11 +32,23 @@ state, and player movement never pass through the room relay.
 - Offers optional race rules for deterministic RNG, boosted barters, minimum
   bastion iron, cheats, structure-proximity spawning, and removing zombified
   piglins inside bastions, plus Nether entry warmup.
-- Repairs known ruined-portal chest and obsidian corruption for RP seedbank
-  runs when the local repair preference is enabled.
+- Automatically repairs known ruined-portal chest and obsidian corruption for RP
+  room seeds, including RP selected by random mode, with a small safe chest-access clearance.
 - Adds a confirmed `Clear Speedrun Worlds` action for worlds whose name starts
   with `Set Speedrun #`.
 - Checks GitHub Releases for optional, SHA-256-verified updates.
+
+## Ruined Portal Repair Testing
+
+RP room seeds need no repair setting. For manually entered seeds or other filter
+types, enable `Room Settings > RP Test All Seeds` before generating a new world.
+This testing override defaults to Off and does not inherit the old repair setting.
+It repairs newly generated ruined portals only, not arbitrary chests or existing chunks.
+
+Chest repair preserves the original loot seed. Clearance is a one-time, five-block
+patch above and in front of the chest. It skips unsafe patches involving fluids,
+portal blocks, containers, unsupported falling terrain, or unloaded neighbors.
+It does not keep removing terrain or refill/recreate chests after player interaction.
 
 ## Requirements
 
@@ -145,9 +157,9 @@ Choose **ZSG Rooms Mode** in the ZSG Rooms tab to mix filters for each new seed:
 | ZSG Rooms Desert Temple | 20% |
 | ZSG Rooms Village | 20% |
 | ZSG Rooms Shipwreck | 20% |
-| Ruined Portal Seedbank | 20% |
-| ZSG Mapless | 10% |
-| ZSG Mapless (OP) | 10% |
+| ZSG Rooms Buried Treasure | 20% |
+| ZSG Rooms Ruined Portal | 15% |
+| Ruined Portal Seedbank | 5% |
 
 The host privately draws one filter when preparing the next seed. Starting the
 race or approving a seed change consumes that prepared result, shared with every
@@ -158,19 +170,23 @@ still stay within that filter.
 
 The room remains in ZSG Rooms Mode after launch, while structure-specific gameplay
 rules and completed-run history use the actual drawn filter. FSG Mod is needed for
-the Mapless and Ruined Portal draws, and the hosted bank is used for our three
-custom filters. There is no fallback to another filter when a source is unavailable.
+the 5% RP Seedbank draw; the other 95% uses our five hosted-bank filters.
+The original Mapless and Mapless OP filters remain selectable individually.
+There is no fallback to another filter when a source is unavailable.
 
 ## ZSG Rooms Seed Banks
 
-Select **ZSG Rooms Desert Temple**, **ZSG Rooms Village**, or **ZSG Rooms
-Shipwreck** when choosing a filter. In 1.0.27 or newer, the host automatically
+Select **ZSG Rooms Desert Temple**, **ZSG Rooms Village**, **ZSG Rooms
+Shipwreck**, **ZSG Rooms Buried Treasure**, or **ZSG Rooms Ruined Portal** on the
+ZSG Rooms filter tab.
+In 1.0.27 or newer, the host automatically
 uses the public seed service. No local server, Java argument, or bank download
 is needed. The original FSG choices remain available.
 
 The host needs an Internet connection to prepare seeds; the full bank is not
 shipped with the mod. Newly published seeds become available without updating
-the mod. If you previously tested with localhost, open **Settings > Seed Bank**,
+the mod. The Buried Treasure and Ruined Portal choices require this updated mod build.
+If you previously tested with localhost, open **Settings > Seed Bank**,
 clear the URL and save to restore the public default. An explicitly configured
 server URL continues to override that default.
 
@@ -182,6 +198,22 @@ iron comes from a golem, whose natural presence is not guaranteed by the filter.
 Both profiles use surface-lava opportunities near natural water instead of
 requiring a ruined portal. Shipwreck seeds check resources, food, a modeled
 Nether-entry opportunity, and nearby wooded island or coastline terrain.
+With Spawn Near Filter Structure enabled, shipwrecks keep a safe natural spawn
+within 60 horizontal blocks. Otherwise loading searches for the nearest safe
+island or mainland coast, within 128 blocks and a 64-chunk search budget. If
+the search cannot establish a suitable nearest point, the original spawn stays.
+The chosen spawn is prepared before spawn-chunk preloading.
+Buried Treasure uses regular mapless-style loot, nearby forest, spawn and
+modeled ocean-ravine checks, with our good-gap and triple-chest-rampart checks
+for stables. It replaces both Mapless draws in ZSG Rooms Mode with a combined
+20% chance. Existing Mapless filters remain selectable separately. It reuses
+the treasure HUD icon and optional art.
+Our Ruined Portal filter checks a completable frame without obsidian mining,
+at least one golden axe or pickaxe, and flint and steel, flint plus iron, or
+at least five fire charges. It does not require Looting or restrict the
+stronghold position. It uses automatic portal repairs, the portal HUD icon
+and optional art. This is separate from the existing RP Seedbank choice;
+ZSG Rooms Mode draws our RP filter at 15% and the original RP Seedbank at 5%.
 Nether checks reuse ZSG's route and loot models, with extra good-gap and
 triple-chest-rampart requirements for stables bastions.
 
@@ -207,7 +239,7 @@ Add these to the same Minecraft instance's `mods` folder, then restart Minecraft
 | --- | --- |
 | `zsg-rooms-<version>.jar` | Records and automatically saves replays. Use 1.0.26 or newer. |
 | ReplayMod **1.16.1-2.6.27** | Plays the saved files through its Replay Viewer. |
-| `zsg-replay-viewer-0.2.0.jar` | Optional companion: speedrunning playback controls, timers, milestones, and switching between racers. Requires the ReplayMod version above. |
+| `zsg-replay-viewer-0.3.0.jar` | Optional companion: speedrunning playback controls, timers, milestones, and switching between racers. Requires the ReplayMod version above. |
 | SpeedRunIGT | Optional; install when recording to capture RTA and IGT for playback. |
 
 Get ZSG Rooms and the companion from
@@ -270,6 +302,14 @@ screen and select the recording. Files are saved as `.mcpr` in this instance's
 `.minecraft/replay_recordings`. ZSG's **Open Recordings** button opens that folder,
 not the playback viewer. In MultiMC, use the tested instance's Minecraft folder,
 not another installation's `.minecraft`.
+
+The recorder's temporary backlog budget is 128 MiB or 65,536 packets, allocated
+as needed. This is not a replay duration/file-size limit. It includes payloads
+plus a per-packet accounting allowance, not every JVM allocation. A safety limit
+remains to avoid unbounded growth if recording falls behind. Logs tagged
+`[ReplayPrototype] Buffer` report peak usage at world transitions and finalization,
+even with Seed Debug Logging off. A capacity failure records the exact limit,
+rejected packet, and backlog split between the game thread and writer.
 
 With the optional ZSG Replay Viewer companion:
 

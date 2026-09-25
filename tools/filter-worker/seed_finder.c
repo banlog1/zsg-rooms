@@ -9,6 +9,8 @@
 #include <windows.h>
 #endif
 #include "model_loot.h"
+#include "mapless_model.h"
+#include "portal_model.h"
 #include "surface_noise_cache.h"
 #include "search_policy.h"
 
@@ -16,9 +18,9 @@
 #define PIN "e61f90580cbdd883214a8054670dacae655e59c0"
 #define MASK UINT64_C(0xffffffffffff)
 #define STEP UINT64_C(0x9e3779b97f4a7c15)
-enum { TEMPLE, SHIP, VILLAGE };
-enum { GEOMETRY, LAYOUT_LOOT, NETHER, FEATURES, NETHER_MODEL, BIOMES, SPAWN, SURFACE, TEMPLE_EXPOSURE, WATER, SMITH_LOOT, ACCEPT, STAGES };
-static const char *names[] = {"geometry", "layout_loot", "nether", "feature_attempts", "nether_model", "biomes", "spawn", "surface_proxy", "temple_exposure", "nearby_water", "smith_loot", "accepted"};
+enum { TEMPLE, SHIP, VILLAGE, BURIED, PORTAL };
+enum { GEOMETRY, LAYOUT_LOOT, NETHER, FEATURES, NETHER_MODEL, BIOMES, SPAWN, SURFACE, TEMPLE_EXPOSURE, WATER, SMITH_LOOT, ACCEPT, FOREST, PORTAL_FRAME, STAGES };
+static const char *names[] = {"geometry", "layout_loot", "nether", "feature_attempts", "nether_model", "biomes", "spawn", "surface_proxy", "temple_exposure", "nearby_water", "smith_loot", "accepted", "forest_size", "portal_completion"};
 enum { WATER_RADIUS=48, WATER_STEP=4, WATER_GRID=2*WATER_RADIUS/WATER_STEP+2 };
 static uint64_t reached[STAGES], failed[STAGES];
 static double stage_ms[STAGES];
@@ -33,8 +35,20 @@ static void trace_decision(uint64_t seed, int stage, int pass) {
     decision_trace=(decision_trace^(uint64_t)(stage*2+!!pass))*UINT64_C(0x100000001b3);
 }
 typedef struct { Pos pos; int y, salt; } Lake;
-typedef struct { Pos main, bastion, fortress; Lake lakes[512]; int lake_count; Pos ravines[225]; int ravine_count; Loot loot; int iron_pickaxes; int obsidian_score; char bastion_type[16]; } Family;
-typedef struct { Pos spawn, entry, wood, water; } Result;
+typedef struct { Pos main, bastion, fortress; Lake lakes[512]; int lake_count; Pos ravines[225]; int ravine_count; Loot loot; BuriedLoot buried; PortalLoot portal; int iron_pickaxes; int obsidian_score; char bastion_type[16]; } Family;
+typedef struct { Pos spawn, entry, wood, water; int portal_status, portal_missing, portal_lava, portal_cast, portal_template, portal_y; } Result;
+
+static int parse_portal(const char *response, Result *out) {
+    char extra;
+    int n=sscanf(response,"PORTAL_RESULT %d %d %d %d %d %d %c",&out->portal_status,&out->portal_missing,
+        &out->portal_lava,&out->portal_cast,&out->portal_template,&out->portal_y,&extra);
+    if(n!=6 || out->portal_status<0 || out->portal_status>4 || out->portal_missing<0 || out->portal_missing>84
+        || out->portal_lava<0 || out->portal_lava>33 || out->portal_cast<0 || out->portal_cast>out->portal_missing
+        || out->portal_template<0 || out->portal_template>13 || out->portal_y<0 || out->portal_y>255) return 0;
+    if(out->portal_status>=3 && (!out->portal_template || !out->portal_y)) return 0;
+    return out->portal_status==3 ? out->portal_cast>0 && out->portal_lava>=out->portal_cast
+        : out->portal_status!=4 || out->portal_cast==0;
+}
 
 static double now_ms(void) {
 #ifdef _WIN32
@@ -128,13 +142,40 @@ static void ravine_attempts(uint64_t seed, Pos anchor, Family *f) {
     }
 }
 
+static int buried_candidate(uint64_t seed, Family *f) {
+    /* Preserve ZSG's first loot-qualified treasure in its ordered 21x21 chunk scan. */
+    for(int x=-10;x<=10;x++) for(int z=-10;z<=10;z++) {
+        Pos pos;
+        if(!getStructurePos(Treasure,MC_1_16_1,seed,x,z,&pos)) continue;
+        BuriedLoot loot=buried_loot(seed,x,z);
+        if(!buried_resources(loot)) continue;
+        f->main=pos; f->buried=loot;
+        f->loot=(Loot){.iron=loot.iron,.diamonds=loot.diamonds,.gold=loot.gold};
+        return 1;
+    }
+    return 0;
+}
+
+static int buried_ravine(uint64_t seed, Family *f) {
+    int cx=floor_div(f->main.x,16), cz=floor_div(f->main.z,16);
+    for(int x=cx-7;x<=cx+7;x++) for(int z=cz-7;z<=cz+7;z++) {
+        MaplessRavine r=mapless_ravine(seed,x,z);
+        if(!r.can_spawn || r.radius<18) continue;
+        mapless_ravine_middle(&r);
+        if(!mapless_ravine_eligible(&r,f->main)) continue;
+        f->ravines[0]=(Pos){(int)r.x,(int)r.z}; f->ravine_count=1;
+        return 1;
+    }
+    return 0;
+}
+
 static int family_check(uint64_t seed, int type, Family *f, Generator *g) {
     double start=now_ms();
     family_started=start;
-    int feature=type==SHIP?Shipwreck:type==TEMPLE?Desert_Pyramid:Village;
+    int feature=type==PORTAL?Ruined_Portal:type==SHIP?Shipwreck:type==TEMPLE?Desert_Pyramid:Village;
     int radius=type==SHIP?208:type==TEMPLE?320:224;
     int pass=nearby(seed,Bastion,origin,96,&f->bastion) && nearby(seed,Fortress,origin,256,&f->fortress)
-        && getStructurePos(feature,MC_1_16_1,seed,0,0,&f->main) && axes(f->main,origin,radius);
+        && (type==BURIED || (getStructurePos(feature,MC_1_16_1,seed,0,0,&f->main) && axes(f->main,origin,radius)));
     if (!done(GEOMETRY,start,pass)) return 0;
     start=now_ms();
     // Failed geometry never consumes candidate data. Arrays are overwritten up to their counts.
@@ -142,7 +183,16 @@ static int family_check(uint64_t seed, int type, Family *f, Generator *g) {
     f->ravine_count=0;
     memset(&f->loot,0,sizeof(f->loot));
     pass=1;
-    if (pass && type==SHIP) {
+    if (type==BURIED) {
+        pass=buried_candidate(seed,f);
+    } else if (type==PORTAL) {
+        pass=portal_variant(seed,f->main,plains);
+        if(pass) {
+            f->portal=portal_loot(seed,f->main);
+            f->loot.iron=f->portal.nuggets/9;
+            pass=portal_has_tool(f->portal) && portal_resources(f->portal);
+        }
+    } else if (pass && type==SHIP) {
         uint64_t r=chunkGenerateRnd(seed,f->main.x/16,f->main.z/16);
         int rotation=nextInt(&r,4), layout=nextInt(&r,20);
         pass=rotation==3 && (layout==0 || layout==7 || layout==10 || layout==17);
@@ -158,7 +208,9 @@ static int family_check(uint64_t seed, int type, Family *f, Generator *g) {
         && isViableStructurePos(Fortress,g,f->fortress.x,f->fortress.z,0);
     if (!done(NETHER,start,pass)) return 0;
     start=now_ms();
-    if (type==SHIP) { ravine_attempts(seed,f->main,f); pass=f->ravine_count>0; }
+    if (type==BURIED) pass=buried_ravine(seed,f);
+    else if (type==PORTAL) pass=1;
+    else if (type==SHIP) { ravine_attempts(seed,f->main,f); pass=f->ravine_count>0; }
     else { lake_attempts(seed,f->main,f); pass=f->lake_count>0; }
     if (!done(FEATURES,start,pass)) return 0;
     start=now_ms();
@@ -317,7 +369,78 @@ static int select_watered_pool(Generator *g, SurfaceNoise *noise, Pos main, Pos 
     return 0;
 }
 
+static int buried_sister(uint64_t seed, const Family *f, Generator *g, Result *out) {
+    double start=now_ms();
+    applySeed(g,DIM_OVERWORLD,seed);
+    int pass=isViableStructurePos(Treasure,g,f->main.x,f->main.z,0)!=0;
+    int forest_found=0;
+    Pos wood={0};
+    /* Fix the upstream inner-loop reset and explicitly require the forest sample. */
+    if(pass) for(int x=f->main.x-10;x<=f->main.x+10 && !forest_found;x+=10) {
+        for(int z=f->main.z-10;z<=f->main.z+10;z+=10) {
+            if(getBiomeAt(g,1,x,255,z)==forest) { wood=(Pos){x,z}; forest_found=1; break; }
+        }
+    }
+    if(!done(BIOMES,start,pass && forest_found)) return 0;
+    start=now_ms();
+    Pos ravine=f->ravines[0];
+    Pos toward={floor_div(2*ravine.x+f->main.x,3),floor_div(2*ravine.z+f->main.z,3)};
+    pass=isDeepOcean(getBiomeAt(g,1,ravine.x,64,ravine.z))
+        && isDeepOcean(getBiomeAt(g,1,toward.x,64,toward.z));
+    if(!done(SURFACE,start,pass)) return 0;
+    start=now_ms();
+    out->spawn=getSpawn(g);
+    if(!done(SPAWN,start,axes(out->spawn,f->main,32))) return 0;
+    start=now_ms();
+    Range range={1,wood.x-20,wood.z-20,41,41,255,1};
+    int *biomes=allocCache(g,range);
+    if(!biomes) { fprintf(stderr,"Forest model allocation failed\n"); exit(3); }
+    int forest_count=0;
+    if(!genBiomes(g,biomes,range)) for(int i=0;i<41*41;i++) if(biomes[i]==forest) forest_count++;
+    free(biomes);
+    if(!done(FOREST,start,forest_count>=400)) return 0;
+    out->wood=wood; out->entry=ravine;
+    return 1;
+}
+
+static int portal_sister(uint64_t seed, Family *f, Generator *g, SurfaceNoiseCache *surface, Result *out) {
+    double start=now_ms();
+    applySeed(g,DIM_OVERWORLD,seed);
+    int biome=getBiomeAt(g,4,floor_div(f->main.x,4)+2,255,floor_div(f->main.z,4)+2);
+    int pass=portal_biome(biome) && portal_variant(seed,f->main,biome)
+        && isViableStructurePos(Ruined_Portal,g,f->main.x,f->main.z,0);
+    Pos wood=f->main;
+    if(pass) {
+        pass=0;
+        for(int x=-30;x<=30 && !pass;x+=30) for(int z=-30;z<=30;z+=30) {
+            Pos sample={f->main.x+x,f->main.z+z};
+            if(wood_biome(getBiomeAt(g,1,sample.x,255,sample.z))) {wood=sample;pass=1;break;}
+        }
+    }
+    if(!done(BIOMES,start,pass)) return 0;
+    start=now_ms();
+    out->spawn=getSpawn(g);
+    if(!done(SPAWN,start,axes(out->spawn,f->main,32))) return 0;
+    start=now_ms();
+    printf("PORTAL %" PRId64 " %d %d %d %d %d %d %d\n",(int64_t)seed,floor_div(f->main.x,16),
+        floor_div(f->main.z,16),f->portal.obsidian,f->portal.nuggets,f->portal.flint,f->portal.steel,f->portal.charges);
+    fflush(stdout);
+    char response[128];
+    if(!fgets(response,sizeof(response),stdin) || !parse_portal(response,out)) {
+        fprintf(stderr,"Portal model protocol failed; search aborted\n"); exit(3);
+    }
+    if(!done(PORTAL_FRAME,start,out->portal_status>=3)) return 0;
+    if(out->portal_status==3) {
+        start=now_ms();
+        if(!done(WATER,start,nearby_water(g,surface_noise_for_seed(surface,seed),f->main,&out->water))) return 0;
+    }
+    out->entry=f->main; out->wood=wood;
+    return 1;
+}
+
 static int sister_check(uint64_t seed, int type, Family *f, Generator *g, SurfaceNoiseCache *surface, Result *out) {
+    if(type==BURIED) return buried_sister(seed,f,g,out);
+    if(type==PORTAL) return portal_sister(seed,f,g,surface,out);
     double start=now_ms();
     applySeed(g,DIM_OVERWORLD,seed);
     int feature=type==SHIP?Shipwreck:type==TEMPLE?Desert_Pyramid:Village;
@@ -391,6 +514,8 @@ static int type_of(const char *name) {
     if(!strcmp(name,"temple"))return TEMPLE;
     if(!strcmp(name,"shipwreck"))return SHIP;
     if(!strcmp(name,"village"))return VILLAGE;
+    if(!strcmp(name,"buried_treasure"))return BURIED;
+    if(!strcmp(name,"ruined_portal"))return PORTAL;
     return -1;
 }
 static uint64_t number(const char *s) {
@@ -401,7 +526,7 @@ static uint64_t number(const char *s) {
 
 int main(int argc,char **argv) {
     if((argc!=9 && argc!=10) || strcmp(argv[1],"search")) {
-        fprintf(stderr,"Usage: seed-finder search temple|shipwreck|village families sisters target seconds stream private-output.jsonl [family-cap]\n"); return 2;
+        fprintf(stderr,"Usage: seed-finder search temple|shipwreck|village|buried_treasure|ruined_portal families sisters target seconds stream private-output.jsonl [family-cap]\n"); return 2;
     }
     int type=type_of(argv[2]);
     uint64_t limit=number(argv[3]), sisters=number(argv[4]), target=number(argv[5]), seconds=number(argv[6]), stream=number(argv[7]);
@@ -446,10 +571,12 @@ int main(int argc,char **argv) {
             reached[ACCEPT]++;accepted++;
             char water_json[64]="null";
             char family_json[64]="";
-            char smith_json[128]="";
+            char smith_json[512]="";
+            if (type==PORTAL) snprintf(smith_json,sizeof(smith_json),",\"ruinedPortalRule\":\"frame-completable-v3\",\"portalObsidian\":%d,\"ironNuggets\":%d,\"flint\":%d,\"flintAndSteel\":%d,\"fireCharges\":%d,\"goldenAxes\":%d,\"goldenPickaxes\":%d,\"portalMissingBlocks\":%d,\"portalLavaSources\":%d,\"portalCastBlocks\":%d,\"portalTemplate\":%d,\"portalY\":%d",f.portal.obsidian,f.portal.nuggets,f.portal.flint,f.portal.steel,f.portal.charges,f.portal.axes,f.portal.pickaxes,result.portal_missing,result.portal_lava,result.portal_cast,result.portal_template,result.portal_y);
+            if (type==BURIED) snprintf(smith_json,sizeof(smith_json),",\"buriedTreasureRule\":\"mapless-regular-v1\",\"tnt\":%d,\"emeralds\":%d",f.buried.tnt,f.buried.emeralds);
             if (type==VILLAGE) snprintf(smith_json,sizeof(smith_json),",\"villageResourceRule\":\"pickaxe-credit-v1\",\"ironPickaxes\":%d",f.iron_pickaxes);
             if (family_cap>1) snprintf(family_json,sizeof(family_json),",\"family\":\"%" PRIu64 "\"",lower);
-            if (type!=SHIP) snprintf(water_json,sizeof(water_json),"[%d,%d]",result.water.x,result.water.z);
+            if (type==TEMPLE || type==VILLAGE || (type==PORTAL && result.portal_status==3)) snprintf(water_json,sizeof(water_json),"[%d,%d]",result.water.x,result.water.z);
             /* A complete model acceptance, not a pending Minecraft verification job. */
             if(fprintf(output,"{\"profile\":\"" PROFILE "\",\"status\":\"MODEL_ACCEPTED\",\"type\":\"%s\",\"seed\":\"%" PRId64 "\","
                 "\"structure\":[%d,%d],\"entry\":[%d,%d],\"wood\":[%d,%d],\"spawn\":[%d,%d],\"bastion\":[%d,%d],\"fortress\":[%d,%d],\"water\":%s,"

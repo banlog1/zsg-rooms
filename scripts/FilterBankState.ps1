@@ -74,7 +74,7 @@ function Get-OvernightJobs([string]$Directory, $Checkpoint = $null) {
             }
         }
         if ($job.id -cne $_.BaseName -or $job.id -notmatch '^\d{8}$' -or
-            $job.state -notin @('pending','running','complete') -or $job.type -notin @('temple','shipwreck','village') -or
+            $job.state -notin @('pending','running','complete') -or $job.type -notin @('temple','shipwreck','village','buried_treasure','ruined_portal') -or
             $null -eq $job.startOffset -or $null -eq $job.families -or $job.families -lt 4 -or
             $job.startOffset -lt 0 -or $job.startOffset -gt 281474976710656L-$job.families -or
             $job.attempts -lt 0 -or $job.failures -lt 0 -or ($job.attempt -and $job.attempt -notmatch '^[a-f0-9]{32}$')) {
@@ -106,6 +106,21 @@ function Get-OvernightResultDirectory([string]$Directory, $Job) {
     return Join-Path $Directory ('attempts/'+$Job.attempt+'/result')
 }
 
+function Assert-FilterBankTypeRules($Row) {
+    if ($Row.type -ceq 'buried_treasure' -and $Row.buriedTreasureRule -cne 'mapless-regular-v1') {
+        throw 'Unsupported buried treasure acceptance rule.'
+    }
+    if ($Row.type -ceq 'ruined_portal') {
+        if ($Row.ruinedPortalRule -cne 'frame-completable-v3') { throw 'RP bank requires the current tool/ignition rule.' }
+        foreach ($field in @('goldenAxes','goldenPickaxes')) {
+            if (($Row.$field -isnot [int] -and $Row.$field -isnot [long]) -or $Row.$field -lt 0 -or $Row.$field -gt 8) {
+                throw 'Invalid RP tool metadata.'
+            }
+        }
+        if ($Row.goldenAxes + $Row.goldenPickaxes -lt 1) { throw 'RP seed is missing its required tool.' }
+    }
+}
+
 function Read-OvernightBatch([string]$Directory, $Job, $Policy) {
     $result = Get-OvernightResultDirectory $Directory $Job
     $manifest = Read-FilterJson (Join-Path $result 'manifest.json')
@@ -127,6 +142,7 @@ function Read-OvernightBatch([string]$Directory, $Job, $Policy) {
     foreach ($line in [IO.File]::ReadLines($bank)) {
         try { $row = $line | ConvertFrom-Json; $seed = [long]::Parse([string]$row.seed) }
         catch { throw 'Invalid private seed record in overnight batch.' }
+        Assert-FilterBankTypeRules $row
         if ($seed -eq 0 -or $row.seed -cne $seed.ToString() -or $row.profile -cne 'zsg-model-only-v5' -or $row.type -cne $Job.type -or
             $row.status -cne 'MODEL_ACCEPTED' -or -not $seen.Add($seed.ToString())) { throw 'Invalid or duplicate private seed record.' }
         $family = ($seed -band 281474976710655L).ToString()
@@ -148,7 +164,7 @@ function Export-OvernightBank([string]$Directory, $Plan, $Checkpoint = $null, $J
     $jobs = if ($null -ne $Jobs) { @($Jobs) } else { @(Get-OvernightJobs $Directory $Checkpoint) }
     $temporary = Join-Path $Directory ('bank.'+[guid]::NewGuid().ToString('N')+'.tmp')
     $seen = [Collections.Generic.HashSet[string]]::new()
-    $counts = @{temple=0;shipwreck=0;village=0}
+    $counts = @{temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}
     $entries = [Collections.Generic.List[object]]::new()
     $next = [pscustomobject]@{entries=@{};rows=@{};reusable=@{}}
     $verified = 0

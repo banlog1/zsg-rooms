@@ -30,23 +30,31 @@ Assert ([IO.File]::ReadAllText($cursor) -ceq '{broken') 'Corrupt cursor was sile
 $fixture = Join-Path $directory 'fixture'
 $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
 $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'attempts')
-$plan = [pscustomobject]@{policies=[pscustomobject]@{temple=[pscustomobject]@{sisters=4096;familyCap=2}}}
+$plan = [pscustomobject]@{policies=[pscustomobject]@{
+    temple=[pscustomobject]@{sisters=4096;familyCap=2}
+    buried_treasure=[pscustomobject]@{sisters=4096;familyCap=2}
+    ruined_portal=[pscustomobject]@{sisters=4096;familyCap=4}
+}}
 Add-Type -AssemblyName System.Numerics
-function New-TestBatch([int]$Id,[long]$Offset,[bool]$Duplicate=$false) {
-    $job = [pscustomobject]@{id=('{0:D8}' -f $Id);type='temple';startOffset=$Offset;families=4;state='complete';
-        attempt=[guid]::NewGuid().ToString('N');attempts=1;failures=0;bankHash=$null;accepted=2;acceptedFamilies=1}
+function New-TestBatch([int]$Id,[long]$Offset,[bool]$Duplicate=$false,[string]$Type='temple') {
+    $cap = $plan.policies.$Type.familyCap
+    $job = [pscustomobject]@{id=('{0:D8}' -f $Id);type=$Type;startOffset=$Offset;families=4;state='complete';
+        attempt=[guid]::NewGuid().ToString('N');attempts=1;failures=0;bankHash=$null;accepted=$cap;acceptedFamilies=1}
     $result = Get-OvernightResultDirectory $fixture $job
     $null = New-Item -ItemType Directory -Path $result -Force
     $lower = [long](([Numerics.BigInteger]$Offset*[Numerics.BigInteger]::Parse('11400714819323198485'))%[Numerics.BigInteger]::Pow(2,48))
-    $lines = @(foreach ($i in 0..1) {
+    $lines = @(foreach ($i in 0..($cap-1)) {
         $upper = if ($Duplicate) {0L} else {[long]$i}
-        @{type='temple';profile='zsg-model-only-v5';status='MODEL_ACCEPTED';seed=($lower+$upper*281474976710656L).ToString();family=$lower.ToString()} | ConvertTo-Json -Compress
+        $row = @{type=$Type;profile='zsg-model-only-v5';status='MODEL_ACCEPTED';seed=($lower+$upper*281474976710656L).ToString();family=$lower.ToString()}
+        if ($Type -eq 'buried_treasure') { $row.buriedTreasureRule='mapless-regular-v1' }
+        if ($Type -eq 'ruined_portal') { $row.ruinedPortalRule='frame-completable-v3'; $row.goldenAxes=1; $row.goldenPickaxes=0 }
+        $row | ConvertTo-Json -Compress
     })
     $bank = Join-Path $result 'bank.jsonl'
     [IO.File]::WriteAllLines($bank,[string[]]$lines,[Text.UTF8Encoding]::new($false))
     $job.bankHash=(Get-FileHash $bank).Hash
-    Write-FilterAtomicJson (Join-Path $result 'manifest.json') @{state='complete';fixedWorkComplete=$true;workers=1;type='temple';
-        startOffset=$Offset;families=4;completedFamilies=4;sisters=4096;familyCap=2;accepted=2;acceptedFamilies=1}
+    Write-FilterAtomicJson (Join-Path $result 'manifest.json') @{state='complete';fixedWorkComplete=$true;workers=1;type=$Type;
+        startOffset=$Offset;families=4;completedFamilies=4;sisters=4096;familyCap=$cap;accepted=$cap;acceptedFamilies=1}
     Write-FilterAtomicJson (Join-Path $fixture ('jobs/'+$job.id+'.json')) $job
     return $job
 }
@@ -166,6 +174,23 @@ Assert ($null -ne $emptyCheckpoint -and $emptyExport.accepted -eq 0) 'Empty bank
 $emptyExport = Export-OvernightBank $empty $plan $emptyCheckpoint
 Assert ($emptyExport.verified -eq 0 -and $emptyExport.accepted -eq 0) 'Empty checkpoint resume failed.'
 
+$originalFixture = $fixture
+$fixture = Join-Path $directory 'bt-rp-fixture'
+$null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
+$null = New-TestBatch 0 100 $false 'buried_treasure'
+$null = New-TestBatch 1 104 $false 'ruined_portal'
+$mixed = Export-OvernightBank $fixture $plan
+Assert ($mixed.accepted -eq 6 -and $mixed.counts.buried_treasure -eq 2 -and $mixed.counts.ruined_portal -eq 4) 'BT/RP export counts or caps failed.'
+$mixedHash = (Get-FileHash $mixed.bank).Hash
+$cached = Export-OvernightBank $fixture $plan (Read-OvernightCheckpoint $fixture $plan)
+Assert ($cached.reused -eq 2 -and (Get-FileHash $cached.bank).Hash -ceq $mixedHash) 'BT/RP checkpoint resume changed the bank.'
+Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='buried_treasure';buriedTreasureRule='wrong'}) }
+Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='ruined_portal';ruinedPortalRule='frame-completable-v2';goldenAxes=1;goldenPickaxes=0}) }
+Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='ruined_portal';ruinedPortalRule='frame-completable-v3';goldenAxes=0;goldenPickaxes=0}) }
+Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='ruined_portal';ruinedPortalRule='frame-completable-v3';goldenAxes=1;goldenPickaxes='0'}) }
+$fixture = $originalFixture
+Write-Output 'Passed: BT/RP journal, separate totals, two/four-seed caps, checkpoint reuse and outdated/missing-tool record rejection.'
+
 if ($BenchmarkBatches -gt 0) {
     $fixture = Join-Path $directory 'benchmark'
     $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
@@ -197,6 +222,11 @@ if ($Integration) {
     $before = @(Get-OvernightJobs $smoke)
     Assert ($before.Count -eq 3 -and @($before | Where-Object {$_.state -ne 'complete'}).Count -eq 0) 'Real queue smoke incomplete.'
     $attempts = ($before | ForEach-Object {$_.attempt}) -join ','
+    # Old saved plans lack the new policies; resuming must not rewrite their runtime or selections.
+    $legacyPlan = Read-FilterJson (Join-Path $smoke 'plan.json')
+    $legacyPlan.policies.PSObject.Properties.Remove('buried_treasure')
+    $legacyPlan.policies.PSObject.Properties.Remove('ruined_portal')
+    Write-FilterAtomicJson (Join-Path $smoke 'plan.json') $legacyPlan
     # Simulate a crash after the worker committed its output but before the supervisor committed its journal.
     $before[0].state='running'
     $before[0].bankHash=$null
@@ -240,6 +270,20 @@ if ($Integration) {
     $null = & $start -Directory $interrupted -Workers 1 -Minutes 0.1 -Java $Java -AllowSleep
     Assert ((@(Get-OvernightJobs $interrupted))[0].attempt -ceq $attempt) 'STOP launched more work.'
     Assert ((Read-FilterJson (Join-Path $interrupted 'status.json')).state -eq 'stop_requested') 'STOP status not persisted.'
-    Write-Output 'Passed: native all-type queue, restart without replaying completed work, completed-attempt recovery, plan guard, singleton lock, hard deadline, interrupted-range resume and STOP drain.'
+    $newTypes = Join-Path $directory 'bt-rp-smoke'
+    $null = & $start -Directory $newTypes -Preset bt-rp -Workers 1 -Minutes 3 -MaxCompletedBatches 2 -Java $Java -AllowSleep -BatchSeconds 120
+    $newJobs = @(Get-OvernightJobs $newTypes)
+    Assert ($newJobs.Count -eq 2 -and @($newJobs | Where-Object state -ne 'complete').Count -eq 0) 'BT/RP real batches did not finish.'
+    Assert (($newJobs.type -join ',') -ceq 'buried_treasure,ruined_portal') 'BT/RP rotation is wrong.'
+    $newPlan = Read-FilterJson (Join-Path $newTypes 'plan.json')
+    Assert ($newPlan.policies.buried_treasure.sisters -eq 4096 -and $newPlan.policies.ruined_portal.familyCap -eq 4) 'BT/RP defaults changed.'
+    $newAttempts = $newJobs.attempt -join ','
+    $null = & $start -Directory $newTypes -Preset bt-rp -ExportOnly
+    Assert ((@(Get-OvernightJobs $newTypes).attempt -join ',') -ceq $newAttempts) 'BT/RP export replayed jobs.'
+    Expect-Failure { & $start -Directory $newTypes -Preset standard -ExportOnly }
+    Expect-Failure { & $start -Directory $newTypes -Preset bt-rp -Types temple -ExportOnly }
+    Expect-Failure { & $start -Directory $newTypes -RuinedPortalFamilies 4 -ExportOnly }
+    Expect-Failure { & $start -Directory $newTypes -BuriedTreasureFamilies 4 -ExportOnly }
+    Write-Output 'Passed: native five-type queue, legacy plan resume, BT/RP preset and guards, completed-attempt recovery, singleton lock, hard deadline, interrupted-range resume and STOP drain.'
 }
 Write-Output "Test reports: $directory"

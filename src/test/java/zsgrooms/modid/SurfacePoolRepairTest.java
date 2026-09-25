@@ -333,7 +333,7 @@ class SurfacePoolRepairTest {
     void onlyNewTempleAndVillageProfilesQualifyAndAttemptMarkerRoundTrips() {
         assertTrue(SurfaceLavaPoolGuarantee.appliesTo("rooms-temple-v5"));
         assertTrue(SurfaceLavaPoolGuarantee.appliesTo("ZSG Rooms Village"));
-        for (String filter : new String[]{"rooms-shipwreck-v5", "zsg", "zsgdeserttemple", "rpseedbank", "manual", "random"}) {
+        for (String filter : new String[]{"rooms-shipwreck-v5", "rooms-buried-treasure-v5", "zsg", "zsgdeserttemple", "rpseedbank", "manual", "random"}) {
             assertFalse(SurfaceLavaPoolGuarantee.appliesTo(filter));
         }
         SurfaceLavaPoolGuarantee.State state = new SurfaceLavaPoolGuarantee.State();

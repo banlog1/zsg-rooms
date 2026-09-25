@@ -40,8 +40,11 @@ public class GameLogicTest {
         assertTrue(standard.guaranteesNearbyAnimals());
         assertTrue(standard.warmsNetherEntry());
         assertTrue(standard.disablesPauseWorldSaves());
+        assertTrue(standard.reducesZeroCycleFlyAways());
+        assertTrue(standard.sharesNetherEntry());
 
         RoomRulePreset vanillaBarters = RoomRulePreset.STANDARD_ZSG_VANILLA_BARTERS;
+        assertFalse(vanillaBarters.allowsCheats());
         assertTrue(vanillaBarters.standardizesRng());
         assertFalse(vanillaBarters.boostsBarters());
         assertTrue(vanillaBarters.guaranteesBastionIron());
@@ -51,6 +54,8 @@ public class GameLogicTest {
         assertTrue(vanillaBarters.guaranteesNearbyAnimals());
         assertTrue(vanillaBarters.warmsNetherEntry());
         assertTrue(vanillaBarters.disablesPauseWorldSaves());
+        assertTrue(vanillaBarters.reducesZeroCycleFlyAways());
+        assertTrue(vanillaBarters.sharesNetherEntry());
 
         RoomRulePreset verifiable = RoomRulePreset.REGULAR_VERIFIABLE_ZSG;
         assertFalse(verifiable.allowsCheats());
@@ -63,6 +68,8 @@ public class GameLogicTest {
         assertFalse(verifiable.guaranteesNearbyAnimals());
         assertFalse(verifiable.warmsNetherEntry());
         assertFalse(verifiable.disablesPauseWorldSaves());
+        assertFalse(verifiable.reducesZeroCycleFlyAways());
+        assertFalse(verifiable.sharesNetherEntry());
 
         assertFalse(RoomRulePreset.CUSTOM.removesNaturalStriderJockeys());
         assertFalse(RoomRulePreset.CUSTOM.disablesPauseWorldSaves());
@@ -251,9 +258,10 @@ public class GameLogicTest {
     }
 
     @Test
-    public void flyAwayAssistIsOptInAndRoomCreationKeepsItIndependentFromRng() {
+    public void flyAwayAssistIsStandardButRoomCreationKeepsItIndependentFromRng() {
         for (RoomRulePreset preset : RoomRulePreset.values()) {
-            assertFalse(preset.reducesZeroCycleFlyAways());
+            assertEquals(preset == RoomRulePreset.STANDARD_ZSG_ROOMS
+                    || preset == RoomRulePreset.STANDARD_ZSG_VANILLA_BARTERS, preset.reducesZeroCycleFlyAways());
         }
         ZsgRooms.createRoom("assisted-room", 2, 1, "manual:123", "Host",
                 false, false, false, false, false, false, false, false, false, false, true);
@@ -265,9 +273,10 @@ public class GameLogicTest {
     }
 
     @Test
-    public void sharedNetherEntryIsOptInAndIndependentFromRngAndWarmup() {
+    public void sharedNetherEntryIsStandardAndIndependentFromRngAndWarmup() {
         for (RoomRulePreset preset : RoomRulePreset.values()) {
-            assertFalse(preset.sharesNetherEntry());
+            assertEquals(preset == RoomRulePreset.STANDARD_ZSG_ROOMS
+                    || preset == RoomRulePreset.STANDARD_ZSG_VANILLA_BARTERS, preset.sharesNetherEntry());
         }
         ZsgRooms.createRoom("shared-entry-room", 2, 1, "manual:123", "Host",
                 false, false, false, false, false, false, false, false, false, false, false, true);
@@ -308,6 +317,7 @@ public class GameLogicTest {
     public void proximitySpawnMapsEveryFilteredSeedTypeToItsRouteStructure() {
         assertEquals("buried_treasure", StructureSpawnProximity.structureKeyForFilter("zsg"));
         assertEquals("buried_treasure", StructureSpawnProximity.structureKeyForFilter("zsgop"));
+        assertEquals("buried_treasure", StructureSpawnProximity.structureKeyForFilter("rooms-buried-treasure-v5"));
         assertEquals("village", StructureSpawnProximity.structureKeyForFilter("zsgvillage"));
         assertEquals("village", StructureSpawnProximity.structureKeyForFilter("zsgvillageop"));
         assertEquals("shipwreck", StructureSpawnProximity.structureKeyForFilter("zsgshipwreck"));

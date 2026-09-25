@@ -49,6 +49,8 @@ public final class ModelFinder {
         long[] outcomes = new long[SmithLootModel.Outcome.values().length];
         long[] netherOutcomes = new long[4];
         long netherLayoutNanos = 0, netherLootNanos = 0, netherTerrainNanos = 0, acceptedStables = 0;
+        long[] portalOutcomes = new long[5];
+        long portalNanos = 0;
         String report = null;
         try (NetherModelClient nether = new NetherModelClient();
              BufferedReader input = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8));
@@ -65,6 +67,20 @@ public final class ModelFinder {
                     netherTerrainNanos += result.terrainNanos;
                     if (result.status == 3 && result.type.equals("STABLES")) acceptedStables++;
                     response.println("NETHER " + result.status + " " + result.score + " " + result.type);
+                    if (response.checkError()) throw new IllegalStateException("Private pipe closed");
+                } else if (line.startsWith("PORTAL ")) {
+                    String[] fields = line.split(" ");
+                    if (fields.length != 9 || report != null) throw new IllegalStateException("Bad private protocol");
+                    long seed = Long.parseLong(fields[1]);
+                    int[] values = new int[7];
+                    for (int i = 0; i < values.length; i++) values[i] = Integer.parseInt(fields[i + 2]);
+                    long start = System.nanoTime();
+                    PortalCompletionModel.Result result = model.submit(() -> PortalCompletionModel.evaluate(seed,
+                            values[0], values[1], values[2], values[3], values[4], values[5], values[6])).get(30, TimeUnit.SECONDS);
+                    portalNanos += System.nanoTime() - start;
+                    portalOutcomes[result.status()]++;
+                    response.println("PORTAL_RESULT " + result.status() + " " + result.missing() + " " + result.lava()
+                            + " " + result.cast() + " " + result.template() + " " + result.y());
                     if (response.checkError()) throw new IllegalStateException("Private pipe closed");
                 } else if (line.startsWith("SMITH ")) {
                     String[] fields = line.split(" ");
@@ -113,6 +129,11 @@ public final class ModelFinder {
                 publicOutput.printf("%s\"%s\":%d", outcome.ordinal() == 0 ? "" : ",", outcome.name(), outcomes[outcome.ordinal()]);
             }
             publicOutput.println("}}");
+            publicOutput.printf(java.util.Locale.ROOT,
+                    "{\"portalModel\":{\"checks\":%d,\"ms\":%.3f,\"layoutRejected\":%d,\"frameRejected\":%d,"
+                            + "\"resourcesRejected\":%d,\"needsWaterCheck\":%d,\"obsidianOnly\":%d},\"minecraftWorlds\":0}%n",
+                    Arrays.stream(portalOutcomes).sum(), portalNanos / 1e6,
+                    portalOutcomes[0], portalOutcomes[1], portalOutcomes[2], portalOutcomes[3], portalOutcomes[4]);
         } finally {
             model.shutdownNow();
             child.destroyForcibly();

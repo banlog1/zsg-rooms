@@ -27,7 +27,7 @@ public final class RoomUiPreferences {
     private static final Path CONFIG_PATH = Paths.get("config", "zsg-rooms-ui.txt");
     private static final Path HUD_CONFIG_PATH = Paths.get("config", "zsg-rooms-hud.properties");
     private static final MatchHudPreferences MATCH_HUD = MatchHudPreferences.load(HUD_CONFIG_PATH);
-    private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair.txt");
+    private static final Path RP_REPAIR_CONFIG_PATH = Paths.get("config", "zsg-rooms-rp-repair-testing.txt");
     private static final Path SEED_DEBUG_CONFIG_PATH = Paths.get("config", "zsg-rooms-seed-debug.txt");
     private static final Path NETHER_WARMUP_CONFIG_PATH = Paths.get("config", "zsg-rooms-nether-warmup.txt");
     private static final Path LOADING_IMAGES_CONFIG_PATH = Paths.get("config", "zsg-rooms-loading-images.txt");
@@ -35,7 +35,7 @@ public final class RoomUiPreferences {
     private static LoadingProgressPosition loadingProgressPosition = loadLoadingProgressPosition(LOADING_POSITION_CONFIG_PATH);
     private static boolean loadingImagesEnabled = loadLoadingImages();
     private static HudPosition hudPosition = loadHudPosition();
-    private static boolean ruinedPortalChestRepairEnabled = loadRuinedPortalChestRepair();
+    private static volatile boolean ruinedPortalRepairTestingEnabled = loadRuinedPortalRepairTesting(RP_REPAIR_CONFIG_PATH);
     private static boolean seedDebugLoggingEnabled = loadSeedDebugLogging();
     private static boolean netherEntryWarmupEnabled = loadNetherEntryWarmup();
 
@@ -109,12 +109,12 @@ public final class RoomUiPreferences {
         }
     }
 
-    public static boolean isRuinedPortalChestRepairEnabled() {
-        return ruinedPortalChestRepairEnabled;
+    public static boolean isRuinedPortalRepairTestingEnabled() {
+        return ruinedPortalRepairTestingEnabled;
     }
 
-    public static void setRuinedPortalChestRepairEnabled(boolean enabled) {
-        ruinedPortalChestRepairEnabled = enabled;
+    public static void setRuinedPortalRepairTestingEnabled(boolean enabled) {
+        ruinedPortalRepairTestingEnabled = enabled;
         try {
             Files.createDirectories(RP_REPAIR_CONFIG_PATH.getParent());
             Files.write(RP_REPAIR_CONFIG_PATH, Boolean.toString(enabled).getBytes(StandardCharsets.UTF_8));
@@ -159,15 +159,15 @@ public final class RoomUiPreferences {
         return HudPosition.TOP_RIGHT;
     }
 
-    private static boolean loadRuinedPortalChestRepair() {
+    static boolean loadRuinedPortalRepairTesting(Path path) {
         try {
-            if (Files.exists(RP_REPAIR_CONFIG_PATH)) {
+            if (Files.exists(path)) {
                 return Boolean.parseBoolean(new String(
-                        Files.readAllBytes(RP_REPAIR_CONFIG_PATH), StandardCharsets.UTF_8).trim());
+                        Files.readAllBytes(path), StandardCharsets.UTF_8).trim());
             }
         } catch (IOException ignored) {
         }
-        return true;
+        return false;
     }
 
     private static boolean loadSeedDebugLogging() {

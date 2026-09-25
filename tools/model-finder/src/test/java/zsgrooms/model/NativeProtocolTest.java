@@ -36,7 +36,7 @@ class NativeProtocolTest {
 
     @Test
     void allProfilesRefuseToSearchWithoutModels() throws Exception {
-        for (String type : new String[]{"temple", "shipwreck", "village"}) {
+        for (String type : new String[]{"temple", "shipwreck", "village", "buried_treasure", "ruined_portal"}) {
             Path output = directory.resolve(type + ".jsonl");
             ProcessBuilder builder = command(type, output);
             builder.environment().remove("ZSG_MODEL_PIPE");
@@ -55,7 +55,7 @@ class NativeProtocolTest {
 
     @Test
     void invalidOrMissingNetherResponseAbortsBeforeAnyAcceptance() throws Exception {
-        for (String type : new String[]{"temple", "shipwreck", "village"}) {
+        for (String type : new String[]{"temple", "shipwreck", "village", "buried_treasure", "ruined_portal"}) {
             for (String reply : new String[]{"", "NETHER 3 19 BRIDGE\n", "NETHER 3 20 UNKNOWN\n", "NETHER 4 20 BRIDGE\n"}) {
                 Path output = directory.resolve(type + "-" + Math.abs(reply.hashCode()) + ".jsonl");
                 ProcessBuilder builder = command(type, output);

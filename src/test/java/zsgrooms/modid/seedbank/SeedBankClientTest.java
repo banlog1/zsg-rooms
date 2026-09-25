@@ -63,6 +63,24 @@ class SeedBankClientTest {
     }
 
     @Test
+    void ruinedPortalResponsesMustMatchTheirOwnProfile() throws Exception {
+        JsonObject body = response();
+        body.addProperty("type", "ruined_portal");
+        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.RUINED_PORTAL, ID));
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(response().toString(), SeedBankProfile.RUINED_PORTAL, ID));
+    }
+
+    @Test
+    void buriedTreasureResponsesMustMatchTheirOwnProfile() throws Exception {
+        JsonObject body = response();
+        body.addProperty("type", "buried_treasure");
+        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.BURIED_TREASURE, ID));
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(response().toString(), SeedBankProfile.BURIED_TREASURE, ID));
+    }
+
+    @Test
     void requiresMatchingProfileTypeRequestAndExactStringSeed() throws Exception {
         assertEquals(SEED, SeedBankClient.parseResponse(response().toString(), SeedBankProfile.TEMPLE, ID));
         for (String seed : Arrays.asList("-9223372036854775808", "9007199254740993")) {

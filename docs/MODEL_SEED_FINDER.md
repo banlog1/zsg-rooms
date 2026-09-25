@@ -2,10 +2,24 @@
 
 For desktop-safe parallel batches, measured worker scaling and the rental shortlist,
 see [Parallel Seed Bank Search](FILTER_PARALLEL_SEARCH.md).
-For resumable overnight collection across all three types, see
+For resumable overnight collection, including the BT/RP preset, see
 [Overnight Seed Bank](OVERNIGHT_SEED_BANK.md).
 For publishing completed snapshots to the locally tested hosted-delivery path,
 see [Seed Service](../seed-service/README.md).
+
+The [Buried Treasure Filter](BURIED_TREASURE_FILTER.md) is now
+available as `-Type buried_treasure`. It uses regular mapless-style checks and
+the existing stables requirements. Hosted publication and the Rooms picker
+support it. The standalone search uses a measured 4,096-sister budget and a
+two-seed family cap, also available in new overnight banks.
+
+The [Ruined Portal filter](RUINED_PORTAL_FILTER.md) is available via
+`-Type ruined_portal`. It checks frame completion using chest obsidian or modeled
+lava, without Looting or RP Seedbank's stronghold restrictions. Local overnight
+collection is available via `-Preset bt-rp`. Hosted publication and the separate
+**ZSG Rooms Ruined Portal** picker choice support its v3 tool/ignition rules.
+ZSG Rooms Mode now draws our RP at 15%, external RP Seedbank at 5%, and our
+BT at 20%, with temple/village/shipwreck each retaining 20%.
 
 ## Production Boundary
 
@@ -18,8 +32,10 @@ experiment sections below describe their validation before promotion.
 
 New searches use the installed corrected model. Existing overnight directories
 retain their immutable runtime snapshots: use the prepared
-`run/model-bank/overnight/temple-village-wood-first` directory for new collection,
-not an old folder. Existing banks, checkpoints and the shared cursor are retained.
+`run/model-bank/overnight/all-types-wood-first` directory for collection across
+temple, shipwreck and village. It uses the same model as the previous
+`temple-village-wood-first` bank, which remains available for two-type runs.
+Existing banks, checkpoints and the shared cursor are retained.
 The profile label remains v5; the runtime fingerprint identifies the implementation.
 The latest native finder also moves temple wood sampling from the selected lava
 pool to the temple reference position (20 blocks per axis). Older snapshots do
@@ -100,9 +116,10 @@ gameplay tolerance, **not** a mathematical error bound or a universal guarantee.
 
 Version 3 always enables ZSG's otherwise-optional bastion-obsidian and Nether
 terrain checks. Both run once per lower48 family, after cheap Overworld
-loot/feature-attempt rejection and before any sister checks. OP variants and
-mapless are not implemented by this finder. Its modified Overworld criteria
-and added stables requirements still differ from stock ZSG.
+loot/feature-attempt rejection and before any sister checks. OP variants remain
+unimplemented. Regular mapless-style buried treasure and ruined portal are
+hosted-bank extensions described above. Our modified Overworld criteria and added stables
+requirements still differ from stock ZSG.
 
 Version 1/2 banks, including the earlier 25-village batch, did not pass the
 new Nether checks. They must not be relabeled as version 3 without rechecking.
@@ -241,6 +258,8 @@ Current operator-script defaults from the bounded policy trials are:
 | Temple | 4096 | 2 |
 | Shipwreck | 16384 | 4 |
 | Village (provisional; sparse evidence) | 1024 | 2 |
+| Ruined portal (provisional; short paired trial) | 4096 | 4 |
+| Buried treasure (bounded policy trial) | 4096 | 2 |
 
 Explicit flags override these choices. The native CLI still requires an
 explicit attempt budget and accepts an optional final cap argument (omitted

@@ -13,11 +13,42 @@ class RuinedPortalChestRepairTest {
         StructureSpawnProximity.prepareNextLaunch(null);
     }
 
+    @Test void roomsPortalBankUsesAutomaticRepairsAndPortalStructure() {
+        StructureSpawnProximity.prepareNextLaunch(null);
+        assertTrue(RuinedPortalChestRepair.shouldRepair(SEED, "rooms-ruined-portal-v5", false));
+        assertEquals("ruined_portal", StructureSpawnProximity.structureKeyForFilter("rooms-ruined-portal-v5"));
+        StructureSpawnProximity.prepareNextLaunch(SEED + "|structure:rooms-ruined-portal-v5|iron:4");
+        assertTrue(RuinedPortalChestRepair.isPortalWorld(SEED, "rooms-temple-v5"));
+        assertFalse(RuinedPortalChestRepair.isPortalWorld(SEED + 1, "rooms-ruined-portal-v5"));
+        assertEquals("rooms-ruined-portal-v5", StructureSpawnProximity.consumeLaunchFilter(SEED, "room"));
+        assertTrue(RuinedPortalChestRepair.isPortalWorld(SEED, "rooms-ruined-portal-v5"));
+    }
+
+    @Test void onlyExternalPortalSeedbankRequiresLootingForSpawnLookup() {
+        assertTrue(StructureSpawnProximity.requiresSeedbankLoot("rpseedbank"));
+        assertTrue(StructureSpawnProximity.requiresSeedbankLoot("Ruined Portal Seedbank"));
+        assertFalse(StructureSpawnProximity.requiresSeedbankLoot("rooms-ruined-portal-v5"));
+        assertFalse(StructureSpawnProximity.requiresSeedbankLoot("ZSG Rooms Ruined Portal"));
+    }
+
     @Test void randomModeUsesIncomingFilterBeforeRoomCommit() {
         StructureSpawnProximity.prepareNextLaunch(PORTAL);
         assertTrue(RuinedPortalChestRepair.isPortalWorld(SEED, "rooms-mix"));
         assertTrue(RuinedPortalChestRepair.isPortalWorld(SEED, "rooms-temple-v5"));
         assertFalse(RuinedPortalChestRepair.isPortalWorld(SEED + 1, "rpseedbank"));
+    }
+
+    @Test void portalRoomsAreAutomaticAndOtherWorldsRequireTestingOverride() {
+        StructureSpawnProximity.prepareNextLaunch(null);
+        assertTrue(RuinedPortalChestRepair.shouldRepair(SEED, "rpseedbank", false));
+        assertFalse(RuinedPortalChestRepair.shouldRepair(SEED, "rooms-temple-v5", false));
+        assertFalse(RuinedPortalChestRepair.shouldRepair(SEED, null, false));
+        assertTrue(RuinedPortalChestRepair.shouldRepair(SEED, "rooms-temple-v5", true));
+        assertTrue(RuinedPortalChestRepair.shouldRepair(SEED, null, true));
+        StructureSpawnProximity.prepareNextLaunch(PORTAL);
+        assertTrue(RuinedPortalChestRepair.shouldRepair(SEED, "rooms-mix", false));
+        assertFalse(RuinedPortalChestRepair.shouldRepair(SEED + 1, "rpseedbank", false));
+        assertFalse(RuinedPortalChestRepair.shouldRepair(SEED, null, false));
     }
 
     @Test void spawnPreparationDoesNotConsumeRepairContext() {

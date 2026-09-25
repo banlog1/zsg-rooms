@@ -28,6 +28,28 @@ test("profile, family and coordinates are validated without exposing seeds", () 
   }
 });
 
+test("buried treasure requires the modeled regular-mapless rule", () => {
+  const row = record("123", "buried_treasure");
+  for (const rule of [undefined, "mapless-op-v1", "unknown"]) {
+    assert.throws(() => validateRecord({ ...row, buriedTreasureRule: rule }), /acceptance rule/);
+  }
+  assert.equal(validateRecord({ ...row, buriedTreasureRule: "mapless-regular-v1" }).type, "buried_treasure");
+});
+
+test("ruined portals require v3 tools and usable ignition", () => {
+  const row = { ...record("123", "ruined_portal"), ruinedPortalRule: "frame-completable-v3",
+    goldenAxes: 1, goldenPickaxes: 0, flintAndSteel: 1, fireCharges: 0, flint: 0, ironNuggets: 0 };
+  assert.equal(validateRecord(row).type, "ruined_portal");
+  assert.equal(validateRecord({ ...row, goldenAxes: 0, goldenPickaxes: 1 }).type, "ruined_portal");
+  assert.equal(validateRecord({ ...row, flintAndSteel: 0, fireCharges: 5 }).type, "ruined_portal");
+  assert.equal(validateRecord({ ...row, flintAndSteel: 0, flint: 1, ironNuggets: 9 }).type, "ruined_portal");
+  for (const change of [{ ruinedPortalRule: "frame-completable-v2" }, { goldenAxes: 0 },
+    { goldenAxes: "1" }, { goldenPickaxes: -1 }, { goldenAxes: 9 },
+    { flintAndSteel: 0, fireCharges: 4 }, { flintAndSteel: 0, flint: 1, ironNuggets: 8 }]) {
+    assert.throws(() => validateRecord({ ...row, ...change }), /acceptance rule/);
+  }
+});
+
 test("publication is deterministic, refuses duplicates and leaves existing output alone", async () => {
   const directory = await mkdtemp(join(tmpdir(), "zsg-bank-publish-"));
   try {
@@ -61,7 +83,11 @@ test("split imports preserve dense slots and cannot activate an incomplete revis
   const db = new DatabaseSync(":memory:");
   try {
     const input = join(directory, "bank.jsonl");
-    const rows = Array.from({ length: 101 }, (_, i) => record(String(i + 1), ["temple", "village", "shipwreck"][i % 3]));
+    const rows = Array.from({ length: 101 }, (_, i) => ({
+      ...record(String(i + 1), ["temple", "village", "shipwreck", "buried_treasure", "ruined_portal"][i % 5]),
+      buriedTreasureRule: "mapless-regular-v1", ruinedPortalRule: "frame-completable-v3",
+      goldenAxes: 1, goldenPickaxes: 0, flintAndSteel: 1, fireCharges: 0, flint: 0, ironNuggets: 0
+    }));
     await writeFile(input, rows.map(row => JSON.stringify(row)).join("\n"));
     const output = join(directory, "published");
     const manifest = await publishBank([input], output, 50);

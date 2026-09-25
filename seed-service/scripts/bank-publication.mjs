@@ -18,7 +18,7 @@ export function validateRows(rows) {
     seeds.add(row.seed);
     const key = `${row.type}:${row.family}`;
     const count = (families.get(key) || 0) + 1;
-    if (count > (row.type === "shipwreck" ? 4 : 2)) throw new Error("Publication exceeds the profile family cap.");
+    if (count > (["shipwreck", "ruined_portal"].includes(row.type) ? 4 : 2)) throw new Error("Publication exceeds the profile family cap.");
     families.set(key, count);
   }
 }
@@ -34,7 +34,11 @@ export async function readPublication(directory) {
   const rows = content.trim().split("\n").map(line => JSON.parse(line));
   validateRows(rows);
   const byType = Object.fromEntries(TYPES.map(type => [type, rows.filter(row => row.type === type)]));
-  if (manifest.total !== rows.length || TYPES.some(type => manifest.counts?.[type] !== byType[type].length)) {
+  // Older snapshots predate these types. Their missing counts mean zero;
+  // their original bytes, digests and permanent slots remain unchanged.
+  const recordedCount = type => ["buried_treasure", "ruined_portal"].includes(type) && manifest.counts?.[type] === undefined
+    ? 0 : manifest.counts?.[type];
+  if (manifest.total !== rows.length || TYPES.some(type => recordedCount(type) !== byType[type].length)) {
     throw new Error("Publication counts do not match its records.");
   }
   return { manifest, rows, byType, bankRevision: manifest.bankRevision || manifest.revision };

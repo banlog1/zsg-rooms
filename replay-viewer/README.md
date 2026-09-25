@@ -228,7 +228,7 @@ From the repository root, prepare the pinned reference and build:
 .\gradlew.bat -p replay-viewer build --offline
 ```
 
-Artifact: `build/libs/zsg-replay-viewer-0.2.0.jar` inside this directory.
+Artifact: `build/libs/zsg-replay-viewer-0.3.0.jar` inside this directory.
 The version comes from `viewer_version` in this directory's `gradle.properties`;
 both the filename and `fabric.mod.json` use it. The core's playback test resolves
 the same version automatically. See [release packaging](../RELEASING.md).

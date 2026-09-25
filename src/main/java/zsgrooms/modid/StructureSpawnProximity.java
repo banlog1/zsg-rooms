@@ -3,6 +3,7 @@ package zsgrooms.modid;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.Material;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.structure.StructureStart;
 import net.minecraft.util.math.BlockBox;
@@ -30,6 +31,7 @@ public final class StructureSpawnProximity {
     static final int MIN_TARGET_DISTANCE = 24;
     static final int MAX_TARGET_DISTANCE = 48;
     static final int RELOCATION_THRESHOLD = MAX_TARGET_DISTANCE;
+    static final int SHIPWRECK_KEEP_DISTANCE = 60;
     private static final int SEARCH_RADIUS_CHUNKS = 160;
     private static final int MAX_RUINED_PORTAL_CANDIDATES = 4;
     static final int MAX_TERRAIN_CHUNKS = 8;
@@ -145,11 +147,11 @@ public final class StructureSpawnProximity {
         }
 
         long originalDistanceSquared = horizontalDistanceSquared(originalSpawn, target);
-        if (!needsRelocation(originalSpawn, target, filterId)
-                && (isShipwreck(filterId) || isSafeSpawn(world, originalSpawn))) {
+        if (!needsRelocation(originalSpawn, target, filterId) && isSafeSpawn(world, originalSpawn)
+                && (!isShipwreck(filterId) || isNaturalShipwreckFloor(world.getBlockState(originalSpawn.down())))) {
             // Pin the player here even with RNG standardization off; vanilla's spawn-radius
-            // scatter could otherwise put them outside the 48-block limit.
-            preparedSpawn = !isShipwreck(filterId);
+            // scatter could otherwise put them outside the close-spawn limit.
+            preparedSpawn = true;
             SeedDebugLog.info("Keeping original spawn; {} is already {} blocks away (located in {} ms{})",
                     filterId, Math.round(Math.sqrt(originalDistanceSquared)), locateMillis, located.verificationLog());
             return;
@@ -175,14 +177,18 @@ public final class StructureSpawnProximity {
 
     private static LocatedTarget locateTarget(
             ServerWorld world, StructureFeature<?> structure, BlockPos origin, String selectedFilter) {
-        if (!"rpseedbank".equals(ZsgSeedBridge.normalizeSeedType(selectedFilter))) {
+        if (!"ruined_portal".equals(structureKeyForFilter(selectedFilter))) {
             return new LocatedTarget(
                     world.locateStructure(structure, origin, SEARCH_RADIUS_CHUNKS, false), 0, false);
         }
-        return locateGeneratedRuinedPortal(world, origin);
+        return locateGeneratedRuinedPortal(world, origin, requiresSeedbankLoot(selectedFilter));
     }
 
-    private static LocatedTarget locateGeneratedRuinedPortal(ServerWorld world, BlockPos origin) {
+    static boolean requiresSeedbankLoot(String selectedFilter) {
+        return "rpseedbank".equals(ZsgSeedBridge.normalizeSeedType(selectedFilter));
+    }
+
+    private static LocatedTarget locateGeneratedRuinedPortal(ServerWorld world, BlockPos origin, boolean requireSeedbankLoot) {
         ChunkGenerator generator = world.getChunkManager().getChunkGenerator();
         StructureConfig config = generator.getConfig().method_28600(StructureFeature.RUINED_PORTAL);
         if (config == null) {
@@ -218,15 +224,15 @@ public final class StructureSpawnProximity {
                     if (start == null || !start.hasChildren()) {
                         continue;
                     }
-                    BlockPos chestPos = generateAndLocateRuinedPortalChest(world, start);
+                    BlockPos chestPos = generateAndLocateRuinedPortalChest(world, start, requireSeedbankLoot);
                     if (chestPos != null) {
-                        SeedDebugLog.info("Verified Ruined Portal Seedbank Looting chest at {}", chestPos);
+                        SeedDebugLog.info("Verified ruined portal chest at {} (Looting required: {})", chestPos, requireSeedbankLoot);
                         return new LocatedTarget(chestPos, rejected, true);
                     }
 
                     rejected++;
-                    SeedDebugLog.warn("Rejected ruined portal candidate without the seedbank Looting chest at {}",
-                            start.getPos());
+                    SeedDebugLog.warn("Rejected ruined portal candidate without a matching chest at {} (Looting required: {})",
+                            start.getPos(), requireSeedbankLoot);
                     if (rejected >= MAX_RUINED_PORTAL_CANDIDATES) {
                         ZsgRooms.LOGGER.warn("Stopped ruined portal verification after {} false candidates", rejected);
                         return null;
@@ -237,7 +243,7 @@ public final class StructureSpawnProximity {
         return null;
     }
 
-    private static BlockPos generateAndLocateRuinedPortalChest(ServerWorld world, StructureStart<?> start) {
+    private static BlockPos generateAndLocateRuinedPortalChest(ServerWorld world, StructureStart<?> start, boolean requireSeedbankLoot) {
         BlockBox bounds = start.getBoundingBox();
         int minimumChunkX = bounds.minX >> 4;
         int maximumChunkX = bounds.maxX >> 4;
@@ -251,7 +257,7 @@ public final class StructureSpawnProximity {
         if (!RuinedPortalGenerationTracker.wasGenerated(world, bounds)) {
             return null;
         }
-        return RuinedPortalGenerationTracker.findGeneratedChest(world, bounds);
+        return RuinedPortalGenerationTracker.findGeneratedChest(world, bounds, requireSeedbankLoot);
     }
 
     public static boolean hasPreparedSpawn() {
@@ -307,7 +313,7 @@ public final class StructureSpawnProximity {
     }
 
     static boolean needsRelocation(BlockPos spawn, BlockPos target, String selectedFilter) {
-        int threshold = isShipwreck(selectedFilter) ? 140 : RELOCATION_THRESHOLD;
+        int threshold = isShipwreck(selectedFilter) ? SHIPWRECK_KEEP_DISTANCE : RELOCATION_THRESHOLD;
         return horizontalDistanceSquared(spawn, target) > (long) threshold * threshold;
     }
 
@@ -316,11 +322,11 @@ public final class StructureSpawnProximity {
     }
 
     static int minimumTargetDistance(String selectedFilter) {
-        return isShipwreck(selectedFilter) ? 70 : MIN_TARGET_DISTANCE;
+        return isShipwreck(selectedFilter) ? 0 : MIN_TARGET_DISTANCE;
     }
 
     static int maximumTargetDistance(String selectedFilter) {
-        return isShipwreck(selectedFilter) ? 128 : MAX_TARGET_DISTANCE;
+        return isShipwreck(selectedFilter) ? ShipwreckSpawnSearch.RADIUS : MAX_TARGET_DISTANCE;
     }
 
     static long[] candidateChunkKeys(long worldSeed, String selectedFilter, BlockPos target, BlockPos originalSpawn) {
@@ -334,6 +340,22 @@ public final class StructureSpawnProximity {
 
     private static SafeSpawnResult findSafeSpawn(
             ServerWorld world, BlockPos target, BlockPos originalSpawn, String selectedFilter) {
+        if (isShipwreck(selectedFilter)) {
+            try {
+                ShipwreckSpawnSearch.Result result = ShipwreckSpawnSearch.find(target, new ShipwreckSpawnSearch.Terrain() {
+                    @Override public void loadChunk(int x, int z) { world.getChunk(x, z); }
+                    @Override public BlockPos safeNaturalSurface(int x, int z) {
+                        BlockPos surface = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
+                        return isNaturalShipwreckFloor(world.getBlockState(surface.down())) && isSafeSpawn(world, surface)
+                                ? surface : null;
+                    }
+                });
+                return new SafeSpawnResult(result.spawn, result.chunksChecked);
+            } catch (RuntimeException exception) {
+                SeedDebugLog.warn("Could not inspect shipwreck coastline: {}", exception.getMessage());
+                return new SafeSpawnResult(null, 0);
+            }
+        }
         List<ChunkCandidate> candidates = buildChunkCandidates(world.getSeed(), selectedFilter, target, originalSpawn);
         int chunksChecked = 0;
         for (ChunkCandidate candidate : candidates) {
@@ -440,6 +462,12 @@ public final class StructureSpawnProximity {
                 && block != Blocks.FIRE;
     }
 
+    static boolean isNaturalShipwreckFloor(BlockState floor) {
+        Material material = floor.getMaterial();
+        return material == Material.SOIL || material == Material.AGGREGATE
+                || material == Material.STONE || material == Material.SOLID_ORGANIC;
+    }
+
     private static Random deterministicRandom(long worldSeed, String selectedFilter) {
         long filterHash = selectedFilter == null ? 0L : selectedFilter.hashCode();
         long mixed = worldSeed ^ filterHash * 0x9e3779b97f4a7c15L;
@@ -502,7 +530,7 @@ public final class StructureSpawnProximity {
             if (!this.portalVerified) {
                 return "";
             }
-            return ", seedbank Looting chest verified, rejected " + this.rejectedCandidates + " false candidates";
+            return ", generated portal chest verified, rejected " + this.rejectedCandidates + " false candidates";
         }
     }
 

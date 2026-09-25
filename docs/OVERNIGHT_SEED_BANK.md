@@ -1,33 +1,86 @@
 # Overnight Seed Bank
 
-The Windows supervisor rotates temple, shipwreck and village batches, with up to
+The Windows supervisor supports temple, shipwreck, village, buried treasure and
+ruined portal batches. The default rotation remains the original three types, with up to
 four workers by default at below-normal priority. An explicit `-AllowFullCpu`
 allows up to six workers, limited to the physical core count. It uses only the existing model-only v5
 finder. No Minecraft generation or filter-criteria changes are involved.
 
 ## Start Or Resume
 
-**Latest model (2026-09-20):** use
-`run/model-bank/overnight/temple-village-wood-first` for near-temple wood sampling
-and the calibrated village confidence and well-placement fixes. This prepared temple/village bank uses the updated
-runtime; older bank folders below still resume their original frozen models.
+### Buried Treasure And Ruined Portal
+
+Use the new `bt-rp` preset for alternating BT and RP batches:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village-wood-first -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
+Set-Location "E:\recordings\code\minecraft rooms"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Preset bt-rp -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
+```
+
+This starts or resumes `run/model-bank/overnight/bt-rp`. It does not change any
+existing three-type bank. To prepare its frozen runtime without starting workers,
+use `-Preset bt-rp -ExportOnly`. No twelve-hour search is started by setup itself.
+
+| Type | Families per batch | Sister attempts | Accepted seeds per family |
+| --- | ---: | ---: | ---: |
+| Buried treasure | 1,000,000 | 4,096 | 2 |
+| Ruined portal | 1,000,000 | 4,096 | 4 |
+
+BT retains `mapless-regular-v1`; RP requires `frame-completable-v3`, including
+the golden axe OR pickaxe rule and existing ignition requirement. Each batch
+must finish its assigned family range before commitment. Incomplete work is
+retried on that same reservation, never silently counted as completed.
+
+Results consolidate in `run/model-bank/overnight/bt-rp/bank.jsonl`, with
+per-type counts in `status.json` and resource samples in `samples.json`.
+Rerun the same command to extend the bank; create `STOP` in that directory to
+drain it. The shared reservation cursor prevents overlap with earlier runs.
+Rotation is by batch, not equal wall time or equal seed counts. Five workers
+remain subject to the existing CPU and memory safeguards.
+
+`-BuriedTreasureFamilies` and `-RuinedPortalFamilies` customize batch sizes only
+when creating a fresh bank. `-Types` also accepts both names for custom mixed
+rotations, but cannot be combined with `-Preset`. Existing saved plans retain
+their original type selection, policies and runtime snapshots.
+
+This setup only collects local files. It does not upload seeds or replace the
+existing external RP Seedbank in Rooms. The hosted service and publication tools
+support mixed BT/RP snapshots, including the RP v3 tool and ignition requirements.
+Extend the latest publication listed in `seed-service/PRODUCTION.md` when ready
+to upload; keep the pending tail and existing published slots intact.
+
+### Existing Three-Type Setup
+
+**Current all-three-type setup (2026-09-24):** use
+`run/model-bank/overnight/all-types-wood-first` to rotate temple, shipwreck and
+village batches. It uses the same validated model as `temple-village-wood-first`,
+including near-temple wood sampling and the calibrated village confidence and
+well-placement fixes. The previous temple/village bank and its checkpoints are
+unchanged; older bank folders below still resume their original frozen models.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/all-types-wood-first -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
 ```
 
 No overnight search was started during this upgrade. Existing seeds and
 checkpoints remain intact; the new bank shares the installation-wide range
 cursor to avoid repeating previously reserved overnight work. Keep the old banks
 for publication alongside new results. Do not copy the new runtime into them.
-On a fresh checkout, build/install the finder and initialize the corrected bank:
+Types rotate by batch, not by accepted seed count or equal wall-clock time.
+The saved plan selects all three types automatically on subsequent launches.
+Use this new directory for future runs; resuming `temple-village-wood-first`
+still runs only those two types. New results are consolidated in
+`run/model-bank/overnight/all-types-wood-first/bank.jsonl`; append that snapshot
+to the latest seed-service publication when ready to upload.
+
+On a fresh checkout, build/install the finder and initialize the all-type bank:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/temple-village-wood-first' -Types temple,village -ExportOnly"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/all-types-wood-first' -Types temple,shipwreck,village -ExportOnly"
 ```
 
 The earlier `temple-village-corrected` folder includes the village corrections
-but retains pool-centered temple wood sampling. The new folder requires a
+but retains pool-centered temple wood sampling. Both `wood-first` folders require a
 tree-bearing biome within 20 blocks per axis of the temple reference instead;
 it does not additionally require wood near the pool. Village and shipwreck wood
 checks, pool distances and water checks are unchanged.
@@ -110,6 +163,8 @@ Useful options:
 | `-AllowFullCpu` | off | Allow up to six workers, capped at physical core count; normally the count is limited to four and physical cores minus two. Memory guards remain active |
 | `-CollectSamples` | off | Save five-second host CPU, available RAM, worker peak committed memory and progress samples to `samples.json` on shutdown |
 | `-Types` | temple, shipwreck, village | Rotation for a new bank; an existing bank retains its saved selection |
+| `-Preset` | standard | `bt-rp` selects the two new types and defaults to their separate bank directory; mutually exclusive with `-Types` |
+| `-BuriedTreasureFamilies` / `-RuinedPortalFamilies` | 1000000 each | Fixed family work per new BT/RP batch; changing a saved batch policy requires a fresh directory |
 | `-ReserveGiB` | 3 | Emergency available-RAM threshold |
 | `-WorkerStartupGiB` | 0.9 | Admission estimate per newly starting worker, not a memory cap |
 | `-BatchSeconds` | 300 | Native deadline per batch; incomplete batches are not committed |

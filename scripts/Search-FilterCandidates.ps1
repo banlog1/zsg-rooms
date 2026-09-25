@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('temple', 'village', 'shipwreck')][string]$Type = 'temple',
+    [ValidateSet('temple', 'village', 'shipwreck', 'buried_treasure', 'ruined_portal')][string]$Type = 'temple',
     [ValidateRange(1, 281474976710655)][long]$Families = 100000000,
     [ValidateRange(1, 65536)][int]$Sisters = 65536,
     [ValidateRange(1, 1000000)][int]$Target = 10,
@@ -14,12 +14,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-# Operator defaults from the bounded policy trials; explicit budgets always win.
+# Search defaults come from bounded policy trials.
+# Explicit budgets always win.
 if (-not $PSBoundParameters.ContainsKey('Sisters')) {
-    $Sisters = switch ($Type) { 'temple' { 4096 }; 'shipwreck' { 16384 }; 'village' { 1024 } }
+    $Sisters = switch ($Type) { 'temple' { 4096 }; 'shipwreck' { 16384 }; 'village' { 1024 }; 'buried_treasure' { 4096 }; 'ruined_portal' { 4096 } }
 }
 if (-not $PSBoundParameters.ContainsKey('FamilyCap')) {
-    $FamilyCap = if ($Type -eq 'shipwreck') { 4 } else { 2 }
+    $FamilyCap = if ($Type -in @('shipwreck', 'ruined_portal')) { 4 } else { 2 }
 }
 $root = Split-Path -Parent $PSScriptRoot
 $finder = if ($Finder) { (Resolve-Path -LiteralPath $Finder).Path } else { Join-Path $root 'run/filter-worker/seed-finder.exe' }

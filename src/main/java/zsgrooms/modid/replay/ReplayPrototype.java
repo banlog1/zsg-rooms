@@ -460,6 +460,8 @@ public final class ReplayPrototype {
         if (attachment != null && attachment.connection == connection) {
             session.player = null;
             session.worldChanging = false;
+            ZsgRooms.LOGGER.info("[ReplayPrototype] Buffer world-applied recording={} {}",
+                    session.recordingId, session.buffer.snapshot());
         }
     }
 
@@ -492,11 +494,13 @@ public final class ReplayPrototype {
             synchronized (session.connections) {
                 if (!session.connections.accepts(attachment)) return;
                 record = session.buffer.reserve(phase.getId(), id, encoded.readableBytes());
-            }
-            if (record == null) {
-                // An automatic finish may close the buffer while this packet is being encoded.
-                if (session.buffer.isOpen()) session.fail("buffer capacity reached");
-                return;
+                if (record == null) {
+                    // Keep the rejected packet and its snapshot together across concurrent captures.
+                    // An automatic finish may also close the buffer during encoding; that is not a failure.
+                    if (session.buffer.isOpen()) session.fail("buffer capacity reached",
+                            "packet=" + packet.getClass().getSimpleName() + " " + session.buffer.capacityFailure());
+                    return;
+                }
             }
             encoded.getBytes(encoded.readerIndex(), record.payload);
             ReplayBuffer.Record submitted = record;
@@ -715,7 +719,7 @@ public final class ReplayPrototype {
         private final ReplayWorldReset worldReset = new ReplayWorldReset();
         private boolean loggedIn;
         private boolean joined;
-        private final ReplayBuffer buffer = new ReplayBuffer(32 * 1024 * 1024, 8192);
+        private final ReplayBuffer buffer = new ReplayBuffer();
         private final long originNanos = System.nanoTime();
         private final long epochMillis = System.currentTimeMillis();
         private final UUID recordingId = UUID.randomUUID();
@@ -757,9 +761,14 @@ public final class ReplayPrototype {
         }
 
         private void fail(String reason) {
+            fail(reason, "");
+        }
+
+        private void fail(String reason, String diagnostics) {
             if (CURRENT.get() == this) recordingStatus = "Recording stopped: " + reason;
             if (failure.compareAndSet(null, reason)) {
-                ZsgRooms.LOGGER.warn("[ReplayPrototype] Recording stopped: {}", reason);
+                ZsgRooms.LOGGER.warn("[ReplayPrototype] Recording stopped: {} recording={} {}",
+                        reason, recordingId, diagnostics);
             }
             buffer.close();
         }
@@ -816,6 +825,7 @@ public final class ReplayPrototype {
                     ZsgRooms.LOGGER.warn("[ReplayPrototype] Retry setup in Room Settings > Replays > Setup.");
                 }
             } finally {
+                ZsgRooms.LOGGER.info("[ReplayPrototype] Buffer final recording={} {}", recordingId, buffer.snapshot());
                 buffer.discardQueued();
                 if (access != null && writer != null) {
                     try {

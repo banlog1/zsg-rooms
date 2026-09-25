@@ -16,11 +16,20 @@ local testing. `wrangler.production.jsonc` pins the separate seed-bank account.
 5. Start or an approved seed change consumes that seed. The existing launch path
    shares it with the room only when launching, then prepares the following seed.
 
-Three separate choices are added alongside FSG: **ZSG Rooms Desert Temple**,
-**ZSG Rooms Village**, and **ZSG Rooms Shipwreck**. Their stable specifications
-are `rooms-temple-v5`, `rooms-village-v5`, and `rooms-shipwreck-v5`. History and
+Five separate choices are added alongside FSG: **ZSG Rooms Desert Temple**,
+**ZSG Rooms Village**, **ZSG Rooms Shipwreck**, **ZSG Rooms Buried Treasure**,
+and **ZSG Rooms Ruined Portal**.
+Their stable specifications are `rooms-temple-v5`, `rooms-village-v5`,
+`rooms-shipwreck-v5`, `rooms-buried-treasure-v5`, and `rooms-ruined-portal-v5`. History and
 room snapshots retain these identities. Structure-proximity rules map to the
-corresponding vanilla structure. FSG, manual and random choices are unchanged.
+corresponding vanilla structure. Individual FSG, manual and vanilla-random
+choices are unchanged. ZSG Rooms Mode uses our temple/village/shipwreck/BT
+banks at 20% each, our RP at 15%, and external RP Seedbank at 5%.
+
+RP imports require `frame-completable-v3`, at least one golden axe or pickaxe,
+and flint and steel, flint plus nine nuggets, or at least five fire charges.
+The family cap is four for RP and shipwreck, two for the other types. Old
+publications without an RP count remain valid only when they contain no RP rows.
 
 The service returns a seed as a **decimal string**, never a JavaScript number.
 The Java client validates the model profile, type, request identity, revision,
@@ -49,7 +58,7 @@ not appended while this publisher reads it. New results need another publication
 
 In Minecraft, open **Room Settings -> Seed Bank...**, enter
 `http://127.0.0.1:8791`, and Save. No JVM argument is needed. Create a room and
-select one of the three new choices. The room host needs the service connection;
+select one of the bank choices. The room host needs the service connection;
 guests receive the launched exact seed through the existing room transport.
 For same-machine testing, both the relay-backed and direct room transports use
 the same host prefetcher. Setting the seed service does not change the relay URL.

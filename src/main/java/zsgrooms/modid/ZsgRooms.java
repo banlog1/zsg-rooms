@@ -35,6 +35,7 @@ public class ZsgRooms implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> PauseWorldSaveControl.configure(false));
 		ServerLifecycleEvents.SERVER_STOPPED.register(WoodLightingStandardization::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(SharedNetherEntry::stop);
+		ServerLifecycleEvents.SERVER_STOPPED.register(RuinedPortalChestRepair::stop);
 		ServerTickEvents.START_WORLD_TICK.register(WoodLightingStandardization::tick);
 		ServerTickEvents.END_SERVER_TICK.register(RuinedPortalChestRepair::tick);
 		DragonPerchHeadlessBenchmark.register();

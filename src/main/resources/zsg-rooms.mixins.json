@@ -32,7 +32,7 @@
 		"OpenToLanScreenMixin",
 		"PiglinBrainMixin",
 		"PortalAreaAccessor",
-		"RuinedPortalChestMixin",
+    "RuinedPortalRepairInteractionMixin",
 		"RuinedPortalStructurePieceMixin",
 		"SelectWorldScreenMixin",
 		"ServerChunkManagerFortressMixin",

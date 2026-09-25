@@ -6,6 +6,23 @@ import zsgrooms.modid.ZsgSeedBridge;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SeedVisualTypeTest {
+    @Test void roomsPortalUsesExistingPortalArtwork() {
+        FilterCatalog.Entry entry = FilterCatalog.find("rooms-ruined-portal-v5");
+        assertEquals(FilterCatalog.Group.ROOMS, entry.group);
+        assertEquals("rp", entry.image);
+        assertEquals(SeedVisualType.PORTAL, SeedVisualType.forFilter(entry.id));
+        assertArrayEquals(new String[]{"rp"}, SeedVisualType.forFilter(entry.id).images);
+    }
+
+    @Test void roomsTreasureUsesExistingArtworkAndPreservesTheUnknownFilterFallback() {
+        FilterCatalog.Entry entry = FilterCatalog.find("rooms-buried-treasure-v5");
+        assertEquals(FilterCatalog.Group.ROOMS, entry.group);
+        assertEquals("bt", entry.image);
+        assertEquals(SeedVisualType.TREASURE, SeedVisualType.forFilter(entry.id));
+        assertArrayEquals(new String[]{"bt"}, SeedVisualType.forFilter(entry.id).images);
+        assertEquals("zsg", FilterCatalog.find("unrecognized").id);
+    }
+
     @Test void everyPickerFilterHasAnExplicitVisualCategory() {
         for (FilterCatalog.Entry entry : FilterCatalog.ENTRIES) {
             assertNotEquals(SeedVisualType.UNKNOWN, SeedVisualType.forFilter(entry.id), entry.id);

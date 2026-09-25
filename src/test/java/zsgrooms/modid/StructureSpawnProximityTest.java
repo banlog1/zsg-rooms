@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class StructureSpawnProximityTest {
     @Test void closeRoutesUse48BlockBoundaryAndDeterministic24To48Targets() {
-        for (String filter : new String[]{"zsg", "zsgop", "rpseedbank", "rooms-temple-v5", "rooms-village-v5"}) {
+        for (String filter : new String[]{"zsg", "zsgop", "rpseedbank", "rooms-temple-v5", "rooms-village-v5", "rooms-buried-treasure-v5"}) {
             assertFalse(StructureSpawnProximity.needsRelocation(new BlockPos(48, 200, 0), BlockPos.ORIGIN, filter));
             assertTrue(StructureSpawnProximity.needsRelocation(new BlockPos(48, 0, 1), BlockPos.ORIGIN, filter));
             assertTrue(StructureSpawnProximity.needsRelocation(new BlockPos(-49, 0, 0), BlockPos.ORIGIN, filter));
@@ -19,16 +19,14 @@ class StructureSpawnProximityTest {
         }
     }
 
-    @Test void allShipwreckVariantsRetainPreviousDistancesAndThreshold() {
+    @Test void allShipwreckVariantsKeepNaturalSpawnsWithin60Blocks() {
         for (String filter : new String[]{"rooms-shipwreck-v5", "zsgshipwreck", "zsgshipwreckop"}) {
-            assertFalse(StructureSpawnProximity.needsRelocation(new BlockPos(140, 0, 0), BlockPos.ORIGIN, filter));
-            assertTrue(StructureSpawnProximity.needsRelocation(new BlockPos(141, 0, 0), BlockPos.ORIGIN, filter));
-            assertEquals(70, StructureSpawnProximity.minimumTargetDistance(filter));
+            assertFalse(StructureSpawnProximity.needsRelocation(new BlockPos(60, 0, 0), BlockPos.ORIGIN, filter));
+            assertFalse(StructureSpawnProximity.needsRelocation(new BlockPos(40, 0, -40), BlockPos.ORIGIN, filter));
+            assertTrue(StructureSpawnProximity.needsRelocation(new BlockPos(60, 0, 1), BlockPos.ORIGIN, filter));
+            assertTrue(StructureSpawnProximity.needsRelocation(new BlockPos(61, 0, 0), BlockPos.ORIGIN, filter));
+            assertEquals(0, StructureSpawnProximity.minimumTargetDistance(filter));
             assertEquals(128, StructureSpawnProximity.maximumTargetDistance(filter));
-            for (long seed = -100; seed < 100; seed++) {
-                int distance = StructureSpawnProximity.targetDistance(seed, filter);
-                assertTrue(distance >= 70 && distance <= 128);
-            }
         }
     }
 

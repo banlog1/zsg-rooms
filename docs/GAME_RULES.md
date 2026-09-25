@@ -6,11 +6,11 @@ server starts for the race world.
 
 The room setup offers four starting presets:
 
-- **Standard ZSG Rooms:** every room rule is enabled except Allow Cheats and
-  the opt-in Reduce Zero-Cycle Fly-Aways assist.
+- **Standard ZSG Rooms:** every room rule is enabled except Allow Cheats,
+  including Reduce Zero-Cycle Fly-Aways and Shared First Nether Entry.
 - **Standard - Vanilla Barters:** the standard preset with Increase Piglin
   Barter Rates disabled.
-- **Regular Verifiable ZSG:** every room modification is disabled.
+- **Raw:** every room modification is disabled.
 - **Custom:** preserves the current values and allows any combination. Changing
   an individual rule automatically selects Custom.
 
@@ -136,8 +136,8 @@ release times, without logging exact seeds. No relay messages are added.
 
 ## Reduce Zero-Cycle Fly-Aways
 
-An opt-in gameplay assist, disabled by every preset, including both Standard
-presets and Regular Verifiable ZSG. Changing it selects Custom.
+A gameplay assist enabled by both Standard presets and disabled by Raw.
+Changing it selects Custom. Existing rooms retain their selected rules.
 
 During the first 1,300 dragon ticks (about 65 seconds at 20 TPS), this limits the
 holding-pattern target's random vertical offset above its path node to `[0, 15)`
@@ -233,8 +233,9 @@ Raw game-state default: Off. Local preference default: On.
 
 ## Shared First Nether Entry
 
-An opt-in rule under Room Game Rules > World & Performance, independent of
-RNG standardization and Nether preloading. All presets leave it off.
+A rule under Room Game Rules > World & Performance, independent of
+RNG standardization and Nether preloading. Both Standard presets enable it;
+Raw leaves it off. Existing rooms retain their selected rules.
 
 Each runner's first successful Overworld-to-Nether portal entry uses a common
 reference: the original world spawn, captured before Spawn Near Filter Structure

@@ -5,7 +5,9 @@ import java.util.Locale;
 public enum SeedBankProfile {
     TEMPLE("rooms-temple-v5", "ZSG Rooms Desert Temple", "temple", "desert_pyramid"),
     VILLAGE("rooms-village-v5", "ZSG Rooms Village", "village", "village"),
-    SHIPWRECK("rooms-shipwreck-v5", "ZSG Rooms Shipwreck", "shipwreck", "shipwreck");
+    SHIPWRECK("rooms-shipwreck-v5", "ZSG Rooms Shipwreck", "shipwreck", "shipwreck"),
+    BURIED_TREASURE("rooms-buried-treasure-v5", "ZSG Rooms Buried Treasure", "buried_treasure", "buried_treasure"),
+    RUINED_PORTAL("rooms-ruined-portal-v5", "ZSG Rooms Ruined Portal", "ruined_portal", "ruined_portal");
 
     public static final String MODEL_PROFILE = "zsg-model-only-v5";
     public final String specification;

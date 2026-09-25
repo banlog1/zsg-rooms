@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('temple','shipwreck','village')][string]$Type = 'temple',
+    [ValidateSet('temple','shipwreck','village','buried_treasure','ruined_portal')][string]$Type = 'temple',
     [ValidateRange(1,4)][int]$Workers = 2,
     [ValidateRange(4,1000000000)][long]$Families = 1000000000,
     [ValidateRange(1,600)][int]$Seconds = 60,
@@ -21,9 +21,9 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'FilterBankState.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $PSBoundParameters.ContainsKey('Sisters')) {
-    $Sisters = switch ($Type) { 'temple' {4096}; 'shipwreck' {16384}; 'village' {1024} }
+    $Sisters = switch ($Type) { 'temple' {4096}; 'shipwreck' {16384}; 'village' {1024}; 'buried_treasure' {4096}; 'ruined_portal' {4096} }
 }
-if (-not $PSBoundParameters.ContainsKey('FamilyCap')) { $FamilyCap = if ($Type -eq 'shipwreck') {4} else {2} }
+if (-not $PSBoundParameters.ContainsKey('FamilyCap')) { $FamilyCap = if ($Type -in @('shipwreck','ruined_portal')) {4} else {2} }
 $capacity = Get-FilterHostCapacity
 if ($Workers -gt [Math]::Max(1,$capacity.physicalCores-2)) { throw 'Leave at least two physical cores for desktop applications.' }
 if ($capacity.availableMemoryGiB -lt $ReserveGiB + $WorkerStartupGiB*$Workers) { throw 'Not enough free memory for the requested workers and desktop reserve.' }
@@ -112,6 +112,7 @@ try {
                 $native.families -gt $configs[$i].families) { throw 'Invalid worker report.' }
             foreach ($line in [IO.File]::ReadLines($configs[$i].bank)) {
                 $row = $line | ConvertFrom-Json
+                Assert-FilterBankTypeRules $row
                 if ($row.type -cne $Type -or $row.status -cne 'MODEL_ACCEPTED' -or $row.profile -cne 'zsg-model-only-v5' -or
                     -not $seen.Add([string]$row.seed)) { throw 'Invalid or duplicate accepted seed.' }
                 $family = ([long]$row.seed -band 281474976710655L).ToString()

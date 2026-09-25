@@ -99,6 +99,90 @@ test("daily extension retains every slot and inserts only genuinely new seeds", 
   await assert.rejects(uploadBank(f.publication, f.execute, { writeBudget: 100 }));
 });
 
+test("buried treasure extends a legacy three-type bank without changing its slots", async t => {
+  const f = await fixture(t, [record("9"), record("8", "temple"), record("7", "village")]);
+  const manifestPath = join(f.output, "manifest.json");
+  const legacy = JSON.parse(await readFile(manifestPath, "utf8"));
+  delete legacy.counts.buried_treasure;
+  await writeFile(manifestPath, JSON.stringify(legacy));
+  const previous = await readPublication(f.output);
+  assert.deepEqual(previous.byType.buried_treasure, []);
+  await uploadBank(previous, f.execute, { writeBudget: 100 });
+  assert.equal((await f.fetch("buried_treasure")).status, 503);
+
+  const snapshot = join(f.directory, "treasure.jsonl");
+  const rows = ["1", "281474976710657", "2"].map(seed => ({
+    ...record(seed, "buried_treasure"), buriedTreasureRule: "mapless-regular-v1"
+  }));
+  await writeFile(snapshot, rows.map(row => JSON.stringify(row)).join("\n"));
+  const next = join(f.directory, "next");
+  const manifest = await extendBank(f.output, next, [snapshot]);
+  const publication = await readPublication(next);
+  assert.equal(manifest.added, 3);
+  assert.equal(publication.bankRevision, previous.bankRevision);
+  for (const type of ["temple", "village", "shipwreck"]) {
+    assert.deepEqual(publication.byType[type], previous.byType[type]);
+  }
+  const result = await uploadBank(publication, f.execute, { writeBudget: 100, type: "buried_treasure" });
+  assert.equal(result.added, 3);
+  assert.equal(result.counts.buried_treasure, 3);
+  for (const [slot, row] of publication.byType.buried_treasure.entries()) {
+    const response = await f.fetch("buried_treasure", slot);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).seed, row.seed);
+    assert.equal((await f.fetch("buried_treasure", slot, [row.family])).status, 409);
+  }
+  assert.equal((await (await f.fetch("shipwreck")).json()).seed, "9");
+  assert.equal((await uploadBank(publication, f.execute, { writeBudget: 100 })).added, 0);
+  await writeFile(snapshot, JSON.stringify({ ...rows[0], seed: "562949953421313" }));
+  await assert.rejects(extendBank(next, join(f.directory, "too-many"), [snapshot]), /family cap/);
+  delete manifest.counts.buried_treasure;
+  await writeFile(join(next, "manifest.json"), JSON.stringify(manifest));
+  await assert.rejects(readPublication(next), /counts/);
+});
+
+test("ruined portal extends a legacy bank with four sisters and preserves existing delivery", async t => {
+  const f = await fixture(t, [record("9")]);
+  const manifestPath = join(f.output, "manifest.json");
+  const legacy = JSON.parse(await readFile(manifestPath, "utf8"));
+  delete legacy.counts.ruined_portal;
+  await writeFile(manifestPath, JSON.stringify(legacy));
+  const previous = await readPublication(f.output);
+  assert.deepEqual(previous.byType.ruined_portal, []);
+  await uploadBank(previous, f.execute, { writeBudget: 100 });
+  assert.equal((await f.fetch("ruined_portal")).status, 503);
+  const rp = seed => ({ ...record(seed, "ruined_portal"), ruinedPortalRule: "frame-completable-v3",
+    goldenAxes: 1, goldenPickaxes: 0, flintAndSteel: 1, fireCharges: 0, flint: 0, ironNuggets: 0 });
+  const rows = Array.from({ length: 4 }, (_, i) => rp(String(1n + BigInt(i) * (1n << 48n))));
+  const snapshot = join(f.directory, "rp.jsonl");
+  await writeFile(snapshot, rows.map(row => JSON.stringify(row)).join("\n"));
+  const fresh = await publishBank([snapshot], join(f.directory, "fresh-rp"));
+  assert.equal(fresh.counts.ruined_portal, 4);
+  const next = join(f.directory, "next-rp");
+  await extendBank(f.output, next, [snapshot]);
+  const publication = await readPublication(next);
+  assert.equal(publication.bankRevision, previous.bankRevision);
+  for (const type of ["temple", "village", "shipwreck", "buried_treasure"]) {
+    assert.deepEqual(publication.byType[type], previous.byType[type]);
+  }
+  const result = await uploadBank(publication, f.execute, { writeBudget: 100, type: "ruined_portal" });
+  assert.equal(result.added, 4);
+  for (const [slot, row] of publication.byType.ruined_portal.entries()) {
+    assert.equal((await (await f.fetch("ruined_portal", slot)).json()).seed, row.seed);
+    assert.equal((await f.fetch("ruined_portal", slot, [row.family])).status, 409);
+  }
+  assert.equal((await (await f.fetch("shipwreck")).json()).seed, "9");
+  assert.equal((await uploadBank(publication, f.execute, { writeBudget: 100 })).added, 0);
+  await writeFile(snapshot, JSON.stringify(rp(String(1n + 4n * (1n << 48n)))));
+  await assert.rejects(extendBank(next, join(f.directory, "too-many-rp"), [snapshot]), /family cap/);
+  await writeFile(snapshot, [...rows, rp(String(1n + 4n * (1n << 48n)))].map(row => JSON.stringify(row)).join("\n"));
+  await assert.rejects(publishBank([snapshot], join(f.directory, "fresh-too-many-rp")), /family cap/);
+  const invalid = { ...publication.manifest };
+  delete invalid.counts.ruined_portal;
+  await writeFile(join(next, "manifest.json"), JSON.stringify(invalid));
+  await assert.rejects(readPublication(next), /counts/);
+});
+
 test("a stopped upload resumes from remote rows without duplicating seeds", async t => {
   const f = await fixture(t, Array.from({ length: 120 }, (_, i) => record(String(i + 1))));
   let fail = true;
@@ -156,13 +240,13 @@ test("a type-selected upload adds only that type and respects its seed limit", a
   await assert.rejects(uploadBank(f.publication, f.execute, { writeBudget: 100, type: "unknown" }), /upload type/);
   const result = await uploadBank(f.publication, f.execute, { writeBudget: 100, maxNewSeeds: 1, type: "temple" });
   assert.equal(result.added, 1);
-  assert.deepEqual(result.counts, { temple: 1, village: 0, shipwreck: 0 });
+  assert.deepEqual(result.counts, { temple: 1, village: 0, shipwreck: 0, buried_treasure: 0, ruined_portal: 0 });
   assert.equal((await f.fetch("temple")).status, 200);
   assert.equal((await f.fetch("village")).status, 503);
   assert.equal((await f.fetch("shipwreck")).status, 503);
   const resumed = await uploadBank(f.publication, f.execute, { writeBudget: 100, type: "temple" });
   assert.equal(resumed.added, 1);
-  assert.deepEqual(resumed.counts, { temple: 2, village: 0, shipwreck: 0 });
+  assert.deepEqual(resumed.counts, { temple: 2, village: 0, shipwreck: 0, buried_treasure: 0, ruined_portal: 0 });
 });
 
 test("larger bounded batches retain the write limit and resume with a different batch size", async t => {

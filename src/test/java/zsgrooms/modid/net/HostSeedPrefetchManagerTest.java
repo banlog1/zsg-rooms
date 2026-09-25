@@ -140,7 +140,7 @@ public class HostSeedPrefetchManagerTest {
         manager.onSeedConsumed("room", "rooms-mix");
         manager.onSeedConsumed("room", "rooms-mix");
         assertEquals(2, draws.get());
-        assertEquals("rpseedbank", requester.specifications.get(1));
+        assertEquals("rooms-ruined-portal-v5", requester.specifications.get(1));
         assertEquals(HostSeedPrefetchManager.STATUS_PREPARING, manager.getStatus());
     }
 
@@ -153,8 +153,8 @@ public class HostSeedPrefetchManagerTest {
         requester.requests.get(0).completeExceptionally(new IllegalStateException("offline"));
         CompletableFuture<String> retry = manager.consumeOrRequest("room", "rooms-mix");
         assertEquals(1, draws.get());
-        assertEquals("zsgop", requester.specifications.get(1));
-        requester.requests.get(1).complete("222|structure:zsgop|iron:4");
+        assertEquals("rooms-buried-treasure-v5", requester.specifications.get(1));
+        requester.requests.get(1).complete("222|structure:rooms-buried-treasure-v5|iron:4");
         String seed = retry.join();
         manager.onLaunchFailed("room", "rooms-mix");
         assertEquals(seed, manager.consumeOrRequest("room", "rooms-mix").join());

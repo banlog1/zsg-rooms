@@ -306,7 +306,7 @@ public class RoomGameRulesScreen extends Screen {
         addRuleRow(
                 "Spawn Near Filter Structure",
                 "Moves distant world spawn to safe terrain 24-48 blocks from the selected route structure. "
-                        + "Shipwrecks retain the 140-block trigger and 70-128-block range. "
+                        + "Shipwrecks keep safe natural spawn within 60 blocks; otherwise seek the nearest safe island or coast. "
                         + "The destination is prepared during world loading. If no safe surface is found, "
                         + "keeps the original spawn.",
                 x, y + rowGap * 3, width, height,

@@ -11,6 +11,124 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ReplayBufferTest {
     @Test
+    void snapshotsSeparateClientBacklogWriterQueueAndActiveWrites() throws Exception {
+        ReplayBuffer buffer = new ReplayBuffer(1000, 10);
+        ReplayBuffer.Record pending = buffer.reserve(1, 1, 36);
+        ReplayBuffer.Record queued = buffer.reserve(1, 2, 136);
+        ReplayBuffer.Record active = buffer.reserve(1, 3, 236);
+        buffer.commit(active, 10);
+        buffer.commit(queued, 20);
+        assertSame(active, buffer.take());
+        ReplayBuffer.Snapshot snapshot = buffer.snapshot();
+        assertEquals(600, snapshot.bytes);
+        assertEquals(3, snapshot.records);
+        assertEquals(100, snapshot.pendingBytes);
+        assertEquals(1, snapshot.pendingRecords);
+        assertEquals(200, snapshot.queuedBytes);
+        assertEquals(1, snapshot.queuedRecords);
+        assertEquals(300, snapshot.writingBytes);
+        assertEquals(1, snapshot.writingRecords);
+        assertEquals(600, snapshot.peakBytes);
+        assertEquals(600, snapshot.peakPendingBytes);
+        assertEquals(3, snapshot.peakPendingRecords);
+        assertEquals(500, snapshot.peakQueuedBytes);
+        assertEquals(2, snapshot.peakQueuedRecords);
+        assertEquals(236, snapshot.largestPayload);
+        buffer.cancelPending();
+        buffer.discardQueued();
+        assertEquals(300, buffer.snapshot().bytes);
+        assertEquals(0, buffer.snapshot().queuedBytes);
+        assertEquals(0, buffer.snapshot().pendingBytes);
+        assertFalse(buffer.commit(pending, 30));
+        buffer.complete(active);
+        assertEquals(0, buffer.snapshot().bytes);
+        assertEquals(0, buffer.snapshot().records);
+        assertEquals(0, buffer.snapshot().writingBytes);
+        assertEquals(600, buffer.snapshot().peakBytes);
+        assertEquals(600, snapshot.bytes); // An earlier snapshot is immutable.
+    }
+
+    @Test
+    void capacityDiagnosticRetainsExactFailureEvenAfterQueueDrains() throws Exception {
+        ReplayBuffer buffer = new ReplayBuffer(200, 10);
+        ReplayBuffer.Record first = buffer.reserve(1, 1, 36);
+        ReplayBuffer.Record second = buffer.reserve(1, 2, 36);
+        buffer.commit(first, 10);
+        assertNull(buffer.reserve(1, 99, 1));
+        String failure = buffer.capacityFailure();
+        assertTrue(failure.contains("limit=bytes requestedPayloadBytes=1 phase=1 packetId=99"));
+        assertTrue(failure.contains("accountedBytes=200/200 packets=2/10"));
+        assertTrue(failure.contains("pendingClientPackets=1 queuedWriterBytes=100 queuedWriterPackets=1"));
+        assertSame(first, buffer.take());
+        buffer.complete(first);
+        buffer.cancel(second);
+        assertEquals(failure, buffer.capacityFailure());
+        assertEquals(0, buffer.snapshot().bytes);
+    }
+
+    @Test
+    void diagnosesPacketLimitOversizedPacketAndBothLimitsWithoutAllocatingPayload() {
+        ReplayBuffer count = new ReplayBuffer(1000, 1);
+        assertNotNull(count.reserve(1, 1, 0));
+        assertNull(count.reserve(1, 2, 0));
+        assertTrue(count.capacityFailure().startsWith("limit=packets "));
+        ReplayBuffer bytes = new ReplayBuffer(100, 1);
+        assertNull(bytes.reserve(1, 1, Integer.MAX_VALUE));
+        assertTrue(bytes.capacityFailure().startsWith("limit=bytes "));
+        assertEquals(0, bytes.snapshot().bytes);
+        ReplayBuffer both = new ReplayBuffer(100, 1);
+        assertNotNull(both.reserve(1, 1, 36));
+        assertNull(both.reserve(1, 2, 0));
+        assertTrue(both.capacityFailure().startsWith("limit=bytes_and_packets "));
+        ReplayBuffer closed = new ReplayBuffer();
+        closed.close();
+        assertNull(closed.reserve(1, 2, 0));
+        assertNull(closed.capacityFailure());
+    }
+
+    @Test
+    void largerBudgetAbsorbsSmallPacketAndChunkSizedBurstsWithoutChangingOrder() throws Exception {
+        exerciseBurst(20000, 128, false);
+        exerciseBurst(768, 64 * 1024, true);
+    }
+
+    private static void exerciseBurst(int count, int payloadSize, boolean commitImmediately) throws Exception {
+        ReplayBuffer old = new ReplayBuffer(32 * 1024 * 1024, 8192);
+        int oldAccepted = 0;
+        while (old.reserve(1, 1, payloadSize) != null) oldAccepted++;
+        assertTrue(oldAccepted < count);
+        old.cancelPending();
+        ReplayBuffer buffer = new ReplayBuffer();
+        assertEquals(0, buffer.snapshot().bytes);
+        for (int entry = 0; entry < 2; entry++) {
+            ReplayBuffer.Record[] packets = new ReplayBuffer.Record[count];
+            for (int i = 0; i < count; i++) {
+                packets[i] = buffer.reserve(1, 1, payloadSize);
+                assertNotNull(packets[i], "Burst should fit");
+                packets[i].payload[0] = (byte) i;
+                if (commitImmediately) assertTrue(buffer.commit(packets[i], entry * count + i));
+            }
+            if (!commitImmediately) {
+                for (int i = 0; i < count; i++) assertTrue(buffer.commit(packets[i], entry * count + i));
+            }
+            for (int i = 0; i < count; i++) {
+                ReplayBuffer.Record written = buffer.take();
+                assertSame(packets[i], written);
+                assertEquals((byte) i, written.payload[0]);
+                assertEquals(entry * count + i, written.timestamp);
+                buffer.complete(written);
+                packets[i] = null;
+            }
+            assertTrue(buffer.isOpen());
+            assertEquals(0, buffer.snapshot().bytes);
+            assertEquals(0, buffer.snapshot().records);
+        }
+        assertNull(buffer.capacityFailure());
+        System.out.println("Replay synthetic burst: packets=" + count + " payloadBytes=" + payloadSize
+                + " oldAccepted=" + oldAccepted + " new " + buffer.snapshot());
+    }
+
+    @Test
     void resetReleasesCancelledClientTasksWithoutDroppingCommittedPackets() throws Exception {
         ReplayBuffer buffer = new ReplayBuffer(200, 2);
         ReplayBuffer.Record oldTask = buffer.reserve(0, 1, 36);

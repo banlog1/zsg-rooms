@@ -52,7 +52,7 @@ public enum RoomRulePreset {
     }
 
     public boolean reducesZeroCycleFlyAways() {
-        return false;
+        return this == STANDARD_ZSG_ROOMS || this == STANDARD_ZSG_VANILLA_BARTERS;
     }
 
     public boolean boostsBarters() {
@@ -84,7 +84,7 @@ public enum RoomRulePreset {
     }
 
     public boolean sharesNetherEntry() {
-        return false;
+        return this == STANDARD_ZSG_ROOMS || this == STANDARD_ZSG_VANILLA_BARTERS;
     }
 
     public boolean disablesPauseWorldSaves() {

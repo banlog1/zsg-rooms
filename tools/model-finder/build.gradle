@@ -47,7 +47,7 @@ tasks.named('test') {
     workingDir = file('../..')
     maxHeapSize = '1G'
     inputs.files(fileTree('../../run/filter-worker') {
-        include 'seed-finder.exe', 'model-test.exe', 'surface-test.exe', 'surface-query-test.exe'
+        include 'seed-finder.exe', 'model-test.exe', 'surface-test.exe', 'surface-query-test.exe', 'mapless-test.exe', 'portal-test.exe'
     })
 }
 tasks.register('checkVillageRevision') {
@@ -93,6 +93,7 @@ tasks.register('netherTest', Test) {
     classpath = sourceSets.netherTest.runtimeClasspath
     useJUnitPlatform()
     maxHeapSize = '1G'
+    inputs.file('../../run/filter-worker/portal-test.exe')
 }
 tasks.register('verifyStandaloneDependencies') {
     doLast {

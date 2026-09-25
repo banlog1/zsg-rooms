@@ -108,7 +108,7 @@ public final class RuinedPortalGenerationTracker {
         return false;
     }
 
-    public static synchronized BlockPos findGeneratedChest(ServerWorld world, BlockBox bounds) {
+    public static synchronized BlockPos findGeneratedChest(ServerWorld world, BlockBox bounds, boolean requireSeedbankLoot) {
         if (world == null || bounds == null) {
             return null;
         }
@@ -125,7 +125,7 @@ public final class RuinedPortalGenerationTracker {
                 continue;
             }
             for (GeneratedChest chest : portal.chests) {
-                if (!isInside(bounds, chest.pos) || !hasSeedbankLoot(world, chest)) {
+                if (!isInside(bounds, chest.pos) || (requireSeedbankLoot && !hasSeedbankLoot(world, chest))) {
                     continue;
                 }
                 long x = (long) chest.pos.getX() - centerX;

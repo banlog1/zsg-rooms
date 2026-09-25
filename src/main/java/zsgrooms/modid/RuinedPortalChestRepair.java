@@ -2,6 +2,7 @@ package zsgrooms.modid;
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.ChestBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
 import net.minecraft.nbt.CompoundTag;
@@ -10,15 +11,16 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.ServerWorldAccess;
+import net.minecraft.world.World;
 import zsgrooms.modid.ui.RoomUiPreferences;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class RuinedPortalChestRepair {
     private static final Identifier RUINED_PORTAL_LOOT = new Identifier("minecraft", "chests/ruined_portal");
-    private static final int WATCH_TICKS = 2400;
     private static volatile LaunchFilter launchFilter;
     private static final Map<ChestKey, PendingChest> PENDING = new ConcurrentHashMap<ChestKey, PendingChest>();
     private static final Map<ChestKey, PendingPortalBlock> PENDING_PORTAL_BLOCKS =
@@ -32,7 +34,7 @@ public final class RuinedPortalChestRepair {
         if (seed != null) {
             try {
                 next = new LaunchFilter(Long.parseLong(ZsgSeedBridge.extractMinecraftSeed(seed)),
-                        "rpseedbank".equals(ZsgSeedBridge.resolveStructure(seed)));
+                        isPortalFilter(ZsgSeedBridge.resolveStructure(seed)));
             } catch (NumberFormatException ignored) {
             }
         }
@@ -41,21 +43,19 @@ public final class RuinedPortalChestRepair {
 
     static boolean isPortalWorld(long worldSeed, String fallbackFilter) {
         LaunchFilter launch = launchFilter;
-        return launch == null ? "rpseedbank".equals(fallbackFilter)
+        return launch == null ? isPortalFilter(fallbackFilter)
                 : launch.seed == worldSeed && launch.repair;
     }
 
-    public static void capture(ChestBlockEntity chest, BlockState state, CompoundTag tag) {
-        if (chest == null || !(chest.getWorld() instanceof ServerWorld)) {
-            return;
-        }
-        capture((ServerWorld) chest.getWorld(), chest.getPos(), state, tag);
+    private static boolean isPortalFilter(String filter) {
+        return "ruined_portal".equals(StructureSpawnProximity.structureKeyForFilter(filter));
     }
 
     public static void captureGenerated(ServerWorldAccess worldAccess, BlockPos pos, BlockState state) {
         if (worldAccess == null || !(worldAccess.getWorld() instanceof ServerWorld)) {
             return;
         }
+        if (!isEnabledForCurrentRoom((ServerWorld) worldAccess.getWorld())) return;
         BlockEntity blockEntity = worldAccess.getBlockEntity(pos);
         if (!(blockEntity instanceof ChestBlockEntity)) {
             return;
@@ -88,13 +88,13 @@ public final class RuinedPortalChestRepair {
         pos = pos.toImmutable();
         long lootSeed = tag.getLong("LootTableSeed");
         PENDING.put(new ChestKey(world, pos), new PendingChest(world, pos, state, lootSeed));
-        SeedDebugLog.info("Watching ruined portal chest at {}", pos);
+        SeedDebugLog.info("Queued generated ruined portal chest at {}", pos);
     }
 
     public static void tick(MinecraftServer server) {
+        if (PENDING.isEmpty() && PENDING_PORTAL_BLOCKS.isEmpty()) return;
         if (!isEnabledForCurrentRoom(server.getOverworld())) {
-            PENDING.clear();
-            PENDING_PORTAL_BLOCKS.clear();
+            stop(server);
             return;
         }
 
@@ -105,14 +105,9 @@ public final class RuinedPortalChestRepair {
             Map.Entry<ChestKey, PendingChest> entry = iterator.next();
             PendingChest pending = entry.getValue();
             if (pending.world.getServer() != server) {
-                PENDING.remove(entry.getKey(), pending);
                 continue;
             }
-            if (!pending.world.isChunkLoaded(pending.pos)) {
-                continue;
-            }
-            if (--pending.ticksRemaining <= 0) {
-                PENDING.remove(entry.getKey(), pending);
+            if (!isGeneratedAndLoaded(pending.world, pending.pos)) {
                 continue;
             }
 
@@ -121,17 +116,17 @@ public final class RuinedPortalChestRepair {
                 CompoundTag current = blockEntity.toTag(new CompoundTag());
                 if (RUINED_PORTAL_LOOT.toString().equals(current.getString("LootTable"))
                         && current.getLong("LootTableSeed") == pending.lootSeed) {
-                    pending.sawValidLootTable = true;
-                    continue;
-                }
-                if (pending.sawValidLootTable && current.contains("Items", 9)
-                        && !current.contains("LootTable", 8)) {
+                    clearChestAccess(pending);
                     PENDING.remove(entry.getKey(), pending);
                     continue;
                 }
+                // A loot interaction or another mod already owns this chest. Never refill it.
+                PENDING.remove(entry.getKey(), pending);
+                continue;
             }
 
             repair(pending);
+            if (pending.world.getBlockEntity(pending.pos) instanceof ChestBlockEntity) clearChestAccess(pending);
             PENDING.remove(entry.getKey(), pending);
         }
     }
@@ -142,10 +137,9 @@ public final class RuinedPortalChestRepair {
             Map.Entry<ChestKey, PendingPortalBlock> entry = iterator.next();
             PendingPortalBlock pending = entry.getValue();
             if (pending.world.getServer() != server) {
-                PENDING_PORTAL_BLOCKS.remove(entry.getKey(), pending);
                 continue;
             }
-            if (!pending.world.isChunkLoaded(pending.pos)) {
+            if (!isGeneratedAndLoaded(pending.world, pending.pos)) {
                 continue;
             }
             BlockState current = pending.world.getBlockState(pending.pos);
@@ -175,10 +169,48 @@ public final class RuinedPortalChestRepair {
     private static boolean isEnabledForCurrentRoom(ServerWorld world) {
         Room room = ZsgRooms.getActiveRoom();
         InGame game = room == null ? null : ZsgRooms.getGame(room.roomName);
-        return RoomUiPreferences.isRuinedPortalChestRepairEnabled()
-                && game != null
-                && world != null
-                && isPortalWorld(world.getSeed(), game.getActiveFilter());
+        return world != null && World.OVERWORLD.equals(world.getRegistryKey())
+                && shouldRepair(world.getSeed(), game == null ? null : game.getActiveFilter(),
+                        RoomUiPreferences.isRuinedPortalRepairTestingEnabled());
+    }
+
+    static boolean shouldRepair(long seed, String roomFilter, boolean testing) {
+        return testing || roomFilter != null && isPortalWorld(seed, roomFilter);
+    }
+
+    private static boolean isGeneratedAndLoaded(ServerWorld world, BlockPos pos) {
+        // isChunkLoaded only checks ticket level, not completion of generation.
+        return world.getChunkManager().getWorldChunk(pos.getX() >> 4, pos.getZ() >> 4) != null;
+    }
+
+    private static void clearChestAccess(PendingChest pending) {
+        List<BlockPos> clearance = RuinedPortalChestClearance.plan(pending.pos,
+                pending.state.get(ChestBlock.FACING), pending.world::getBlockState,
+                pos -> isGeneratedAndLoaded(pending.world, pos),
+                pos -> pending.world.getBlockEntity(pos) != null);
+        if (clearance == null) {
+            ZsgRooms.LOGGER.info("Skipped unsafe ruined portal chest clearance at {}", pending.pos);
+            return;
+        }
+        for (BlockPos pos : clearance) pending.world.setBlockState(pos, Blocks.AIR.getDefaultState(), 3);
+        if (!clearance.isEmpty()) SeedDebugLog.info("Cleared access to ruined portal chest at {}", pending.pos);
+    }
+
+    public static void stop(MinecraftServer server) {
+        PENDING.entrySet().removeIf(entry -> entry.getValue().world.getServer() == server);
+        PENDING_PORTAL_BLOCKS.entrySet().removeIf(entry -> entry.getValue().world.getServer() == server);
+    }
+
+    /** Player intent wins even if the first repair tick has not run yet. */
+    public static void onPlayerInteraction(ServerWorld world, BlockPos pos) {
+        if (PENDING.isEmpty() && PENDING_PORTAL_BLOCKS.isEmpty()) return;
+        PENDING.entrySet().removeIf(entry -> entry.getKey().world == world && near(entry.getKey().pos, pos));
+        PENDING_PORTAL_BLOCKS.entrySet().removeIf(entry -> entry.getKey().world == world && near(entry.getKey().pos, pos));
+    }
+
+    private static boolean near(BlockPos chest, BlockPos pos) {
+        return Math.abs(chest.getX() - pos.getX()) <= 3 && Math.abs(chest.getY() - pos.getY()) <= 3
+                && Math.abs(chest.getZ() - pos.getZ()) <= 3;
     }
 
     /** Atum can finish world generation before the room commits the new random-mode seed. */
@@ -220,8 +252,6 @@ public final class RuinedPortalChestRepair {
         private final BlockPos pos;
         private final BlockState state;
         private final long lootSeed;
-        private int ticksRemaining = WATCH_TICKS;
-        private boolean sawValidLootTable;
 
         private PendingChest(ServerWorld world, BlockPos pos, BlockState state, long lootSeed) {
             this.world = world;

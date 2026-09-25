@@ -35,7 +35,7 @@ public class RoomGameRulesScreenTest {
             rules.disablePauseWorldSaves = !rules.disablePauseWorldSaves;
             assertEquals(preset == RoomRulePreset.REGULAR_VERIFIABLE_ZSG ? RoomRulePreset.CUSTOM : preset,
                     RoomRulePreset.matching(rules));
-            rules.sharedNetherEntry = true;
+            rules.sharedNetherEntry = !rules.sharedNetherEntry;
             assertEquals(RoomRulePreset.CUSTOM, RoomRulePreset.matching(rules));
         }
     }
