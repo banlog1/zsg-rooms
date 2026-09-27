@@ -51,6 +51,20 @@ loom {
 			programArg "--port=0"
 			programArg "nogui"
 		}
+		netherPreloadBenchmark {
+			server()
+			name = "Nether Preload Benchmark"
+			runDir = project.findProperty('preloadDirectory') ?: 'run/nether-preload-benchmark'
+			vmArg '-Dzsgrooms.netherPreloadBenchmark=true'
+			vmArg "-Dzsgrooms.netherPreloadBenchmark.mode=${project.findProperty('preloadMode') ?: 'current'}"
+			vmArg "-Dzsgrooms.netherPreloadBenchmark.trials=${project.findProperty('preloadTrials') ?: 4}"
+			vmArg "-Dzsgrooms.netherPreloadBenchmark.expectReady=${project.findProperty('preloadExpectReady') ?: false}"
+			vmArg '-Xms512m'
+			vmArg '-Xmx1536m'
+			vmArg '-XX:ActiveProcessorCount=4'
+			programArg '--port=0'
+			programArg 'nogui'
+		}
 	}
 }
 
@@ -120,6 +134,7 @@ if (project.hasProperty('replayPlaybackFile')) {
 				vmArg "-Dzsgrooms.replayPlaybackFile=${project.property('replayPlaybackFile')}"
 				vmArg "-Dzsgrooms.replayPlaybackEnd=${project.findProperty('replayPlaybackEnd') ?: 118000}"
 				vmArg "-Dzsgrooms.replayViewerSmoke=${project.findProperty('replayViewerSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayHighlightSmoke=${project.findProperty('replayHighlightSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayRaceSmoke=${project.findProperty('replayRaceSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayStartupSmoke=${project.findProperty('replayStartupSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayDetailsSmoke=${project.findProperty('replayDetailsSmoke') ?: false}"
@@ -189,6 +204,19 @@ if (project.hasProperty('filterProbe')) {
 	apply from: 'gradle/filter-probe.gradle'
 }
 
+tasks.named('runPerchBenchmark') {
+	doFirst { ext.testStartedAt = System.currentTimeMillis() }
+	doLast {
+		def log = file('run/perch-benchmark/logs/latest.log')
+		if (!log.exists() || log.lastModified() < testStartedAt
+				|| !log.text.contains('[PerchBenchmark] PASS:')
+				|| log.text.contains('[PerchBenchmark] Could not start')
+				|| log.text.contains('[PerchBenchmark] Failed')) {
+			throw new GradleException('Dragon perch benchmark failed; see run/perch-benchmark/logs/latest.log')
+		}
+	}
+}
+
 tasks.named('runWoodLightingTest') {
 	doFirst {
 		ext.testStartedAt = System.currentTimeMillis()
@@ -209,6 +237,32 @@ tasks.named('runNetherEntryTest') {
 		if (!log.exists() || log.lastModified() < testStartedAt
 				|| !log.text.contains('[NetherEntryTest] PASS:') || log.text.contains('[NetherEntryTest] FAIL')) {
 			throw new GradleException('Shared Nether entry test did not pass; see run/perch-benchmark/logs/latest.log')
+		}
+	}
+}
+
+tasks.named('runNetherPreloadBenchmark') {
+	doFirst {
+		ext.testStartedAt = System.currentTimeMillis()
+		def dir = file(project.findProperty('preloadDirectory') ?: 'run/nether-preload-benchmark')
+		if (new File(dir, 'world').exists()) {
+			throw new GradleException('Preload benchmark requires a fresh directory; set -PpreloadDirectory=run/...')
+		}
+		dir.mkdirs()
+		new File(dir, 'eula.txt').text = file('run/perch-benchmark/eula.txt').text
+		def properties = new Properties()
+		properties.setProperty('level-seed', (project.findProperty('preloadSeed') ?: '7338020334776386520').toString())
+		properties.setProperty('online-mode', 'false')
+		properties.setProperty('view-distance', '8')
+		properties.setProperty('server-ip', '127.0.0.1')
+		new File(dir, 'server.properties').withOutputStream { properties.store(it, 'Isolated preload benchmark') }
+	}
+	doLast {
+		def dir = file(project.findProperty('preloadDirectory') ?: 'run/nether-preload-benchmark')
+		def log = new File(dir, 'logs/latest.log')
+		if (!log.exists() || log.lastModified() < testStartedAt
+				|| !log.text.contains('[NetherPreloadBench] PASS') || log.text.contains('[NetherPreloadBench] FAIL')) {
+			throw new GradleException("Preload benchmark failed; see ${log}")
 		}
 	}
 }
@@ -234,8 +288,10 @@ tasks.matching { it.name == 'runReplayPlaybackTest' }.configureEach {
 	doLast {
 		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true'
 				|| project.findProperty('replayStartupSmoke') == 'true' || project.findProperty('replayDetailsSmoke') == 'true'
-				|| project.findProperty('replayChestSmoke') == 'true' || project.findProperty('replayTempleSmoke') == 'true') {
-			def marker = project.findProperty('replayTempleSmoke') == 'true' ? '[ReplayTempleSmoke] PASS:'
+				|| project.findProperty('replayChestSmoke') == 'true' || project.findProperty('replayTempleSmoke') == 'true'
+				|| project.findProperty('replayHighlightSmoke') == 'true') {
+			def marker = project.findProperty('replayHighlightSmoke') == 'true' ? '[MobHighlightSmoke] PASS:'
+					: project.findProperty('replayTempleSmoke') == 'true' ? '[ReplayTempleSmoke] PASS:'
 					: project.findProperty('replayChestSmoke') == 'true' ? '[ReplayChestSmoke] PASS:'
 					: project.findProperty('replayDetailsSmoke') == 'true' ? '[ReplayDetailsSmoke] PASS:'
 					: project.findProperty('replayStartupSmoke') == 'true' ? '[ReplayStartupSmoke] PASS:'

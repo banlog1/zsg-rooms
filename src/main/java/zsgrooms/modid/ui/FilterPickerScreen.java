@@ -12,6 +12,7 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import zsgrooms.modid.ZsgSeedBridge;
 import zsgrooms.modid.ZsgRoomsSeedMode;
+import zsgrooms.modid.AaThunderless;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -132,7 +133,10 @@ public final class FilterPickerScreen extends Screen {
                 this.width - this.layout.left - 38, this.height - 22, 0xCCCCCC);
         for (FilterButton tile : this.tiles) {
             if (tile.isHovered()) {
-                if (tile.mixedMode) {
+                if (tile.aaMode) {
+                    this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(AaThunderless.DESCRIPTION),
+                            Math.min(260, this.width - 24)), mouseX, mouseY);
+                } else if (tile.mixedMode) {
                     this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(ZsgRoomsSeedMode.DESCRIPTION),
                             Math.min(260, this.width - 24)), mouseX, mouseY);
                 } else this.renderTooltip(matrices, tile.getMessage(), mouseX, mouseY);
@@ -146,6 +150,7 @@ public final class FilterPickerScreen extends Screen {
         private final List<StringRenderable> lines;
         private final boolean chosen;
         private final boolean mixedMode;
+        private final boolean aaMode;
 
         FilterButton(FilterCatalog.Entry entry, int x, int y) {
             super(x, y, layout.cellWidth, layout.cellHeight,
@@ -155,10 +160,12 @@ public final class FilterPickerScreen extends Screen {
             });
             this.chosen = entry.id.equals(selected);
             this.mixedMode = ZsgRoomsSeedMode.SPECIFICATION.equals(entry.id);
+            this.aaMode = AaThunderless.isFilter(entry.id);
             this.icon = new ItemStack(iconFor(entry));
             Identifier image = entry.image == null ? null : previewId(entry.image);
             this.preview = layout.gallery && image != null && client.getResourceManager().containsResource(image) ? image : null;
-            this.lines = textRenderer.wrapLines(this.getMessage(), this.width - (layout.gallery ? 12 : 40));
+            this.lines = textRenderer.wrapLines(new LiteralText(this.getMessage().getString()
+                    + (this.aaMode ? "\nCustom AA goal" : "")), this.width - (layout.gallery ? 12 : 40));
         }
 
         @Override

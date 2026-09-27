@@ -246,7 +246,8 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Players", labelX, y + rowGap * 2 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Series Goal", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Filter", labelX, y + rowGap * 4 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
+        boolean aa = zsgrooms.modid.AaThunderless.isFilter(currentSeedType());
+        this.textRenderer.drawWithShadow(matrices, aa ? "Win goal" : "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Rules", labelX, y + rowGap * 6 + 6, 0xD0D0D0);
 
         if (!isCompact() && !"manual".equals(currentSeedType()) && (this.statusText == null || this.statusText.isEmpty())) {
@@ -257,6 +258,12 @@ public class RoomSetupScreen extends Screen {
             drawStatusText(matrices, this.statusText, panelW - 24);
         }
         super.render(matrices, mouseX, mouseY, delta);
+        if (aa) {
+            this.textRenderer.drawWithShadow(matrices, "All advancements except", this.manualSeedField.x,
+                    y + rowGap * 5 + 1, 0xFFCC55);
+            this.textRenderer.drawWithShadow(matrices, "Very Very Frightening", this.manualSeedField.x,
+                    y + rowGap * 5 + 11, 0xFFCC55);
+        }
         if (this.helpVisible) {
             renderHelp(matrices);
         }
@@ -359,6 +366,7 @@ public class RoomSetupScreen extends Screen {
     private void updateManualSeedState() {
         if (this.manualSeedField != null) {
             boolean manual = "manual".equals(currentSeedType());
+            this.manualSeedField.visible = !zsgrooms.modid.AaThunderless.isFilter(currentSeedType());
             this.manualSeedField.active = manual;
             this.manualSeedField.setEditable(manual);
         }

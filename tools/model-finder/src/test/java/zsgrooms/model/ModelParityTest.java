@@ -48,7 +48,7 @@ class ModelParityTest {
                 assertEquals(i, actual[0]);
                 long seed = i * 0x9e3779b97f4a7c15L;
                 int x = (i % 31 - 15) * 16, z = (i % 23 - 11) * 16;
-                int[] temple = new int[4];
+                int[] temple = new int[5];
                 ChunkRand random = decorator(seed, x, z, 40003);
                 for (int chest = 0; chest < 4; chest++) add(temple, MCLootTables.DESERT_PYRAMID_CHEST.get(), random.nextLong());
                 int[] ship = new int[4];
@@ -59,6 +59,7 @@ class ModelParityTest {
                 // Supply loot is compared with the actual vanilla code in the offline test harness.
                 int[] expected = {i, temple[0], temple[1], temple[2], ship[0], ship[1], ship[2]};
                 assertArrayEquals(expected, Arrays.copyOf(actual, 7), "Resource parity vector " + i);
+                assertEquals(temple[4], actual[8], "AA gunpowder parity vector " + i);
             }
             assertNull(input.readLine());
             assertEquals(0, process.waitFor());
@@ -86,6 +87,7 @@ class ModelParityTest {
             if (stack.getItem().equals(Items.GOLD_NUGGET)) goldNuggets += n;
             if (stack.getItem().equals(Items.WHEAT)) counts[3] += n;
             if (stack.getItem().equals(Items.CARROT)) counts[3] += 6 * n;
+            if (counts.length > 4 && stack.getItem().equals(Items.GUNPOWDER)) counts[4] += n;
         }
         counts[0] += nuggets / 9;
         counts[2] += goldNuggets / 9;

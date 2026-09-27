@@ -21,6 +21,7 @@ loom {
             source sourceSets.filterPickerTest
             runDir 'run/filter-picker-test'
             vmArg "-Dzsgrooms.seedVisualSmoke=${project.hasProperty('seedVisualSmoke')}"
+            vmArg "-Dzsgrooms.aaModeSmoke=${project.hasProperty('aaModeSmoke')}"
             vmArg "-Dzsgrooms.lobbyRulesSmoke=${project.hasProperty('lobbyRulesSmoke')}"
             vmArg "-Dzsgrooms.spawnPreparationSmoke=${project.hasProperty('spawnPreparationSmoke')}"
             vmArg "-Dzsgrooms.loadingPositionSmoke=${project.hasProperty('loadingPositionSmoke')}"
@@ -39,7 +40,8 @@ tasks.named('runFilterPickerTest') {
         def log = file('run/filter-picker-test/logs/latest.log')
         if (!log.exists() || log.lastModified() < startedAt || !log.text.contains('[FilterPickerSmoke] PASS:')
                 || log.text.contains('[SeedVisualSmoke] FAILED') || log.text.contains('[LobbyRulesSmoke] FAILED')
-                || log.text.contains('[SpawnPreparationSmoke] FAILED') || log.text.contains('[LoadingPositionSmoke] FAILED')) {
+                || log.text.contains('[SpawnPreparationSmoke] FAILED') || log.text.contains('[LoadingPositionSmoke] FAILED')
+                || log.text.contains('[AaModeSmoke] FAILED')) {
             throw new GradleException('Filter picker smoke test failed; see run/filter-picker-test/logs/latest.log')
         }
     }

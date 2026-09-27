@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -63,6 +64,15 @@ class SeedBankClientTest {
     }
 
     @Test
+    void aaBankCannotAcceptAnOrdinaryTempleResponse() throws Exception {
+        JsonObject body = response();
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.AA_THUNDERLESS, ID));
+        body.addProperty("type", "aa_temple");
+        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.AA_THUNDERLESS, ID));
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
+    }
+
+    @Test
     void ruinedPortalResponsesMustMatchTheirOwnProfile() throws Exception {
         JsonObject body = response();
         body.addProperty("type", "ruined_portal");
@@ -109,6 +119,52 @@ class SeedBankClientTest {
         for (String endpoint : Arrays.asList("", "http://example.com", "https://user:password@example.com", "https://example.com?secret=x", "https://example.com#fragment", "file:///tmp", "https://example.com:70000")) {
             assertThrows(IOException.class, () -> SeedBankClient.requestUri(endpoint));
         }
+    }
+
+    @Test
+    void onlyAaRetriesExhaustedHistoryAndOnlyOnce() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger forcedStatus = new AtomicInteger();
+        server.createContext("/v1/seed", exchange -> {
+            calls.incrementAndGet();
+            JsonObject request = new JsonParser().parse(new java.io.InputStreamReader(
+                    exchange.getRequestBody(), StandardCharsets.UTF_8)).getAsJsonObject();
+            int status = forcedStatus.get() != 0 ? forcedStatus.get()
+                    : request.getAsJsonArray("excludeFamilies").size() > 0 ? 409 : 200;
+            JsonObject body = response();
+            body.addProperty("requestId", request.get("requestId").getAsString());
+            body.addProperty("type", request.get("type").getAsString());
+            byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(status, bytes.length);
+            try (java.io.OutputStream out = exchange.getResponseBody()) { out.write(bytes); }
+        });
+        server.start();
+        try {
+            String endpoint = "http://127.0.0.1:" + server.getAddress().getPort();
+            java.util.List<String> recent = Collections.singletonList(Long.toString(Long.MAX_VALUE & 281474976710655L));
+            assertEquals(SEED, SeedBankClient.fetchWithRecentFamilies(endpoint, SeedBankProfile.AA_THUNDERLESS, recent));
+            assertEquals(2, calls.get());
+            for (SeedBankProfile profile : SeedBankProfile.values()) {
+                if (profile == SeedBankProfile.AA_THUNDERLESS) continue;
+                calls.set(0);
+                assertThrows(IOException.class, () -> SeedBankClient.fetchWithRecentFamilies(endpoint, profile, recent));
+                assertEquals(1, calls.get());
+            }
+            for (int status : Arrays.asList(429, 503)) {
+                forcedStatus.set(status);
+                calls.set(0);
+                assertThrows(IOException.class, () -> SeedBankClient.fetchWithRecentFamilies(endpoint, SeedBankProfile.AA_THUNDERLESS, recent));
+                assertEquals(1, calls.get());
+            }
+            forcedStatus.set(409);
+            calls.set(0);
+            assertThrows(IOException.class, () -> SeedBankClient.fetchWithRecentFamilies(endpoint, SeedBankProfile.AA_THUNDERLESS, recent));
+            assertEquals(2, calls.get());
+            calls.set(0);
+            assertThrows(IOException.class, () -> SeedBankClient.fetchWithRecentFamilies(endpoint, SeedBankProfile.AA_THUNDERLESS, Collections.emptyList()));
+            assertEquals(1, calls.get());
+        } finally { server.stop(0); }
     }
 
     @Test

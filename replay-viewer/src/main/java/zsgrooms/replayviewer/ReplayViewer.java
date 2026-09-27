@@ -158,6 +158,12 @@ public final class ReplayViewer implements ClientModInitializer {
                 && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.hideChat();
     }
 
+    public static int mobHighlightColor(net.minecraft.entity.Entity entity) {
+        if (switching || instance == null || instance.current == null || instance.controls == null
+                || ReplayModReplay.instance == null || ReplayModReplay.instance.getReplayHandler() != instance.current) return -1;
+        return instance.controls.highlightColor(entity);
+    }
+
     public static boolean droneActive() {
         return !switching && instance != null && instance.controls != null
                 && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.droneActive();

@@ -14,6 +14,28 @@ class NativeProtocolTest {
     @TempDir Path directory;
 
     @Test
+    void aaSamplesCannotOverwriteExistingFilesOrRunForOtherProfiles() throws Exception {
+        Path samples = directory.resolve("end-candidates.jsonl");
+        Files.writeString(samples, "preserve me");
+        for (String type : new String[]{"temple", "aa_temple"}) {
+            Path output = directory.resolve("samples-" + type + ".jsonl");
+            ProcessBuilder builder = command(type, output);
+            builder.environment().put("ZSG_MODEL_PIPE", "1");
+            builder.environment().put("ZSG_AA_END_SAMPLES", samples.toString());
+            Process process = builder.start();
+            try {
+                assertTrue(process.waitFor(20, TimeUnit.SECONDS));
+                assertEquals(type.equals("aa_temple") ? 3 : 2, process.exitValue());
+                assertEquals("preserve me", Files.readString(samples));
+                assertFalse(Files.exists(output));
+            } finally {
+                process.destroyForcibly();
+                process.waitFor();
+            }
+        }
+    }
+
+    @Test
     void invalidFamilyCapsAndIncompleteTuningConfigurationFailBeforeOpeningBank() throws Exception {
         for (String cap : new String[]{"0", "5", "4294967297", "-1", "2"}) {
             Path output = directory.resolve("cap-" + cap + ".jsonl");
@@ -36,7 +58,7 @@ class NativeProtocolTest {
 
     @Test
     void allProfilesRefuseToSearchWithoutModels() throws Exception {
-        for (String type : new String[]{"temple", "shipwreck", "village", "buried_treasure", "ruined_portal"}) {
+        for (String type : new String[]{"temple", "aa_temple", "shipwreck", "village", "buried_treasure", "ruined_portal"}) {
             Path output = directory.resolve(type + ".jsonl");
             ProcessBuilder builder = command(type, output);
             builder.environment().remove("ZSG_MODEL_PIPE");
@@ -55,7 +77,7 @@ class NativeProtocolTest {
 
     @Test
     void invalidOrMissingNetherResponseAbortsBeforeAnyAcceptance() throws Exception {
-        for (String type : new String[]{"temple", "shipwreck", "village", "buried_treasure", "ruined_portal"}) {
+        for (String type : new String[]{"temple", "aa_temple", "shipwreck", "village", "buried_treasure", "ruined_portal"}) {
             for (String reply : new String[]{"", "NETHER 3 19 BRIDGE\n", "NETHER 3 20 UNKNOWN\n", "NETHER 4 20 BRIDGE\n"}) {
                 Path output = directory.resolve(type + "-" + Math.abs(reply.hashCode()) + ".jsonl");
                 ProcessBuilder builder = command(type, output);

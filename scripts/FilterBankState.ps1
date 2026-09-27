@@ -74,7 +74,7 @@ function Get-OvernightJobs([string]$Directory, $Checkpoint = $null) {
             }
         }
         if ($job.id -cne $_.BaseName -or $job.id -notmatch '^\d{8}$' -or
-            $job.state -notin @('pending','running','complete') -or $job.type -notin @('temple','shipwreck','village','buried_treasure','ruined_portal') -or
+            $job.state -notin @('pending','running','complete') -or $job.type -notin @('temple','aa_temple','shipwreck','village','buried_treasure','ruined_portal') -or
             $null -eq $job.startOffset -or $null -eq $job.families -or $job.families -lt 4 -or
             $job.startOffset -lt 0 -or $job.startOffset -gt 281474976710656L-$job.families -or
             $job.attempts -lt 0 -or $job.failures -lt 0 -or ($job.attempt -and $job.attempt -notmatch '^[a-f0-9]{32}$')) {
@@ -107,6 +107,9 @@ function Get-OvernightResultDirectory([string]$Directory, $Job) {
 }
 
 function Assert-FilterBankTypeRules($Row) {
+    if ($Row.type -ceq 'aa_temple' -and $Row.aaTempleRule -cne 'aa-temple-v4') {
+        throw 'AA bank requires the current connected End-ship rule.'
+    }
     if ($Row.type -ceq 'buried_treasure' -and $Row.buriedTreasureRule -cne 'mapless-regular-v1') {
         throw 'Unsupported buried treasure acceptance rule.'
     }
@@ -164,7 +167,7 @@ function Export-OvernightBank([string]$Directory, $Plan, $Checkpoint = $null, $J
     $jobs = if ($null -ne $Jobs) { @($Jobs) } else { @(Get-OvernightJobs $Directory $Checkpoint) }
     $temporary = Join-Path $Directory ('bank.'+[guid]::NewGuid().ToString('N')+'.tmp')
     $seen = [Collections.Generic.HashSet[string]]::new()
-    $counts = @{temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}
+    $counts = @{temple=0;aa_temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}
     $entries = [Collections.Generic.List[object]]::new()
     $next = [pscustomobject]@{entries=@{};rows=@{};reusable=@{}}
     $verified = 0

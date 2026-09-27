@@ -55,6 +55,7 @@ public class RoomOptionsScreen extends Screen {
 
         this.manualSeedField = new TextFieldWidget(this.textRenderer, contentX, y + 30, contentWidth, 20, new LiteralText("Manual Seed"));
         this.manualSeedField.setText(manualSeed);
+        this.manualSeedField.visible = !zsgrooms.modid.AaThunderless.isFilter(currentSeedType());
         updateManualSeedSuggestion();
         this.addButton(this.manualSeedField);
         updateManualSeedState();
@@ -97,6 +98,10 @@ public class RoomOptionsScreen extends Screen {
         drawCenteredString(matrices, this.textRenderer, "Room Options", this.width / 2, panelY + 10, 0xFFFFFF);
         drawCenteredString(matrices, this.textRenderer, "Filter for the next seed", this.width / 2, panelY + 36, 0xA8D8FF);
         super.render(matrices, mouseX, mouseY, delta);
+        if (zsgrooms.modid.AaThunderless.isFilter(currentSeedType())) {
+            drawCenteredString(matrices, this.textRenderer, "Win: All advancements except", this.width / 2, panelY + 85, 0xFFCC55);
+            drawCenteredString(matrices, this.textRenderer, "Very Very Frightening", this.width / 2, panelY + 97, 0xFFCC55);
+        }
     }
 
     private LiteralText seedTypeText() {

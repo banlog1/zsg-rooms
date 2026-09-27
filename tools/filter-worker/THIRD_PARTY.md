@@ -11,6 +11,10 @@
 - Cubiomes, Cubitect and contributors:
   https://github.com/Cubitect/cubiomes/tree/e61f90580cbdd883214a8054670dacae655e59c0
   MIT. Built from a pinned external checkout; its LICENSE is copied beside local binaries.
+  `patches/cubiomes-end-city-1.16.1.patch` corrects selected tower-floor attachment
+  and the bridge continuation anchor after adding a ship. The build applies it
+  to a generated copy only. Offline tests compare layouts and ship positions
+  against the operator's vanilla 1.16.1 templates without creating a world.
 - Published ZSG source, DuncanRuns and contributors:
   https://github.com/DuncanRuns/ZigSeedGlitchless/tree/073e1d1f3150213c7c3787eda7ef8106cb789817
   `model_loot.h` adapts `src/filter_common.zig`; profile ordering/resources also

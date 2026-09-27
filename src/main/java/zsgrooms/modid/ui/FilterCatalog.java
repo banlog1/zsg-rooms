@@ -28,6 +28,7 @@ final class FilterCatalog {
 
     static final List<Entry> ENTRIES = Collections.unmodifiableList(Arrays.asList(
             new Entry("rooms-mix", Group.ROOMS, null),
+            new Entry(zsgrooms.modid.AaThunderless.FILTER, Group.ROOMS, "dt"),
             new Entry("rooms-temple-v5", Group.ROOMS, "dt"),
             new Entry("rooms-village-v5", Group.ROOMS, "village"),
             new Entry("rooms-shipwreck-v5", Group.ROOMS, "shipwreck"),

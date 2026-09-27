@@ -41,6 +41,7 @@ final class ReplayAnalysis extends RenderPhase {
     boolean dragonTrail;
     boolean piglinTrail;
     boolean piglinCounter;
+    final MobHighlights highlights = new MobHighlights();
     final TrailStyle dragonStyle = new TrailStyle(TrailStyle.Color.CYAN);
     final TrailStyle piglinStyle = new TrailStyle(TrailStyle.Color.GOLD);
     int piglins;

@@ -5,7 +5,8 @@ enum SeedVisualType {
     TREASURE("Buried Treasure", "bt"), TEMPLE("Desert Temple", "dt", "dt2"),
     VILLAGE("Village", "village", "village2"), SHIPWRECK("Shipwreck", "shipwreck1", "shipwreck2"),
     PORTAL("Ruined Portal", "rp"), JUNGLE("Jungle Temple"), RANDOM("Random Seed"),
-    MANUAL("Manual Seed"), ROOM("Room Seed"), MIXED("ZSG Rooms Mode"), UNKNOWN("Seed");
+    MANUAL("Manual Seed"), ROOM("Room Seed"), MIXED("ZSG Rooms Mode"),
+    AA("AA Thunderless", "dt", "dt2"), UNKNOWN("Seed");
 
     final String label;
     final String[] images;
@@ -19,6 +20,7 @@ enum SeedVisualType {
         if (filter == null) return UNKNOWN;
         if (filter.startsWith("manual:")) return MANUAL;
         switch (filter) {
+            case zsgrooms.modid.AaThunderless.FILTER: return AA;
             case "rooms-buried-treasure-v5": case "zsg": case "zsgop": return TREASURE;
             case "rooms-temple-v5": case "zsgtemple": case "zsgtempleop": return TEMPLE;
             case "rooms-village-v5": case "zsgvillage": case "zsgvillageop": return VILLAGE;

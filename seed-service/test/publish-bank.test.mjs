@@ -12,6 +12,21 @@ function record(seed, type = "temple") {
     status: "MODEL_ACCEPTED", structure: [16, 32], entry: [24, 40], spawn: [8, 8], bastion: [16, 16], fortress: [80, 80] };
 }
 
+test("AA Thunderless requires the current separate AA rule and connected ship geometry", () => {
+  const row = { ...record("12345", "aa_temple"), aaTempleRule: "aa-temple-v4", gunpowder: 22,
+    village: [16, 100], extraTemples: [[500, 32], [900, 32]], innerEndGateway: [96, 0],
+    outerEndGateway: [1000, 0], endFirstShipRadius: 512, endConnectionRadius: 1024,
+    endShipLayout: "connected", endCities: [[1200, 0], [2100, 0], [3000, 0]],
+    endShips: [[1200, 0], [2100, 0], [3000, 0]] };
+  assert.equal(validateRecord(row).type, "aa_temple");
+  for (const change of [{ aaTempleRule: "aa-temple-v1" }, { gunpowder: 21 }, { village: [16, 103] },
+    { extraTemples: [[16, 32], [500, 32]] }, { endFirstShipRadius: 768 }, { endConnectionRadius: 1536 },
+    { endCities: [[1200, 0], [1200, 0], [3000, 0]] }, { endShips: [[1600, 0], [2100, 0], [3000, 0]] },
+    { endShips: [[1200, 0], [2300, 0], [3000, 0]] }, { endShips: [[1200, 0], [2100, 0], [3300, 0]] }]) {
+    assert.throws(() => validateRecord({ ...row, ...change }), /AA Thunderless/);
+  }
+});
+
 test("signed Java long seeds never pass through floating point", () => {
   for (const value of ["9223372036854775807", "-9223372036854775808", "9007199254740993"]) {
     assert.ok(isSeed(value));
@@ -109,8 +124,8 @@ test("split imports preserve dense slots and cannot activate an incomplete revis
     for (const [type, count] of Object.entries(manifest.counts)) {
       const actual = db.prepare("SELECT count(*) AS n, min(slot) AS first, max(slot) AS last FROM bank_seeds WHERE type=?").get(type);
       assert.equal(actual.n, count);
-      assert.equal(actual.first, 0);
-      assert.equal(actual.last, count - 1);
+      assert.equal(actual.first, count ? 0 : null);
+      assert.equal(actual.last, count ? count - 1 : null);
     }
     assert.equal(db.prepare("SELECT count(*) AS n FROM bank_seeds").get().n, 101);
   } finally {

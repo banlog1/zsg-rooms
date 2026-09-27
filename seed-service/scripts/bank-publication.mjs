@@ -36,7 +36,7 @@ export async function readPublication(directory) {
   const byType = Object.fromEntries(TYPES.map(type => [type, rows.filter(row => row.type === type)]));
   // Older snapshots predate these types. Their missing counts mean zero;
   // their original bytes, digests and permanent slots remain unchanged.
-  const recordedCount = type => ["buried_treasure", "ruined_portal"].includes(type) && manifest.counts?.[type] === undefined
+  const recordedCount = type => ["buried_treasure", "ruined_portal", "aa_temple"].includes(type) && manifest.counts?.[type] === undefined
     ? 0 : manifest.counts?.[type];
   if (manifest.total !== rows.length || TYPES.some(type => recordedCount(type) !== byType[type].length)) {
     throw new Error("Publication counts do not match its records.");

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Directory,
-    [ValidateNotNullOrEmpty()][ValidateSet('temple','shipwreck','village','buried_treasure','ruined_portal')][string[]]$Types = @('temple','shipwreck','village'),
+    [ValidateNotNullOrEmpty()][ValidateSet('temple','aa_temple','shipwreck','village','buried_treasure','ruined_portal')][string[]]$Types = @('temple','shipwreck','village'),
     [ValidateSet('standard','bt-rp')][string]$Preset = 'standard',
     [ValidateRange(1,6)][int]$Workers = 4,
     [switch]$AllowFullCpu,
@@ -9,6 +9,7 @@ param(
     [ValidateRange(0.05,1440)][double]$Minutes = 480,
     [ValidateRange(1,600)][int]$BatchSeconds = 300,
     [ValidateRange(4,1000000000)][long]$TempleFamilies = 2000000,
+    [ValidateRange(4,1000000000)][long]$AaTempleFamilies = 100000000,
     [ValidateRange(4,1000000000)][long]$ShipwreckFamilies = 60000000,
     [ValidateRange(4,1000000000)][long]$VillageFamilies = 500000,
     [ValidateRange(4,1000000000)][long]$BuriedTreasureFamilies = 1000000,
@@ -49,7 +50,7 @@ $reason = 'deadline'
 $lastStatus = [datetime]::MinValue
 $seen = [Collections.Generic.HashSet[string]]::new()
 $pending = [Collections.Generic.Queue[object]]::new()
-$totals = [pscustomobject]@{completed=0;counts=@{temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}}
+$totals = [pscustomobject]@{completed=0;counts=@{temple=0;aa_temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}}
 $lastReservedEnd = 0L
 $samples = [Collections.Generic.List[object]]::new()
 $lastSample = [datetime]::MinValue
@@ -107,6 +108,7 @@ try {
     $models = Join-Path $runtime 'model-finder'
     $requestedPolicies = [ordered]@{
         temple=@{families=$TempleFamilies;sisters=4096;familyCap=2}
+        aa_temple=@{families=$AaTempleFamilies;sisters=4096;familyCap=2}
         shipwreck=@{families=$ShipwreckFamilies;sisters=16384;familyCap=4}
         village=@{families=$VillageFamilies;sisters=1024;familyCap=2}
         buried_treasure=@{families=$BuriedTreasureFamilies;sisters=4096;familyCap=2}
@@ -119,7 +121,7 @@ try {
             @($plan.types | Where-Object {$_ -notin $requestedPolicies.Keys}).Count -or
             (@($plan.types | Select-Object -Unique).Count -ne $plan.types.Count)) { throw 'Invalid overnight plan.' }
         if (($PSBoundParameters.ContainsKey('Types') -or $PSBoundParameters.ContainsKey('Preset')) -and ($Types -join ',') -cne ($plan.types -join ',')) { throw 'Use a new bank directory to change the selected types.' }
-        $familyParameters = @{temple='TempleFamilies';shipwreck='ShipwreckFamilies';village='VillageFamilies';buried_treasure='BuriedTreasureFamilies';ruined_portal='RuinedPortalFamilies'}
+        $familyParameters = @{temple='TempleFamilies';aa_temple='AaTempleFamilies';shipwreck='ShipwreckFamilies';village='VillageFamilies';buried_treasure='BuriedTreasureFamilies';ruined_portal='RuinedPortalFamilies'}
         foreach ($type in $requestedPolicies.Keys) {
             $policy = $plan.policies.$type
             if (-not $policy) {
@@ -168,7 +170,7 @@ try {
     $seen = $export.seen
     Write-Output "Bank ready: $($export.reused) batches reused from checkpoint; $($export.verified) fully verified."
     $totals.completed=0
-    $totals.counts=@{temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}
+    $totals.counts=@{temple=0;aa_temple=0;shipwreck=0;village=0;buried_treasure=0;ruined_portal=0}
     foreach ($job in $jobs) {
         $lastReservedEnd=[Math]::Max($lastReservedEnd,[long]$job.startOffset+[long]$job.families)
         if ($job.state -ceq 'complete') { $totals.completed++; $totals.counts[$job.type]+=$job.accepted }

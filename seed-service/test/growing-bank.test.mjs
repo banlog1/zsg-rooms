@@ -240,13 +240,13 @@ test("a type-selected upload adds only that type and respects its seed limit", a
   await assert.rejects(uploadBank(f.publication, f.execute, { writeBudget: 100, type: "unknown" }), /upload type/);
   const result = await uploadBank(f.publication, f.execute, { writeBudget: 100, maxNewSeeds: 1, type: "temple" });
   assert.equal(result.added, 1);
-  assert.deepEqual(result.counts, { temple: 1, village: 0, shipwreck: 0, buried_treasure: 0, ruined_portal: 0 });
+  assert.deepEqual(result.counts, { temple: 1, village: 0, shipwreck: 0, buried_treasure: 0, ruined_portal: 0, aa_temple: 0 });
   assert.equal((await f.fetch("temple")).status, 200);
   assert.equal((await f.fetch("village")).status, 503);
   assert.equal((await f.fetch("shipwreck")).status, 503);
   const resumed = await uploadBank(f.publication, f.execute, { writeBudget: 100, type: "temple" });
   assert.equal(resumed.added, 1);
-  assert.deepEqual(resumed.counts, { temple: 2, village: 0, shipwreck: 0, buried_treasure: 0, ruined_portal: 0 });
+  assert.deepEqual(resumed.counts, { temple: 2, village: 0, shipwreck: 0, buried_treasure: 0, ruined_portal: 0, aa_temple: 0 });
 });
 
 test("larger bounded batches retain the write limit and resume with a different batch size", async t => {

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import zsgrooms.modid.benchmark.DragonPerchHeadlessBenchmark;
 import zsgrooms.modid.benchmark.WoodLightingHeadlessTest;
 import zsgrooms.modid.benchmark.SharedNetherEntryHeadlessTest;
+import zsgrooms.modid.benchmark.NetherPreloadBenchmark;
 import zsgrooms.modid.net.RoomSnapshot;
 import zsgrooms.modid.seedbank.SeedBankProfile;
 
@@ -32,6 +33,7 @@ public class ZsgRooms implements ModInitializer {
 		LOGGER.info("Registering ZSG room lifecycle hooks");
 
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
+		ServerLifecycleEvents.SERVER_STOPPING.register(NetherPortalPreloader::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> PauseWorldSaveControl.configure(false));
 		ServerLifecycleEvents.SERVER_STOPPED.register(WoodLightingStandardization::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(SharedNetherEntry::stop);
@@ -41,6 +43,7 @@ public class ZsgRooms implements ModInitializer {
 		DragonPerchHeadlessBenchmark.register();
 		WoodLightingHeadlessTest.register();
 		SharedNetherEntryHeadlessTest.register();
+		NetherPreloadBenchmark.register();
 		ZsgRoomNetworking.registerServer();
 	}
 
@@ -737,7 +740,8 @@ public class ZsgRooms implements ModInitializer {
 
 	public static void prepareRoomSpawn(MinecraftServer server) {
 		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()
-				|| SharedNetherEntryHeadlessTest.isEnabled() || Boolean.getBoolean("zsgrooms.filterProbe")) {
+				|| SharedNetherEntryHeadlessTest.isEnabled() || NetherPreloadBenchmark.isEnabled()
+				|| Boolean.getBoolean("zsgrooms.filterProbe")) {
 			return;
 		}
 		Room room = getActiveRoom();
@@ -753,7 +757,8 @@ public class ZsgRooms implements ModInitializer {
 
 	private void onServerStarted(MinecraftServer server) {
 		if (DragonPerchHeadlessBenchmark.isEnabled() || WoodLightingHeadlessTest.isEnabled()
-				|| SharedNetherEntryHeadlessTest.isEnabled() || Boolean.getBoolean("zsgrooms.filterProbe")) {
+				|| SharedNetherEntryHeadlessTest.isEnabled() || NetherPreloadBenchmark.isEnabled()
+				|| Boolean.getBoolean("zsgrooms.filterProbe")) {
 			return;
 		}
 		Room room = getActiveRoom();

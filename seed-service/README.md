@@ -16,15 +16,22 @@ local testing. `wrangler.production.jsonc` pins the separate seed-bank account.
 5. Start or an approved seed change consumes that seed. The existing launch path
    shares it with the room only when launching, then prepares the following seed.
 
-Five separate choices are added alongside FSG: **ZSG Rooms Desert Temple**,
+Six separate choices are added alongside FSG: **AA Thunderless**, **ZSG Rooms Desert Temple**,
 **ZSG Rooms Village**, **ZSG Rooms Shipwreck**, **ZSG Rooms Buried Treasure**,
 and **ZSG Rooms Ruined Portal**.
-Their stable specifications are `rooms-temple-v5`, `rooms-village-v5`,
+Their stable specifications are `rooms-aa-thunderless-v4`, `rooms-temple-v5`, `rooms-village-v5`,
 `rooms-shipwreck-v5`, `rooms-buried-treasure-v5`, and `rooms-ruined-portal-v5`. History and
 room snapshots retain these identities. Structure-proximity rules map to the
 corresponding vanilla structure. Individual FSG, manual and vanilla-random
 choices are unchanged. ZSG Rooms Mode uses our temple/village/shipwreck/BT
 banks at 20% each, our RP at 15%, and external RP Seedbank at 5%.
+
+AA Thunderless requests the separate `aa_temple` bank and changes the race goal
+to all advancements except Very Very Frightening. It is excluded from the random
+mix. AA imports require `aa-temple-v4`, at least 22 gunpowder, and the current
+village, extra-temple, and connected End-ship geometry. Old publications without
+an AA count remain valid only when they contain no AA rows. Deploy the updated
+worker and publish AA candidates before expecting hosted AA requests to succeed.
 
 RP imports require `frame-completable-v3`, at least one golden axe or pickaxe,
 and flint and steel, flint plus nine nuggets, or at least five fire charges.

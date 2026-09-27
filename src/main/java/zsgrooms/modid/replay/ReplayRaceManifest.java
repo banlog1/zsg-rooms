@@ -13,6 +13,7 @@ final class ReplayRaceManifest {
     static final int MAX_TIMING_SAMPLES = 12000;
     private final long originNanos;
     private final Data data;
+    private final Object finishLock = new Object();
     private Race currentRace;
     private Interval currentInterval;
     private boolean sealed;
@@ -130,10 +131,21 @@ final class ReplayRaceManifest {
     }
 
     /** Writer-thread finalization clamps coverage to the last packet actually written. */
-    synchronized String finish(long durationMillis, boolean complete) {
-        closeInterval(durationMillis);
-        recordLoading(durationMillis, false);
-        sealed = true;
+    String finish(long durationMillis, boolean complete) {
+        // Serialize repeated finishes, without making late client callbacks wait for JSON encoding.
+        synchronized (finishLock) {
+            synchronized (this) {
+                closeInterval(durationMillis);
+                recordLoading(durationMillis, false);
+                sealed = true;
+            }
+            // Every capture entry point checks sealed under this monitor. From here only
+            // the holder of finishLock can touch data, so neither a copy nor the capture lock is needed.
+            return finishSealed(durationMillis, complete);
+        }
+    }
+
+    private String finishSealed(long durationMillis, boolean complete) {
         data.durationMillis = durationMillis;
         data.complete = complete;
         if (!complete || data.truncated) data.templePredictionSeed = null;

@@ -160,7 +160,7 @@ public final class DragonPerchHeadlessBenchmark {
             this.mode = this.modes[0];
         }
 
-        private void start() {
+        private void start() throws ReflectiveOperationException {
             log("Starting paired full-period benchmark: trials={}, crystals={}, maxTicks={}, sampleSeed={}",
                     configuration.trials,
                     configuration.crystals,
@@ -170,6 +170,7 @@ public final class DragonPerchHeadlessBenchmark {
             log("Each trial begins at synthetic End entry and uses vanilla EnderDragonFight dragon creation.");
             prepareEndArena();
             DragonOpeningHeightCheck.run(this.world);
+            DragonPerchRollCheck.run(this.world);
             createBenchmarkPlayer();
             startMode(this.modes[0]);
         }
@@ -221,13 +222,14 @@ public final class DragonPerchHeadlessBenchmark {
             Arrays.fill(this.spawnTicks, -1);
             Arrays.fill(this.decisionTicks, -1);
             Arrays.fill(this.perchTicks, -1);
-            RngStandardization.configure(nextMode.standardized, false);
-            RngStandardization.setDragonPerchGraceTicksForTesting(nextMode.graceTicks);
             log("Running {}", nextMode.label);
             startTrial();
         }
 
         private void startTrial() {
+            // Each trial represents a fresh race world, whose RNG channels start at event zero.
+            RngStandardization.configure(this.mode.standardized, false);
+            RngStandardization.setDragonPerchGraceTicksForTesting(this.mode.graceTicks);
             setCrystalCount();
             this.decisionTick = -1;
             this.naturalSpawnDelayTicks = -1;
@@ -327,6 +329,9 @@ public final class DragonPerchHeadlessBenchmark {
         }
 
         private void finishTrial(int perchTick, boolean timedOut) {
+            log("{} | trial {}/{} | result: spawn={}, decision={}, perch={}, timeout={}",
+                    this.mode.label, this.trialIndex + 1, this.configuration.trials,
+                    this.naturalSpawnDelayTicks, this.decisionTick, timedOut ? -1 : perchTick, timedOut);
             this.spawnTicks[this.trialIndex] = this.naturalSpawnDelayTicks;
             this.decisionTicks[this.trialIndex] = this.decisionTick;
             this.perchTicks[this.trialIndex] = timedOut ? -1 : perchTick;
@@ -381,6 +386,7 @@ public final class DragonPerchHeadlessBenchmark {
                     comparison.mode.label);
             cleanup();
             this.finished = true;
+            log("PASS: both modes finished, trial results recorded, and production grace restored");
             this.server.stop(false);
         }
 

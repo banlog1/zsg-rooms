@@ -17,6 +17,7 @@ final class AnalysisScreen extends Screen {
     private CheckboxWidget inventory;
     private CheckboxWidget quick;
     private CheckboxWidget sounds;
+    private ButtonWidget highlights;
 
     AnalysisScreen(ReplayAnalysis analysis, FollowDetailOptions details, PlaybackMode playback) {
         super(new LiteralText("Replay Analysis"));
@@ -27,7 +28,7 @@ final class AnalysisScreen extends Screen {
 
     @Override protected void init() {
         int x = width / 2 - 140;
-        int y = height / 2 - 84;
+        int y = height / 2 - 90;
         pigs = addButton(new CheckboxWidget(x, y, 280, 20, new LiteralText("Piglin cluster counter"), analysis.piglinCounter) {
             @Override public void onPress() { super.onPress(); analysis.piglinCounter = isChecked(); analysis.clear(); }
         });
@@ -57,13 +58,15 @@ final class AnalysisScreen extends Screen {
                 new LiteralText("Player sounds (experimental)"), ReplayAudio.enabled()) {
             @Override public void onPress() { super.onPress(); ReplayAudio.setEnabled(isChecked()); }
         });
-        addButton(new ButtonWidget(x, y + 164, 280, 20, new LiteralText("Done"), button -> onClose()));
+        highlights = addButton(new ButtonWidget(x, y + 144, 280, 20, new LiteralText("Mob Highlights"),
+                button -> client.openScreen(new MobHighlightScreen(this, analysis.highlights))));
+        addButton(new ButtonWidget(x, y + 184, 280, 20, new LiteralText("Done"), button -> onClose()));
     }
 
     @Override public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
         renderBackground(matrices);
-        drawCenteredString(matrices, textRenderer, title.getString(), width / 2, height / 2 - 108, 0xFFFFFF);
-        drawCenteredString(matrices, textRenderer, playback.status(), width / 2, height / 2 + 62, 0xCCCCCC);
+        drawCenteredString(matrices, textRenderer, title.getString(), width / 2, height / 2 - 114, 0xFFFFFF);
+        drawCenteredString(matrices, textRenderer, playback.status(), width / 2, height / 2 + 78, 0xCCCCCC);
         super.render(matrices, mouseX, mouseY, delta);
         if (pigs.isHovered()) renderTooltip(matrices, textRenderer.wrapLines(new LiteralText(
                 "Largest one-block-radius cluster within 64 blocks of the recorded player. Counts recorded piglins, not hole walls or bastion tags."), 240), mouseX, mouseY);
@@ -77,6 +80,8 @@ final class AnalysisScreen extends Screen {
                 "Faster scrolling through the replay, but less detail. Viewer only; recording is unchanged. Off for each newly opened replay."), 240), mouseX, mouseY);
         else if (sounds.isHovered()) renderTooltip(matrices, textRenderer.wrapLines(new LiteralText(
                 "Reconstructs footsteps, mining, placements, buckets, eating/drinking, damage and fall impacts. Approximate; Quick Mode may omit actions. Off for each newly opened replay. Seeks are always silent."), 240), mouseX, mouseY);
+        else if (highlights.isHovered()) renderTooltip(matrices, textRenderer.wrapLines(new LiteralText(
+                "Choose recorded mob types and an outline color. Visible through walls during playback only; no extra chunks or recording changes."), 240), mouseX, mouseY);
     }
 
     @Override public boolean isPauseScreen() { return false; }

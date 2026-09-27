@@ -11,6 +11,7 @@ import zsgrooms.modid.RoomMuteManager;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
 import zsgrooms.modid.ZsgSeedBridge;
+import zsgrooms.modid.AaThunderless;
 import zsgrooms.modid.net.HostSeedPrefetchManager;
 import zsgrooms.modid.net.RoomSocketTransport;
 import zsgrooms.modid.net.RoomWebSocketTransport;
@@ -171,6 +172,7 @@ public class RoomLobbyScreen extends Screen {
         if (room != null) {
             String seed = room.getSeed();
             int detailsHeight = isCompact() ? 18 : 44;
+            if (AaThunderless.isFilter(ZsgSeedBridge.seedSpecificationFromSeed(seed))) detailsHeight += 24;
             drawPlayerRows(matrices, room, top + (isCompact() ? 5 : 12), playerPanelBottom - detailsHeight);
             drawRoomDetails(matrices, seed, playerPanelBottom - detailsHeight);
         }
@@ -275,19 +277,28 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private void drawRoomDetails(MatrixStack matrices, String seed, int y) {
-        String filter = "Filter: " + ZsgSeedBridge.seedTypeLabel(ZsgSeedBridge.seedSpecificationFromSeed(seed));
+        String specification = ZsgSeedBridge.seedSpecificationFromSeed(seed);
+        boolean aa = AaThunderless.isFilter(specification);
+        String filter = "Filter: " + ZsgSeedBridge.seedTypeLabel(specification);
         if (isCompact()) {
             drawCenteredString(matrices, this.textRenderer, trimToWidth(filter, this.width - 20), this.width / 2, y + 4, 0x88CCFF);
+            if (aa) drawAaGoal(matrices, y + 16);
             return;
         }
         int panelX = Math.max(20, this.width / 2 - 190);
         int panelW = Math.min(380, this.width - 40);
-        fill(matrices, panelX, y, panelX + panelW, y + 40, 0x66000000);
+        fill(matrices, panelX, y, panelX + panelW, y + (aa ? 64 : 40), 0x66000000);
         drawCenteredString(matrices, this.textRenderer, trimToWidth(filter, panelW - 16), this.width / 2, y + 6, 0x88CCFF);
         String seedStatus = RoomWebSocketTransport.isHosting() || RoomSocketTransport.isHosting()
                 ? HostSeedPrefetchManager.getInstance().getStatus()
                 : "Seed Source: " + ZsgSeedBridge.getLastSeedSource();
         drawCenteredString(matrices, this.textRenderer, trimToWidth(seedStatus, panelW - 16), this.width / 2, y + 21, 0x88FF88);
+        if (aa) drawAaGoal(matrices, y + 36);
+    }
+
+    private void drawAaGoal(MatrixStack matrices, int y) {
+        drawCenteredString(matrices, this.textRenderer, "Win: All advancements except", this.width / 2, y, 0xFFCC55);
+        drawCenteredString(matrices, this.textRenderer, "Very Very Frightening", this.width / 2, y + 11, 0xFFCC55);
     }
 
     private void drawChatAndStatus(MatrixStack matrices, Room room, int top) {

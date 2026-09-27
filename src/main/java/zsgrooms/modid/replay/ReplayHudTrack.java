@@ -1,8 +1,7 @@
 package zsgrooms.modid.replay;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +11,7 @@ final class ReplayHudTrack {
     static final int MAX_BYTES = 16 * 1024 * 1024;
     static final int MAX_FRAME = 64 * 1024;
     private final List<Frame> frames = new ArrayList<>();
+    private final Object finishLock = new Object();
     private int bytes = 8;
     private boolean sealed;
     private long sampled = -1;
@@ -42,22 +42,32 @@ final class ReplayHudTrack {
         bytes += payload.length + 16;
     }
 
-    synchronized byte[] finish(long duration) throws IOException {
-        sealed = true;
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream(bytes);
-        DataOutputStream output = new DataOutputStream(buffer);
-        output.writeInt(MAGIC);
-        output.writeInt(1);
-        for (Frame frame : frames) {
-            if (frame.time > duration) break;
-            output.writeInt(frame.time);
-            output.writeInt(frame.world);
-            output.writeInt(frame.entity);
-            output.writeInt(frame.payload.length);
-            output.write(frame.payload);
+    byte[] finish(long duration) throws IOException {
+        synchronized (finishLock) {
+            synchronized (this) {
+                sealed = true;
+            }
+            // Sealing makes due/add return immediately; only finishLock's holder can touch frames.
+            int outputBytes = 8;
+            for (Frame frame : frames) {
+                if (frame.time > duration) break;
+                outputBytes += 16 + frame.payload.length;
+            }
+            // ByteBuffer uses the same big-endian format as DataOutputStream, with no final array copy.
+            ByteBuffer output = ByteBuffer.allocate(outputBytes);
+            output.putInt(MAGIC);
+            output.putInt(1);
+            for (Frame frame : frames) {
+                if (frame.time > duration) break;
+                output.putInt(frame.time);
+                output.putInt(frame.world);
+                output.putInt(frame.entity);
+                output.putInt(frame.payload.length);
+                output.put(frame.payload);
+            }
+            frames.clear();
+            return output.array();
         }
-        frames.clear();
-        return buffer.toByteArray();
     }
 
     private static final class Frame {

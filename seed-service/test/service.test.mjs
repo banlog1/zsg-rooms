@@ -37,6 +37,19 @@ async function fixture(t) {
   return { db, env: { BANK: binding(db), SEED_REQUESTS: { async limit() { return { success: true }; } } } };
 }
 
+test("AA requests use only their separate bank and never fall back to temple", async t => {
+  const { db, env } = await fixture(t);
+  assert.equal((await serveSeed(request({ type: "aa_temple" }), env)).status, 503);
+  db.prepare("INSERT INTO bank_types VALUES (?,?,?)").run(revision, "aa_temple", 1);
+  db.prepare("INSERT INTO bank_seeds VALUES (?,?,?,?,?)").run(revision, "aa_temple", 0, "12345", "12345");
+  const response = await serveSeed(request({ type: "aa_temple" }), env, () => 0);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.type, "aa_temple");
+  assert.equal(body.seed, "12345");
+  assert.equal((await serveSeed(request({ type: "aa_temple", excludeFamilies: ["12345"] }), env)).status, 409);
+});
+
 test("one exact seed, requested identity, no-store and no bulk endpoint", async t => {
   const { env } = await fixture(t);
   const response = await serveSeed(request(), env, () => 0);

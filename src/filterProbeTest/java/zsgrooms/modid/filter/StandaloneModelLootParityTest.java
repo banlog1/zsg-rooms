@@ -40,7 +40,7 @@ class StandaloneModelLootParityTest {
                 int[] actual = Arrays.stream(line.split(" ")).mapToInt(Integer::parseInt).toArray();
                 long seed = i * 0x9e3779b97f4a7c15L;
                 int x = (i % 31 - 15) * 16, z = (i % 23 - 11) * 16;
-                int[] t = new int[4], s = new int[4];
+                int[] t = new int[5], s = new int[4];
                 Random random = decorator(seed, x, z, 40003);
                 for (int chest = 0; chest < 4; chest++) add(t, temple, random.nextLong());
                 random = decorator(seed, x, z, 40006);
@@ -49,7 +49,7 @@ class StandaloneModelLootParityTest {
                 random = decorator(seed, x - 16, z, 40006);
                 random.nextLong();
                 add(s, supply, random.nextLong());
-                assertArrayEquals(new int[]{i, t[0], t[1], t[2], s[0], s[1], s[2], s[3]}, actual, "Vanilla vector " + i);
+                assertArrayEquals(new int[]{i, t[0], t[1], t[2], s[0], s[1], s[2], s[3], t[4]}, actual, "Vanilla vector " + i);
             }
             assertNull(input.readLine());
             assertEquals(0, process.waitFor());
@@ -90,6 +90,7 @@ class StandaloneModelLootParityTest {
             if (stack.getItem() == Items.GOLD_NUGGET) goldNuggets += n;
             if (stack.getItem() == Items.WHEAT) counts[3] += n;
             if (stack.getItem() == Items.CARROT) counts[3] += n * 6;
+            if (counts.length > 4 && stack.getItem() == Items.GUNPOWDER) counts[4] += n;
         }
         counts[0] += ironNuggets / 9;
         counts[2] += goldNuggets / 9;

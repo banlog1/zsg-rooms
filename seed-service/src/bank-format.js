@@ -1,6 +1,6 @@
 export const PROFILE = "zsg-model-only-v5";
 export const SCHEMA_VERSION = 1;
-export const TYPES = Object.freeze(["temple", "village", "shipwreck", "buried_treasure", "ruined_portal"]);
+export const TYPES = Object.freeze(["temple", "village", "shipwreck", "buried_treasure", "ruined_portal", "aa_temple"]);
 const MIN_SEED = -(1n << 63n);
 const MAX_SEED = (1n << 63n) - 1n;
 
@@ -19,6 +19,25 @@ export function validateRecord(record) {
   if (record.family !== family) throw new Error("Seed-bank family does not match its seed.");
   if (record.type === "buried_treasure" && record.buriedTreasureRule !== "mapless-regular-v1") {
     throw new Error("Incompatible buried-treasure acceptance rule.");
+  }
+  if (record.type === "aa_temple") {
+    const point = value => Array.isArray(value) && value.length === 2
+      && value.every(n => Number.isInteger(n) && Math.abs(n) <= 30000000);
+    const near = (a, b, radius) => point(a) && point(b)
+      && (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 <= radius ** 2;
+    const points = (value, count) => Array.isArray(value) && value.length === count
+      && value.every(point) && new Set(value.map(p => p.join(","))).size === count;
+    if (record.aaTempleRule !== "aa-temple-v4" || !Number.isSafeInteger(record.gunpowder) || record.gunpowder < 22
+        || !near(record.structure, record.village, 70) || !points(record.extraTemples, 2)
+        || !record.extraTemples.every(p => near(record.structure, p, 1024) && p.join(",") !== record.structure.join(","))
+        || !point(record.innerEndGateway) || !point(record.outerEndGateway)
+        || record.endFirstShipRadius !== 512 || record.endConnectionRadius !== 1024 || record.endShipLayout !== "connected"
+        || !points(record.endCities, 3) || !points(record.endShips, 3)
+        || !near(record.outerEndGateway, record.endShips[0], 512)
+        || !near(record.endShips[0], record.endShips[1], 1024)
+        || !(near(record.endShips[0], record.endShips[2], 1024) || near(record.endShips[1], record.endShips[2], 1024))) {
+      throw new Error("Incompatible AA Thunderless acceptance rule or geometry.");
+    }
   }
   if (record.type === "ruined_portal") {
     const counts = [record.goldenAxes, record.goldenPickaxes, record.flintAndSteel, record.fireCharges, record.flint, record.ironNuggets];

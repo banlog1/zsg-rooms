@@ -35,7 +35,8 @@ public final class SurfaceLavaPoolGuarantee {
 
     static boolean appliesTo(String filter) {
         SeedBankProfile profile = SeedBankProfile.find(filter);
-        return profile == SeedBankProfile.TEMPLE || profile == SeedBankProfile.VILLAGE;
+        return profile == SeedBankProfile.TEMPLE || profile == SeedBankProfile.VILLAGE
+                || profile == SeedBankProfile.AA_THUNDERLESS;
     }
 
     static boolean needsPreparation(ServerWorld world, String filter) {

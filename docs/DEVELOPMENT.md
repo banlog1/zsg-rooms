@@ -93,12 +93,24 @@ then reports the natural spawn delay, the tick where `LANDING_APPROACH` begins,
 and the tick where the dragon reaches a sitting phase. All timings are measured
 from End entry and include mean, median, p90, p95, p99,
 completed trials, timeouts, and a paired second-mode-minus-first-mode delta. This is a
-CPU-heavy simulation of complete dragon ticks; progress is logged every 500
+fresh-race comparison: deterministic RNG counters reset before every trial, and
+each trial logs its individual spawn, decision, and perch times. Older benchmark
+runs reset these counters only between modes, so later trials continued the
+previous trial's perch and opening-height sequences instead of simulating a fresh
+race on the same seed. Do not use those older results to assess repeatability.
+This is a CPU-heavy simulation of complete dragon ticks; progress is logged every 500
 simulated ticks, and larger samples may take a long time. Its run directory is
 `run/perch-benchmark`; set `eula=true` there before the first dedicated-server
 run after reviewing Mojang's EULA. The no-grace override exists only inside the
 benchmark process; normal `RngStandardization.configure(...)` calls restore the
 production 1,300-tick grace.
+
+The benchmark also runs `DragonPerchRollCheck`, which exercises the actual
+holding-pattern perch redirect at ages 0, 1299, and 1300 with zero and ten live
+crystals, both with standardisation enabled and disabled. It verifies the
+landing decision and native RNG consumption on successful perch decisions.
+`runPerchBenchmark` requires a fresh completion marker and fails if the server
+logs a benchmark error; a clean server shutdown alone is not a passing test.
 
 ### Opening Dragon Heights
 

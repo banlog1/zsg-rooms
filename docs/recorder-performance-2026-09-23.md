@@ -1,5 +1,8 @@
 # Recorder profiling and candidate experiments
 
+The [September 28 finalization follow-up](recorder-performance-2026-09-28.md)
+addresses the manifest lock wait identified here and reduces HUD save allocations.
+
 ## Follow-up: packet scratch reuse (2026-09-24)
 
 Promoted only bounded packet encoding-buffer reuse to normal recording. Both modes

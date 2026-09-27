@@ -90,7 +90,7 @@ final class ViewerControls {
             if (!sender.isAsyncMode() || sender instanceof FullReplaySender && ((FullReplaySender) sender).isHurrying()) return;
             client.openScreen(new RaceReplayScreen(handler, snapshot()));
         });
-        analysisButton = button("Analysis", "Playback mode, follow details, piglin counter and trails", () -> client.openScreen(new AnalysisScreen(analysis, details, playback)));
+        analysisButton = button("Analysis", "Playback mode, follow details, mob highlights, piglin counter and trails", () -> client.openScreen(new AnalysisScreen(analysis, details, playback)));
         camera.setTooltip(new GuiTooltip().setText("Drone: hold left mouse and move to orbit the player with the cursor captured. Scroll changes distance. Player turns do not rotate the drone."));
         showChat.setTooltip(new GuiTooltip().setText("Show recorded chat during playback. Does not change live chat or ReplayMod's capture/filter settings."));
         autoHide.setTooltip(new GuiTooltip().setText("Hide after 3 seconds idle. Press T to release the cursor and reveal controls."));
@@ -311,6 +311,12 @@ final class ViewerControls {
     boolean droneActive() { return !editing && camera.getSelected() == 3 && handler.isCameraView(); }
     void orbit(double x, double y) { followDistance.drag(x, y); }
     void clearTrails() { analysis.clear(); }
+    int highlightColor(net.minecraft.entity.Entity entity) {
+        if (!analysis.highlights.active() || !statusVisible() || entity == null || entity.world != client.world
+                || !(entity instanceof net.minecraft.entity.mob.MobEntity) || !entity.isAlive()) return -1;
+        return analysis.highlights.selected(net.minecraft.util.registry.Registry.ENTITY_TYPE.getId(entity.getType()))
+                ? analysis.highlights.color.rgb : -1;
+    }
     void renderTrails(net.minecraft.client.util.math.MatrixStack matrices, net.minecraft.client.render.Camera view) {
         if (statusVisible()) analysis.render(matrices, view);
     }
@@ -403,6 +409,7 @@ final class ViewerControls {
         state.piglinTrail = analysis.piglinTrail;
         state.dragonStyle.copyFrom(analysis.dragonStyle);
         state.piglinStyle.copyFrom(analysis.piglinStyle);
+        state.highlights.copyFrom(analysis.highlights);
         state.chat = showChat.isChecked();
         state.autoHide = autoHide.isChecked();
         state.speed = handler.getReplaySender().paused() ? 0 : handler.getReplaySender().getReplaySpeed();
@@ -420,6 +427,7 @@ final class ViewerControls {
         analysis.piglinTrail = state.piglinTrail;
         analysis.dragonStyle.copyFrom(state.dragonStyle);
         analysis.piglinStyle.copyFrom(state.piglinStyle);
+        analysis.highlights.copyFrom(state.highlights);
         showChat.setChecked(state.chat);
         autoHide.setChecked(state.autoHide);
         lastMode = -1;
@@ -438,6 +446,7 @@ final class ViewerControls {
         boolean piglinTrail;
         final TrailStyle dragonStyle = new TrailStyle(TrailStyle.Color.CYAN);
         final TrailStyle piglinStyle = new TrailStyle(TrailStyle.Color.GOLD);
+        final MobHighlights highlights = new MobHighlights();
         boolean chat;
         boolean autoHide;
         double speed;

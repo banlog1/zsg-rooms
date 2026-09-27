@@ -52,13 +52,15 @@ final class LocalRaceClock {
         }
     }
 
-    synchronized void capture(Object server, UUID player, long nowNanos) {
+    synchronized boolean capture(Object server, UUID player, long nowNanos) {
         if (started && this.server == server && this.player.equals(player) && finishElapsedNanos == null) {
             long elapsed = nowNanos - startNanos;
             if (elapsed >= 0L && elapsed <= RaceFinishArbiter.MAX_ELAPSED_NANOS) {
                 finishElapsedNanos = elapsed;
+                return true;
             }
         }
+        return false;
     }
 
     synchronized long consume(String id, Object server, UUID player) {

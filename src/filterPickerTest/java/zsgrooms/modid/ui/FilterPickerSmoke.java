@@ -25,6 +25,10 @@ public final class FilterPickerSmoke implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (Boolean.getBoolean("zsgrooms.aaModeSmoke")) {
+            new zsgrooms.modid.AaModeSmoke().initialize();
+            return;
+        }
         if (Boolean.getBoolean("zsgrooms.loadingPositionSmoke")) {
             new LoadingPositionSmoke().initialize();
             return;
@@ -62,6 +66,9 @@ public final class FilterPickerSmoke implements ClientModInitializer {
                     require(client.getResourceManager().containsResource(new Identifier("zsg-rooms", "textures/gui/filters/dt.png")), "Pack was not enabled");
                     check(client);
                     screenshot(client, "gallery-rooms.png");
+                    click(client, "AA Thunderless");
+                    require(zsgrooms.modid.AaThunderless.FILTER.equals(this.selected), "AA selection failed");
+                    open(client, zsgrooms.modid.AaThunderless.FILTER);
                     click(client, "ZSG Rooms Mode");
                     require("rooms-mix".equals(this.selected), "Random mode selection failed");
                     open(client, "rooms-mix");

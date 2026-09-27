@@ -3,7 +3,7 @@
 #include "finders.h"
 
 /* Adapted from the published MIT ZSG filter_common.zig. See THIRD_PARTY.md. */
-typedef struct { int iron, diamonds, gold, food; } Loot;
+typedef struct { int iron, diamonds, gold, food, gunpowder; } Loot;
 
 static uint64_t decoration(uint64_t seed, int x, int z, int salt) {
     uint64_t r;
@@ -14,7 +14,7 @@ static uint64_t decoration(uint64_t seed, int x, int z, int salt) {
 
 static int count(uint64_t *r, int min, int max) { return min + nextInt(r, max - min + 1); }
 
-static Loot temple_loot(uint64_t seed, Pos pos) {
+static Loot temple_loot_model(uint64_t seed, Pos pos, int include_gunpowder) {
     static const int levels[37] = {4,4,4,4,4,3,1,3,3,2,1,5,5,5,2,2,3,3,5,1,3,3,5,2,1,1,3,3,3,5,3,1,1,3,4,1,1};
     Loot loot = {0};
     uint64_t decorator;
@@ -35,8 +35,17 @@ static Loot temple_loot(uint64_t seed, Pos pos) {
                 if (level > 1) nextInt(&r, level);
             }
         }
+        /* The second pool has four rolls, with five equally weighted entries. */
+        if (include_gunpowder) for (int i = 0; i < 4; i++) {
+            int choice = nextInt(&r, 50), amount = count(&r, 1, 8);
+            if (choice >= 10 && choice < 20) loot.gunpowder += amount;
+        }
     }
     return loot;
+}
+
+static Loot temple_loot(uint64_t seed, Pos pos) {
+    return temple_loot_model(seed, pos, 0);
 }
 
 static uint64_t chest_random(uint64_t seed, int x, int z, int longs) {

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$Java = 'java', [switch]$Integration, [ValidateRange(0,10000)][int]$BenchmarkBatches = 0)
+param([string]$Java = 'java', [switch]$Integration, [switch]$AaIntegration, [ValidateRange(0,10000)][int]$BenchmarkBatches = 0)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'FilterBankState.ps1')
 $root = Split-Path -Parent $PSScriptRoot
@@ -32,6 +32,7 @@ $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
 $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'attempts')
 $plan = [pscustomobject]@{policies=[pscustomobject]@{
     temple=[pscustomobject]@{sisters=4096;familyCap=2}
+    aa_temple=[pscustomobject]@{sisters=4096;familyCap=2}
     buried_treasure=[pscustomobject]@{sisters=4096;familyCap=2}
     ruined_portal=[pscustomobject]@{sisters=4096;familyCap=4}
 }}
@@ -47,6 +48,7 @@ function New-TestBatch([int]$Id,[long]$Offset,[bool]$Duplicate=$false,[string]$T
         $upper = if ($Duplicate) {0L} else {[long]$i}
         $row = @{type=$Type;profile='zsg-model-only-v5';status='MODEL_ACCEPTED';seed=($lower+$upper*281474976710656L).ToString();family=$lower.ToString()}
         if ($Type -eq 'buried_treasure') { $row.buriedTreasureRule='mapless-regular-v1' }
+        if ($Type -eq 'aa_temple') { $row.aaTempleRule='aa-temple-v4' }
         if ($Type -eq 'ruined_portal') { $row.ruinedPortalRule='frame-completable-v3'; $row.goldenAxes=1; $row.goldenPickaxes=0 }
         $row | ConvertTo-Json -Compress
     })
@@ -191,6 +193,35 @@ Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='ruined_port
 $fixture = $originalFixture
 Write-Output 'Passed: BT/RP journal, separate totals, two/four-seed caps, checkpoint reuse and outdated/missing-tool record rejection.'
 
+$fixture = Join-Path $directory 'aa-fixture'
+$null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
+$null = New-TestBatch 0 108 $false 'aa_temple'
+$aa = Export-OvernightBank $fixture $plan
+Assert ($aa.accepted -eq 2 -and $aa.counts.aa_temple -eq 2 -and $aa.counts.temple -eq 0) 'AA export mixed seed types.'
+$aaHash = (Get-FileHash $aa.bank).Hash
+$cached = Export-OvernightBank $fixture $plan (Read-OvernightCheckpoint $fixture $plan)
+Assert ($cached.reused -eq 1 -and (Get-FileHash $cached.bank).Hash -ceq $aaHash) 'AA checkpoint resume changed the bank.'
+Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='aa_temple';aaTempleRule='aa-temple-v3'}) }
+Expect-Failure { Assert-FilterBankTypeRules ([pscustomobject]@{type='aa_temple'}) }
+$fixture = $originalFixture
+Write-Output 'Passed: AA journal, separate totals, checkpoint reuse and outdated/missing-rule rejection.'
+
+if ($AaIntegration) {
+    $start = Join-Path $PSScriptRoot 'Start-OvernightFilterBank.ps1'
+    $smoke = Join-Path $directory 'aa-smoke'
+    $null = & $start -Directory $smoke -Types aa_temple -AaTempleFamilies 100000 -Workers 1 -Minutes 2 `
+        -MaxCompletedBatches 2 -Java $Java -AllowSleep -CollectSamples
+    $jobs = @(Get-OvernightJobs $smoke)
+    Assert ($jobs.Count -eq 2 -and @($jobs | Where-Object {$_.state -ne 'complete' -or $_.type -ne 'aa_temple'}).Count -eq 0) 'AA real queue smoke incomplete.'
+    $attempts = $jobs.attempt -join ','
+    $null = & $start -Directory $smoke -Types aa_temple -Workers 1 -Minutes 2 -MaxCompletedBatches 2 -Java $Java -AllowSleep
+    Assert ((@(Get-OvernightJobs $smoke).attempt -join ',') -ceq $attempts) 'AA restart replayed completed work.'
+    $null = & $start -Directory $smoke -ExportOnly
+    Expect-Failure { & $start -Directory $smoke -AaTempleFamilies 4 -ExportOnly }
+    Expect-Failure { & $start -Directory $smoke -Types temple -ExportOnly }
+    Write-Output 'Passed: AA native workers, completed-batch resume, export and plan guards.'
+}
+
 if ($BenchmarkBatches -gt 0) {
     $fixture = Join-Path $directory 'benchmark'
     $null = New-Item -ItemType Directory -Path (Join-Path $fixture 'jobs')
@@ -226,6 +257,7 @@ if ($Integration) {
     $legacyPlan = Read-FilterJson (Join-Path $smoke 'plan.json')
     $legacyPlan.policies.PSObject.Properties.Remove('buried_treasure')
     $legacyPlan.policies.PSObject.Properties.Remove('ruined_portal')
+    $legacyPlan.policies.PSObject.Properties.Remove('aa_temple')
     Write-FilterAtomicJson (Join-Path $smoke 'plan.json') $legacyPlan
     # Simulate a crash after the worker committed its output but before the supervisor committed its journal.
     $before[0].state='running'

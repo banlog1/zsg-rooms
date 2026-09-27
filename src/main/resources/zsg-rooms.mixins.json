@@ -3,6 +3,7 @@
 	"package": "zsgrooms.modid.mixin",
 	"compatibilityLevel": "JAVA_8",
 	"mixins": [
+		"AaAdvancementCompletionMixin",
 		"AtumResetGuardMixin",
 		"BastionChestLootMixin",
 		"BastionZombifiedPiglinMixin",
@@ -28,6 +29,8 @@
 		"MobSpawnerLogicAccessor",
 		"MobSpawnerLogicMixin",
 		"NetherPortalPreloadMixin",
+		"NetherPreloadDisconnectMixin",
+		"NetherPreloadChunkAccessor",
 		"NetherPortalContactAccessor",
 		"OpenToLanScreenMixin",
 		"PiglinBrainMixin",
@@ -51,6 +54,7 @@
 		"WoodLightingWorldMixin"
 	],
 	"client": [
+		"RoomTimerCategoryMixin",
 		"RoomLoadingScreenMixin",
 		"RoomLoadingInputMixin",
 		"ReplayAtumResetMixin",

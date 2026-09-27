@@ -23,6 +23,13 @@ BT at 20%, with temple/village/shipwreck each retaining 20%.
 
 ## Production Boundary
 
+The experimental [AA Temple filter](AA_TEMPLE_FILTER.md) is available locally as
+`-Type aa_temple`: regular DT requirements plus 22 starting gunpowder, a village
+within 70 blocks, two extra temples within 1,024 blocks, and a first End ship within
+512 blocks of the modeled first gateway arrival with two other cities' ships
+connected by links of at most 1,024 blocks (chains or clusters). This separate profile
+is not yet part of the picker, random mode, overnight presets, or hosted service.
+
 As of 2026-09-20, production builds include the calibrated chunk-scoped village
 loot-confidence correction and plains well-connector correction. The tracked
 patch is `tools/model-finder/patches/village-1.16.1-corrections.patch`.

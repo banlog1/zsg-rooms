@@ -50,6 +50,20 @@ class ReplayRecorderBenchmark {
         packetEquivalence();
     }
 
+    @Test void compareHudFinalizationCostsAndBytes() throws Exception {
+        assertTrue(METRICS.isThreadAllocatedMemorySupported());
+        METRICS.setThreadAllocatedMemoryEnabled(true);
+        METRICS.setThreadCpuTimeEnabled(true);
+        for (int[] shape : new int[][]{
+                {12000, 64, Integer.MAX_VALUE},
+                {4000, 4096, Integer.MAX_VALUE},
+                {4000, 4096, 399800},
+                {4000, 4096, -1}}) {
+            compare("HUD-finish-" + shape[0] + "x" + shape[1] + "-end-" + shape[2],
+                    new HudFinalization(shape, false), new HudFinalization(shape, true), 1);
+        }
+    }
+
     private static void compare(String name, Work before, Work after, int operations) throws Exception {
         long[][][] values = new long[2][3][9];
         long output = 0;
@@ -89,8 +103,49 @@ class ReplayRecorderBenchmark {
 
     private interface Work {
         void prepare();
-        void run(int operations);
+        void run(int operations) throws Exception;
         byte[] finish() throws Exception;
+    }
+
+    /** Baseline is the pre-optimization stream encoder; fixture capture is outside the timed region. */
+    private static final class HudFinalization implements Work {
+        final int count, size, duration;
+        final boolean optimized;
+        byte[][] payloads;
+        ReplayHudTrack track;
+        byte[] result;
+
+        HudFinalization(int[] shape, boolean optimized) {
+            count = shape[0]; size = shape[1]; duration = shape[2]; this.optimized = optimized;
+        }
+
+        public void prepare() {
+            payloads = new byte[count][];
+            track = new ReplayHudTrack();
+            Random random = new Random(928);
+            for (int i = 0; i < count; i++) {
+                payloads[i] = new byte[size];
+                random.nextBytes(payloads[i]);
+                track.add(i * 200L, i, i, payloads[i]);
+            }
+        }
+
+        public void run(int operations) throws Exception {
+            if (optimized) result = track.finish(duration);
+            else {
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream(8 + count * (16 + size));
+                DataOutputStream output = new DataOutputStream(buffer);
+                output.writeInt(ReplayHudTrack.MAGIC);
+                output.writeInt(1);
+                for (int i = 0; i < count && i * 200L <= duration; i++) {
+                    ReplayFinalizationTest.writeFrame(output, i * 200, i, i, payloads[i]);
+                }
+                result = buffer.toByteArray();
+            }
+            sink = result;
+        }
+
+        public byte[] finish() { return result; }
     }
 
     private static final class Packets implements Work {

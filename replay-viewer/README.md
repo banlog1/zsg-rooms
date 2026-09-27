@@ -7,6 +7,14 @@ ZSG recording mod remains independently usable without this companion.
 
 ## Controls
 
+- **Analysis > Mob Highlights** selects mob types for colored glowing outlines,
+  visible through terrain. Search by mob name or registry ID, select multiple
+  types, and choose a color swatch. The master switch retains the selection;
+  Clear removes it. No types are selected when a replay is first opened.
+  Selections survive seeking, dimension changes and switching player recordings.
+  F1 and the camera-path editor hide them. Only mobs already loaded from recorded
+  chunks can be highlighted; no extra chunks are loaded. This is viewer-only,
+  works with existing recordings, and never changes recorded glow flags or teams.
 - Compact bottom playback bar, with an extra control row at smaller GUI sizes.
 - ReplayMod's play/pause, speed slider, and marker timeline.
 - **Analysis > Quick Mode (experimental)** switches to ReplayMod's indexed
@@ -228,7 +236,7 @@ From the repository root, prepare the pinned reference and build:
 .\gradlew.bat -p replay-viewer build --offline
 ```
 
-Artifact: `build/libs/zsg-replay-viewer-0.3.0.jar` inside this directory.
+Artifact: `build/libs/zsg-replay-viewer-0.4.0.jar` inside this directory.
 The version comes from `viewer_version` in this directory's `gradle.properties`;
 both the filename and `fabric.mod.json` use it. The core's playback test resolves
 the same version automatically. See [release packaging](../RELEASING.md).
@@ -287,6 +295,14 @@ wide/small sizes. It requires `[ReplayRaceSmoke] PASS`. Metadata tests cover
 separate same-account takes, real multiplayer race IDs, custom-folder return,
 unequal starts, loading gaps, reset/round boundaries, invalid archives, and safe
 duplicate imports. Do not enable both smoke modes together.
+
+For the focused mob-highlighting test, use `-PreplayHighlightSmoke=true` instead
+of the other smoke flags, with `-PreplayViewer=true` and a local replay copy.
+It checks the type picker at 640x480, selection/color controls, independent
+player-switch snapshots, F1, seek cleanup, and unchanged entity flags/teams.
+Synthetic playback-only mobs and a stone wall provide a screenshot pixel check
+for through-wall outlines and clearing them. The task requires
+`[MobHighlightSmoke] PASS:`; it does not modify the recording.
 
 ## Race Recordings And Solo Tests
 

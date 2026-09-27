@@ -79,6 +79,18 @@ public class ZsgRoomsClient implements ClientModInitializer {
     public static void onEndExitPortalEntered() {
         String roomName = ZsgRooms.getActiveRoomName();
         InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        if (game != null && game.isAaThunderless()) return;
+        completeLocalRun(roomName, game);
+    }
+
+    public static void onAaCompleted(String raceId) {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        if (game == null || !game.isAaThunderless() || !raceId.equals(game.getRaceId())) return;
+        completeLocalRun(roomName, game);
+    }
+
+    private static void completeLocalRun(String roomName, InGame game) {
         if (game == null || !game.getIsInGame() || !game.isSynchronizedStartReleased()) {
             return;
         }
@@ -93,7 +105,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         zsgrooms.modid.replay.ReplayPrototype.raceFinished(game.getRaceId(), elapsedNanos, completedIgt);
         RunHistoryTracker.completeRun(game, completedIgt);
         if (elapsedNanos < 0L) {
-            ZsgRooms.LOGGER.warn("Race completion not submitted: local start or End-exit timing is unavailable");
+            ZsgRooms.LOGGER.warn("Race completion not submitted: local start or finish timing is unavailable");
             if (client != null && client.inGameHud != null) {
                 client.inGameHud.getChatHud().addMessage(new LiteralText(
                         "[ZSG Room] Seed completed, but local race timing is unavailable. Result not submitted.")
@@ -116,6 +128,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         String roomName = ZsgRooms.getActiveRoomName();
         InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
         boolean inGame = game != null && game.getIsInGame();
+        SpeedRunIgtBridge.syncCategory(game);
         if (inGame && !wasInGame) {
             resetLocalAdvancementTracking();
         }

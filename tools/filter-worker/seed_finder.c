@@ -13,18 +13,29 @@
 #include "portal_model.h"
 #include "surface_noise_cache.h"
 #include "search_policy.h"
+#include "aa_end_model.h"
 
 #define PROFILE "zsg-model-only-v5"
 #define PIN "e61f90580cbdd883214a8054670dacae655e59c0"
 #define MASK UINT64_C(0xffffffffffff)
 #define STEP UINT64_C(0x9e3779b97f4a7c15)
-enum { TEMPLE, SHIP, VILLAGE, BURIED, PORTAL };
-enum { GEOMETRY, LAYOUT_LOOT, NETHER, FEATURES, NETHER_MODEL, BIOMES, SPAWN, SURFACE, TEMPLE_EXPOSURE, WATER, SMITH_LOOT, ACCEPT, FOREST, PORTAL_FRAME, STAGES };
-static const char *names[] = {"geometry", "layout_loot", "nether", "feature_attempts", "nether_model", "biomes", "spawn", "surface_proxy", "temple_exposure", "nearby_water", "smith_loot", "accepted", "forest_size", "portal_completion"};
+/* Off in normal builds; benchmark with -DZSG_EXPERIMENT_BATCH_TIMING=1. */
+#ifndef ZSG_EXPERIMENT_BATCH_TIMING
+#define ZSG_EXPERIMENT_BATCH_TIMING 0
+#endif
+static int batch_timing;
+static int deadline_refresh;
+static uint64_t geometry_samples;
+enum { TIMING_INTERVAL = 1024 };
+enum { TEMPLE, SHIP, VILLAGE, BURIED, PORTAL, AA_TEMPLE };
+enum { GEOMETRY, LAYOUT_LOOT, NETHER, FEATURES, NETHER_MODEL, BIOMES, SPAWN, SURFACE, TEMPLE_EXPOSURE, WATER, SMITH_LOOT, ACCEPT, FOREST, PORTAL_FRAME, AA_GEOMETRY, AA_GUNPOWDER, AA_VILLAGE, AA_TEMPLES, AA_END, STAGES };
+static const char *names[] = {"geometry", "layout_loot", "nether", "feature_attempts", "nether_model", "biomes", "spawn", "surface_proxy", "temple_exposure", "nearby_water", "smith_loot", "accepted", "forest_size", "portal_completion", "aa_structure_positions", "aa_gunpowder", "aa_village", "aa_extra_temples", "aa_outer_end"};
+enum { AA_VILLAGE_RADIUS=70, AA_TEMPLE_RADIUS=1024, AA_EXTRA_TEMPLES=2, AA_MIN_GUNPOWDER=22, AA_CANDIDATE_CAP=64 };
 enum { WATER_RADIUS=48, WATER_STEP=4, WATER_GRID=2*WATER_RADIUS/WATER_STEP+2 };
 static uint64_t reached[STAGES], failed[STAGES];
 static double stage_ms[STAGES];
 static int trace_enabled;
+static FILE *aa_end_samples;
 static double family_started;
 static uint64_t decision_trace=UINT64_C(0xcbf29ce484222325);
 
@@ -35,8 +46,11 @@ static void trace_decision(uint64_t seed, int stage, int pass) {
     decision_trace=(decision_trace^(uint64_t)(stage*2+!!pass))*UINT64_C(0x100000001b3);
 }
 typedef struct { Pos pos; int y, salt; } Lake;
-typedef struct { Pos main, bastion, fortress; Lake lakes[512]; int lake_count; Pos ravines[225]; int ravine_count; Loot loot; BuriedLoot buried; PortalLoot portal; int iron_pickaxes; int obsidian_score; char bastion_type[16]; } Family;
-typedef struct { Pos spawn, entry, wood, water; int portal_status, portal_missing, portal_lava, portal_cast, portal_template, portal_y; } Result;
+typedef struct { Pos main, bastion, fortress; Lake lakes[512]; int lake_count; Pos ravines[225]; int ravine_count; Loot loot; BuriedLoot buried; PortalLoot portal; int iron_pickaxes; int obsidian_score; char bastion_type[16]; Pos aa_villages[AA_CANDIDATE_CAP], aa_temples[AA_CANDIDATE_CAP]; int aa_village_count, aa_temple_count; AaEndCache aa_end; } Family;
+typedef struct { Pos spawn, entry, wood, water; int portal_status, portal_missing, portal_lava, portal_cast, portal_template, portal_y; Pos aa_village, aa_temples[AA_EXTRA_TEMPLES]; } Result;
+
+static int temple_type(int type) { return type==TEMPLE || type==AA_TEMPLE; }
+static int aa_gunpowder_pass(Loot loot) { return loot.gunpowder>=AA_MIN_GUNPOWDER; }
 
 static int parse_portal(const char *response, Result *out) {
     char extra;
@@ -61,7 +75,20 @@ static double now_ms(void) {
     return value.tv_sec * 1000.0 + value.tv_nsec / 1000000.0;
 #endif
 }
-static int done(int stage, double start, int pass) { stage_ms[stage] += now_ms() - start; reached[stage]++; if (!pass) failed[stage]++; return pass; }
+static int done(int stage, double start, int pass) {
+    if (start >= 0) {
+        stage_ms[stage] += now_ms() - start;
+        if (stage == GEOMETRY) geometry_samples++;
+    }
+    reached[stage]++;
+    if (!pass) failed[stage]++;
+    return pass;
+}
+static int family_within_deadline(uint64_t families, double deadline) {
+    if (batch_timing && !deadline_refresh && (families % TIMING_INTERVAL)) return 1;
+    deadline_refresh=0;
+    return now_ms()<deadline;
+}
 static int axes(Pos a, Pos b, int radius) { return abs(a.x-b.x) <= radius && abs(a.z-b.z) <= radius; }
 static int circle(Pos a, Pos b, int radius) { int dx=a.x-b.x, dz=a.z-b.z; return dx*dx+dz*dz <= radius*radius; }
 static int village_resources(int iron, int iron_pickaxes, int diamonds) {
@@ -88,6 +115,47 @@ static int nearby(uint64_t seed, int feature, Pos center, int radius, Pos *out) 
         for (int z=floor_div(center.z-radius,size); z<=floor_div(center.z+radius,size); z++) {
             if (getStructurePos(feature, MC_1_16_1, seed, x, z, out) && axes(*out,center,radius)) return 1;
         }
+    }
+    return 0;
+}
+
+/* Cache every lower48 opportunity; a sister can invalidate the first candidate. */
+static int aa_candidates(uint64_t seed, int feature, Pos center, int radius, Pos *out) {
+    StructureConfig config;
+    if (!getStructureConfig(feature,MC_1_16_1,&config)) return 0;
+    int size=config.regionSize*16, count=0;
+    for(int x=floor_div(center.x-radius,size);x<=floor_div(center.x+radius,size);x++) {
+        for(int z=floor_div(center.z-radius,size);z<=floor_div(center.z+radius,size);z++) {
+            Pos p;
+            if(!getStructurePos(feature,MC_1_16_1,seed,x,z,&p) || !circle(p,center,radius)) continue;
+            if(feature==Desert_Pyramid && p.x==center.x && p.z==center.z) continue;
+            if(count==AA_CANDIDATE_CAP) { fprintf(stderr,"AA candidate capacity exceeded\n"); exit(3); }
+            out[count++]=p;
+        }
+    }
+    return count;
+}
+
+static int aa_village_check(uint64_t seed, Generator *g, Family *f, Result *out) {
+    for(int i=0;i<f->aa_village_count;i++) {
+        Pos p=f->aa_villages[i];
+        int biome=isViableStructurePos(Village,g,p.x,p.z,0);
+        StructureVariant variant;
+        if(biome && getVariant(&variant,Village,MC_1_16_1,seed,p.x,p.z,biome) && !variant.abandoned) {
+            out->aa_village=p;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int aa_temples_check(Generator *g, Family *f, Result *out) {
+    int count=0;
+    for(int i=0;i<f->aa_temple_count;i++) {
+        Pos p=f->aa_temples[i];
+        if(!isViableStructurePos(Desert_Pyramid,g,p.x,p.z,0)) continue;
+        out->aa_temples[count++]=p;
+        if(count==AA_EXTRA_TEMPLES) return 1;
     }
     return 0;
 }
@@ -170,13 +238,23 @@ static int buried_ravine(uint64_t seed, Family *f) {
 }
 
 static int family_check(uint64_t seed, int type, Family *f, Generator *g) {
-    double start=now_ms();
+    double start=(!batch_timing || !(reached[GEOMETRY] % TIMING_INTERVAL)) ? now_ms() : -1;
     family_started=start;
-    int feature=type==PORTAL?Ruined_Portal:type==SHIP?Shipwreck:type==TEMPLE?Desert_Pyramid:Village;
-    int radius=type==SHIP?208:type==TEMPLE?320:224;
+    int feature=type==PORTAL?Ruined_Portal:type==SHIP?Shipwreck:temple_type(type)?Desert_Pyramid:Village;
+    int radius=type==SHIP?208:temple_type(type)?320:224;
     int pass=nearby(seed,Bastion,origin,96,&f->bastion) && nearby(seed,Fortress,origin,256,&f->fortress)
         && (type==BURIED || (getStructurePos(feature,MC_1_16_1,seed,0,0,&f->main) && axes(f->main,origin,radius)));
     if (!done(GEOMETRY,start,pass)) return 0;
+    // A slow family must not defer the next deadline check until the batch boundary.
+    deadline_refresh=1;
+    if(type==AA_TEMPLE) {
+        start=now_ms();
+        f->aa_end.checked=0;
+        f->aa_village_count=aa_candidates(seed,Village,f->main,AA_VILLAGE_RADIUS,f->aa_villages);
+        f->aa_temple_count=f->aa_village_count
+            ? aa_candidates(seed,Desert_Pyramid,f->main,AA_TEMPLE_RADIUS,f->aa_temples) : 0;
+        if(!done(AA_GEOMETRY,start,f->aa_village_count>0 && f->aa_temple_count>=AA_EXTRA_TEMPLES)) return 0;
+    }
     start=now_ms();
     // Failed geometry never consumes candidate data. Arrays are overwritten up to their counts.
     f->lake_count=0;
@@ -197,11 +275,16 @@ static int family_check(uint64_t seed, int type, Family *f, Generator *g) {
         int rotation=nextInt(&r,4), layout=nextInt(&r,20);
         pass=rotation==3 && (layout==0 || layout==7 || layout==10 || layout==17);
         if (pass) { f->loot=ship_loot(seed,f->main); pass=ship_resources(f->loot); }
-    } else if (pass && type==TEMPLE) {
+    } else if (pass && temple_type(type)) {
         f->loot=temple_loot(seed,f->main);
         pass=f->loot.iron >= (f->loot.diamonds>=3?4:7);
     }
     if (!done(LAYOUT_LOOT,start,pass)) return 0;
+    if(type==AA_TEMPLE) {
+        start=now_ms();
+        f->loot=temple_loot_model(seed,f->main,1);
+        if(!done(AA_GUNPOWDER,start,aa_gunpowder_pass(f->loot))) return 0;
+    }
     start=now_ms();
     applySeed(g,DIM_NETHER,seed);
     pass=isViableStructurePos(Bastion,g,f->bastion.x,f->bastion.z,0)
@@ -443,7 +526,7 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
     if(type==PORTAL) return portal_sister(seed,f,g,surface,out);
     double start=now_ms();
     applySeed(g,DIM_OVERWORLD,seed);
-    int feature=type==SHIP?Shipwreck:type==TEMPLE?Desert_Pyramid:Village;
+    int feature=type==SHIP?Shipwreck:temple_type(type)?Desert_Pyramid:Village;
     int biome=isViableStructurePos(feature,g,f->main.x,f->main.z,0);
     int pass=biome!=0;
     if (pass && type==SHIP) {
@@ -457,8 +540,12 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
             && tree_biome(g,f->main,30);
     }
     // Temple routes collect wood before heading to a pool; anchor this check at the temple.
-    if (pass && type==TEMPLE) pass=tree_biome(g,f->main,20);
+    if (pass && temple_type(type)) pass=tree_biome(g,f->main,20);
     if (!done(BIOMES,start,pass)) return 0;
+    if(type==AA_TEMPLE) {
+        start=now_ms();
+        if(!done(AA_VILLAGE,start,aa_village_check(seed,g,f,out))) return 0;
+    }
     start=now_ms();
     SurfaceNoise *noise=surface_noise_for_seed(surface,seed);
     Pos pools[512];
@@ -468,7 +555,7 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
         pass=ship_surface(g,noise,f,out);
     } else for(int i=0;i<f->lake_count;i++) {
         Lake *lake=&f->lakes[i];
-        if(pool_proxy(g,noise,lake) && (type==TEMPLE || tree_biome(g,lake->pos,20))) {
+        if(pool_proxy(g,noise,lake) && (temple_type(type) || tree_biome(g,lake->pos,20))) {
             pools[pool_count++]=lake->pos;pass=1;
         }
     }
@@ -481,12 +568,12 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
         int near_main=pass;
         pass=0;
         for(int i=0;i<pool_count;i++) if(near_main || axes(out->spawn,pools[i],48)) {
-            out->entry=pools[i];out->wood=type==TEMPLE?f->main:pools[i];pass=1;break;
+            out->entry=pools[i];out->wood=temple_type(type)?f->main:pools[i];pass=1;break;
         }
     }
     if (!done(SPAWN,start,pass)) return 0;
     // Only pay for exposure on otherwise accepted temples, not every biome-valid sister.
-    if (type==TEMPLE) {
+    if (temple_type(type)) {
         start=now_ms();
         if (!done(TEMPLE_EXPOSURE,start,temple_exposure(g,noise,f->main))) return 0;
     }
@@ -494,7 +581,21 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
         start=now_ms();
         pass=select_watered_pool(g,noise,f->main,out->spawn,pools,pool_count,&out->entry,&out->water);
         if (!done(WATER,start,pass)) return 0;
-        out->wood=type==TEMPLE?f->main:out->entry;
+        out->wood=temple_type(type)?f->main:out->entry;
+    }
+    if(type==AA_TEMPLE) {
+        start=now_ms();
+        if(!done(AA_TEMPLES,start,aa_temples_check(g,f,out))) return 0;
+        if(!f->aa_end.checked) {
+            start=now_ms();
+            int end_pass=done(AA_END,start,aa_end_cached(seed,&f->aa_end));
+            if(aa_end_samples && (fprintf(aa_end_samples,
+                    "{\"seed\":\"%" PRId64 "\",\"family\":\"%" PRIu64 "\",\"endPassed\":%s}\n",
+                    (int64_t)seed,seed&MASK,end_pass?"true":"false")<0 || fflush(aa_end_samples))) {
+                fprintf(stderr,"Private AA End sample write failed\n");exit(3);
+            }
+            if(!end_pass) return 0;
+        } else if(!f->aa_end.pass) return 0;
     }
     if (type==VILLAGE) {
         start=now_ms();
@@ -511,6 +612,7 @@ static int sister_check(uint64_t seed, int type, Family *f, Generator *g, Surfac
 }
 
 static int type_of(const char *name) {
+    if(!strcmp(name,"aa_temple"))return AA_TEMPLE;
     if(!strcmp(name,"temple"))return TEMPLE;
     if(!strcmp(name,"shipwreck"))return SHIP;
     if(!strcmp(name,"village"))return VILLAGE;
@@ -526,19 +628,26 @@ static uint64_t number(const char *s) {
 
 int main(int argc,char **argv) {
     if((argc!=9 && argc!=10) || strcmp(argv[1],"search")) {
-        fprintf(stderr,"Usage: seed-finder search temple|shipwreck|village|buried_treasure|ruined_portal families sisters target seconds stream private-output.jsonl [family-cap]\n"); return 2;
+        fprintf(stderr,"Usage: seed-finder search temple|aa_temple|shipwreck|village|buried_treasure|ruined_portal families sisters target seconds stream private-output.jsonl [family-cap]\n"); return 2;
     }
     int type=type_of(argv[2]);
     uint64_t limit=number(argv[3]), sisters=number(argv[4]), target=number(argv[5]), seconds=number(argv[6]), stream=number(argv[7]);
     unsigned family_cap=argc==10?(unsigned)number(argv[9]):1;
     if (argc==10 && number(argv[9])>4) return 2;
     int tune=getenv("ZSG_MODEL_TUNE") && !strcmp(getenv("ZSG_MODEL_TUNE"),"1");
+    batch_timing=ZSG_EXPERIMENT_BATCH_TIMING && !tune;
     if (!family_cap || family_cap>4 || (tune && (sisters!=65536 || family_cap!=4))) return 2;
     if(type<0 || !limit || limit>MASK || !sisters || sisters>65536 || !target || target>1000000 || !seconds || seconds>86400) return 2;
     if(!getenv("ZSG_MODEL_PIPE") || strcmp(getenv("ZSG_MODEL_PIPE"),"1")) {
         fprintf(stderr,"Searches require the private standalone Java coordinator\n"); return 2;
     }
     trace_enabled=getenv("ZSG_MODEL_TRACE") && !strcmp(getenv("ZSG_MODEL_TRACE"),"1");
+    const char *sample_path=getenv("ZSG_AA_END_SAMPLES");
+    if(sample_path && *sample_path) {
+        if(type!=AA_TEMPLE) {fprintf(stderr,"AA End samples require aa_temple\n");return 2;}
+        aa_end_samples=fopen(sample_path,"wx");
+        if(!aa_end_samples) {fprintf(stderr,"Cannot create private AA End samples\n");return 3;}
+    }
     FILE *output=fopen(argv[8],"wx"); /* Refuse to overwrite an existing bank. */
     if(!output) {fprintf(stderr,"Cannot create a new private output file\n");return 3;}
     Generator g; setupGenerator(&g,MC_1_16_1,0);
@@ -550,7 +659,7 @@ int main(int argc,char **argv) {
     PolicyTotal policies[POLICY_COUNT]={0};
     double profiled_ms=0;
     uint64_t next_lower=(stream*STEP)&MASK;
-    while(families<limit && accepted<target && now_ms()<deadline) {
+    while(families<limit && accepted<target && family_within_deadline(families,deadline)) {
         uint64_t lower=next_lower; next_lower=(next_lower+STEP)&MASK; families++;
         int family_pass=family_check(lower,type,&f,&g);
         trace_decision(lower,0,family_pass);
@@ -563,6 +672,11 @@ int main(int argc,char **argv) {
             // Minecraft's text input treats zero as random; it still occupies its sister slot.
             int sister_pass=seed && sister_check(seed,type,&f,&g,&surface,&result);
             if (seed) trace_decision(seed,1,sister_pass);
+            // No sister can repair a lower48 End failure; skip the rest of this family.
+            if(type==AA_TEMPLE && f.aa_end.checked && !f.aa_end.pass) {
+                if(tune) policy_observe(observations,(unsigned)sisters,0,now_ms()-family_started);
+                break;
+            }
             if (sister_pass) family_accepted++;
             if (tune && (sister_pass || !((i+1)&i)))
                 policy_observe(observations,(unsigned)(i+1),family_accepted,now_ms()-family_started);
@@ -571,12 +685,16 @@ int main(int argc,char **argv) {
             reached[ACCEPT]++;accepted++;
             char water_json[64]="null";
             char family_json[64]="";
-            char smith_json[512]="";
+            char smith_json[768]="";
+            if (type==AA_TEMPLE) {
+                AaEndResult *end=&f.aa_end.result;
+                snprintf(smith_json,sizeof(smith_json),",\"aaTempleRule\":\"aa-temple-v4\",\"gunpowder\":%d,\"village\":[%d,%d],\"extraTemples\":[[%d,%d],[%d,%d]],\"innerEndGateway\":[%d,%d],\"outerEndGateway\":[%d,%d],\"endFirstShipRadius\":%d,\"endConnectionRadius\":%d,\"endShipLayout\":\"connected\",\"endCities\":[[%d,%d],[%d,%d],[%d,%d]],\"endShips\":[[%d,%d],[%d,%d],[%d,%d]]",f.loot.gunpowder,result.aa_village.x,result.aa_village.z,result.aa_temples[0].x,result.aa_temples[0].z,result.aa_temples[1].x,result.aa_temples[1].z,end->inner_gateway.x,end->inner_gateway.z,end->outer_gateway.x,end->outer_gateway.z,AA_END_FIRST_SHIP_RADIUS,AA_END_CONNECTION_RADIUS,end->cities[0].x,end->cities[0].z,end->cities[1].x,end->cities[1].z,end->cities[2].x,end->cities[2].z,end->ships[0].x,end->ships[0].z,end->ships[1].x,end->ships[1].z,end->ships[2].x,end->ships[2].z);
+            }
             if (type==PORTAL) snprintf(smith_json,sizeof(smith_json),",\"ruinedPortalRule\":\"frame-completable-v3\",\"portalObsidian\":%d,\"ironNuggets\":%d,\"flint\":%d,\"flintAndSteel\":%d,\"fireCharges\":%d,\"goldenAxes\":%d,\"goldenPickaxes\":%d,\"portalMissingBlocks\":%d,\"portalLavaSources\":%d,\"portalCastBlocks\":%d,\"portalTemplate\":%d,\"portalY\":%d",f.portal.obsidian,f.portal.nuggets,f.portal.flint,f.portal.steel,f.portal.charges,f.portal.axes,f.portal.pickaxes,result.portal_missing,result.portal_lava,result.portal_cast,result.portal_template,result.portal_y);
             if (type==BURIED) snprintf(smith_json,sizeof(smith_json),",\"buriedTreasureRule\":\"mapless-regular-v1\",\"tnt\":%d,\"emeralds\":%d",f.buried.tnt,f.buried.emeralds);
             if (type==VILLAGE) snprintf(smith_json,sizeof(smith_json),",\"villageResourceRule\":\"pickaxe-credit-v1\",\"ironPickaxes\":%d",f.iron_pickaxes);
             if (family_cap>1) snprintf(family_json,sizeof(family_json),",\"family\":\"%" PRIu64 "\"",lower);
-            if (type==TEMPLE || type==VILLAGE || (type==PORTAL && result.portal_status==3)) snprintf(water_json,sizeof(water_json),"[%d,%d]",result.water.x,result.water.z);
+            if (temple_type(type) || type==VILLAGE || (type==PORTAL && result.portal_status==3)) snprintf(water_json,sizeof(water_json),"[%d,%d]",result.water.x,result.water.z);
             /* A complete model acceptance, not a pending Minecraft verification job. */
             if(fprintf(output,"{\"profile\":\"" PROFILE "\",\"status\":\"MODEL_ACCEPTED\",\"type\":\"%s\",\"seed\":\"%" PRId64 "\","
                 "\"structure\":[%d,%d],\"entry\":[%d,%d],\"wood\":[%d,%d],\"spawn\":[%d,%d],\"bastion\":[%d,%d],\"fortress\":[%d,%d],\"water\":%s,"
@@ -596,13 +714,20 @@ int main(int argc,char **argv) {
         }
     }
     if(fclose(output))return 3;
+    if(aa_end_samples && fclose(aa_end_samples))return 3;
     printf("{\"profile\":\"" PROFILE "\",\"backend\":\"standalone-cubiomes\",\"revision\":\"" PIN "\",\"minecraftWorlds\":0,"
         "\"type\":\"%s\",\"families\":%" PRIu64 ",\"sisters\":%" PRIu64 ",\"accepted\":%" PRIu64 ",\"elapsedMs\":%.3f,"
         "\"stop\":\"%s\",\"digest\":\"%016" PRIx64 "\",\"checks\":{",argv[2],families,checked,accepted,now_ms()-start,
         accepted>=target?"TARGET":families>=limit?"FAMILY_LIMIT":"TIME_LIMIT",digest);
-    for(int i=0;i<STAGES;i++)printf("%s\"%s\":{\"reached\":%" PRIu64 ",\"rejected\":%" PRIu64 ",\"ms\":%.3f}",i?",":"",names[i],reached[i],failed[i],stage_ms[i]);
+    for(int i=0;i<STAGES;i++) {
+        double ms=stage_ms[i];
+        if(i==GEOMETRY && batch_timing && geometry_samples) ms*= (double)reached[i]/geometry_samples;
+        printf("%s\"%s\":{\"reached\":%" PRIu64 ",\"rejected\":%" PRIu64 ",\"ms\":%.3f}",i?",":"",names[i],reached[i],failed[i],ms);
+    }
     printf("},\"decisionTrace\":\"%016" PRIx64 "\",\"traceEnabled\":%s,\"familyCap\":%u,\"acceptedFamilies\":%" PRIu64,
         decision_trace,trace_enabled?"true":"false",family_cap,accepted_families);
+    if (ZSG_EXPERIMENT_BATCH_TIMING) printf(",\"geometryTimingMode\":\"%s\",\"geometryTimingSamples\":%" PRIu64 ",\"familyDeadlineInterval\":%d",
+        batch_timing?"sampled_estimate":"exact",geometry_samples,batch_timing?TIMING_INTERVAL:1);
     if (tune) {
         double shared_ms=now_ms()-start-profiled_ms;
         printf(",\"policyCompletedFamilies\":%" PRIu64 ",\"policyInterruptedFamilies\":%" PRIu64 ",\"policyEstimates\":[",profiled,incomplete);

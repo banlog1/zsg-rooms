@@ -14,11 +14,19 @@ import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.network.ServerPlayerInteractionManager;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.world.ServerChunkManager;
+import net.minecraft.server.world.ChunkTicketManager;
+import net.minecraft.server.world.ChunkTicket;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraft.world.chunk.ChunkStatus;
+import net.minecraft.util.collection.SortedArraySet;
+import zsgrooms.modid.NetherPortalPreloader;
+import zsgrooms.modid.InGame;
+import zsgrooms.modid.ui.RoomUiPreferences;
 import zsgrooms.modid.SharedNetherEntry;
 import zsgrooms.modid.SharedNetherEntryState;
 import zsgrooms.modid.ZsgRooms;
@@ -28,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.lang.reflect.Field;
 
 /** Opt-in test of real portal lookup, creation and ServerPlayerEntity dimension transfer. */
 public final class SharedNetherEntryHeadlessTest {
@@ -48,6 +57,8 @@ public final class SharedNetherEntryHeadlessTest {
     }
 
     private static void run(MinecraftServer server) {
+        boolean previousWarmupPreference = RoomUiPreferences.isNetherEntryWarmupEnabled();
+        String roomName = "NetherPreloadTest";
         ServerWorld overworld = server.getOverworld();
         ServerWorld nether = server.getWorld(World.NETHER);
         BlockPos originalSpawn = overworld.getSpawnPos();
@@ -60,6 +71,12 @@ public final class SharedNetherEntryHeadlessTest {
             overworld.setSpawnPos(SPAWN);
             state.fromTag(new CompoundTag());
             SharedNetherEntry.configure(server, true);
+            ZsgRooms.createRoom(roomName, 2, 1, "generic");
+            InGame game = ZsgRooms.getGame(roomName);
+            game.setNetherEntryWarmup(true);
+            game.startGame();
+            RoomUiPreferences.setNetherEntryWarmupEnabled(true);
+            testWarmupLifecycle(server, players, game);
             terrain = new TerrainFixture(nether);
             Map<BlockPos, BlockState> expected = null;
             UUID runner = UUID.randomUUID();
@@ -70,7 +87,11 @@ public final class SharedNetherEntryHeadlessTest {
                 SharedNetherEntry.configure(server, true);
                 ServerPlayerEntity player = player(server, overworld, runner, players);
                 check(new ChunkPos(REFERENCE).equals(SharedNetherEntry.preloadCenter(player)), "Wrong preload target");
+                NetherPortalPreloader.tick(player, true, 0);
+                check(preloadLevels(nether).size() == 1, "Missing pre-transfer warmup");
                 enter(player, nether, entries[trial], trial % 2 == 0 ? Direction.Axis.X : Direction.Axis.Z, sourceBlocks);
+                NetherPortalPreloader.afterVanillaTransfer(player);
+                check(preloadLevels(nether).isEmpty() && warmupCount() == 0, "Transfer retained warmup");
                 check(player.world == nether, "Dimension transfer failed");
                 Map<BlockPos, BlockState> result = terrain.changes();
                 check(result.values().stream().anyMatch(block -> block.isOf(Blocks.NETHER_PORTAL)), "No portal generated");
@@ -123,10 +144,13 @@ public final class SharedNetherEntryHeadlessTest {
             check(Math.abs(guest.getX() - REFERENCE.getX()) > 200, "Disabled transfer was redirected");
             ZsgRooms.LOGGER.info("[NetherEntryTest] PASS: matching frames across X/Y/Z and axis changes, "
                     + "same-seed resets, preload target, persisted consumption, vanilla return/later entry, "
-                    + "non-portal travel and disabled fallback");
+                    + "non-portal travel, disabled fallback, bounded warmup tickets and lifecycle cleanup");
         } catch (Throwable error) {
             ZsgRooms.LOGGER.error("[NetherEntryTest] FAIL", error);
         } finally {
+            NetherPortalPreloader.stop(server);
+            RoomUiPreferences.setNetherEntryWarmupEnabled(previousWarmupPreference);
+            ZsgRooms.leaveRoomLocally(roomName);
             for (ServerPlayerEntity player : players) {
                 player.getServerWorld().removePlayer(player);
             }
@@ -142,6 +166,74 @@ public final class SharedNetherEntryHeadlessTest {
             SharedNetherEntry.stop(server);
             server.stop(false);
         }
+    }
+
+    private static void testWarmupLifecycle(MinecraftServer server, List<ServerPlayerEntity> players,
+            InGame game) throws Exception {
+        ServerWorld nether = server.getWorld(World.NETHER);
+        ServerPlayerEntity first = player(server, server.getOverworld(), UUID.randomUUID(), players);
+        ServerPlayerEntity second = player(server, server.getOverworld(), UUID.randomUUID(), players);
+        ChunkPos center = SharedNetherEntry.preloadCenter(first);
+        NetherPortalPreloader.tick(first, true, 0);
+        check(preloadLevels(nether).equals(java.util.Collections.singletonList(34)), "Terrain ticket was not level 34");
+        // Only the test waits for generation; production readiness polling must stay nonblocking.
+        nether.getChunkManager().getChunk(center.x, center.z, ChunkStatus.FEATURES, true);
+        NetherPortalPreloader.tick(first, true, 19);
+        check(preloadLevels(nether).equals(java.util.Collections.singletonList(34)), "Warmup promoted too early");
+        NetherPortalPreloader.tick(first, true, 20);
+        check(preloadLevels(nether).equals(java.util.Arrays.asList(33, 34)), "FULL ticket was not level 33");
+        NetherPortalPreloader.tick(second, true, 0);
+        check(preloadLevels(nether).size() == 3 && warmupCount() == 2, "Players did not own separate tickets");
+        NetherPortalPreloader.tick(first, false, 20);
+        check(preloadLevels(nether).equals(java.util.Collections.singletonList(34)) && warmupCount() == 1,
+                "Cancelling one runner removed another runner's ticket");
+        // Invoke Minecraft's actual player-removal path to exercise the disconnect mixin.
+        server.getPlayerManager().remove(second);
+        check(preloadLevels(nether).isEmpty() && warmupCount() == 0, "Disconnect retained warmup");
+        NetherPortalPreloader.tick(first, true, 0);
+        NetherPortalPreloader.stop(null);
+        check(warmupCount() == 1, "Another server's stop removed this warmup");
+        NetherPortalPreloader.stop(server);
+        check(preloadLevels(nether).isEmpty() && warmupCount() == 0, "Server stop retained warmup");
+        NetherPortalPreloader.stop(server);
+        NetherPortalPreloader.tick(first, true, 0);
+        check(warmupCount() == 1, "Restart after cleanup failed");
+        game.setNetherEntryWarmup(false);
+        NetherPortalPreloader.tick(first, true, 0);
+        check(preloadLevels(nether).isEmpty() && warmupCount() == 0, "Disabling rule retained warmup");
+        game.setNetherEntryWarmup(true);
+        RoomUiPreferences.setNetherEntryWarmupEnabled(false);
+        NetherPortalPreloader.tick(first, true, 0);
+        check(warmupCount() == 0, "Disabled local preference started warmup");
+        RoomUiPreferences.setNetherEntryWarmupEnabled(true);
+        first.getServerWorld().removePlayer(first);
+        ZsgRooms.LOGGER.info("[NetherEntryTest] Warmup PASS: FEATURES=34, FULL=33, separate owners, "
+                + "cancel/disconnect/server-stop cleanup, restart and disable guards");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Integer> preloadLevels(ServerWorld world) throws Exception {
+        Field managerField = ServerChunkManager.class.getDeclaredField("ticketManager");
+        managerField.setAccessible(true);
+        ChunkTicketManager manager = (ChunkTicketManager) managerField.get(world.getChunkManager());
+        Field ticketsField = ChunkTicketManager.class.getDeclaredField("ticketsByPosition");
+        ticketsField.setAccessible(true);
+        Map<Long, SortedArraySet<ChunkTicket<?>>> tickets =
+                (Map<Long, SortedArraySet<ChunkTicket<?>>>) ticketsField.get(manager);
+        List<Integer> levels = new ArrayList<Integer>();
+        for (SortedArraySet<ChunkTicket<?>> chunkTickets : tickets.values()) {
+            for (ChunkTicket<?> ticket : chunkTickets) {
+                if ("zsg_nether_preload".equals(ticket.getType().toString())) levels.add(ticket.getLevel());
+            }
+        }
+        java.util.Collections.sort(levels);
+        return levels;
+    }
+
+    private static int warmupCount() throws Exception {
+        Field field = NetherPortalPreloader.class.getDeclaredField("WARMUPS");
+        field.setAccessible(true);
+        return ((Map<?, ?>) field.get(null)).size();
     }
 
     private static ServerPlayerEntity player(MinecraftServer server, ServerWorld world, UUID id,

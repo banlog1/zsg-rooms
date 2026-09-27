@@ -3,6 +3,7 @@ package zsgrooms.modid;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ChunkTicketType;
+import net.minecraft.server.world.ChunkHolder;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.MathHelper;
@@ -12,28 +13,49 @@ import net.minecraft.world.chunk.Chunk;
 import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.world.chunk.WorldChunk;
 import zsgrooms.modid.ui.RoomUiPreferences;
+import zsgrooms.modid.mixin.NetherPreloadChunkAccessor;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
 public final class NetherPortalPreloader {
-    // In 1.16.1, ticket level 34 targets FEATURES while level 33 targets FULL.
-    static final int TERRAIN_TICKET_LEVEL = 34;
-    static final int FULL_TICKET_LEVEL = 33;
+    // addTicket/removeTicket take radii, converted by Minecraft to level 33 - radius.
+    // Level 34 targets FEATURES; level 33 targets FULL without entity ticking.
+    static final int TERRAIN_TICKET_RADIUS = -1;
+    static final int FULL_TICKET_RADIUS = 0;
     static final int MIN_FULL_UPGRADE_PORTAL_TIME = 20;
     static final int MIN_REMAINING_PORTAL_TIME = 20;
     static final float MAX_HEALTHY_TICK_TIME_MS = 35.0F;
     private static final int TICKET_EXPIRY_TICKS = 120;
     private static final int MAX_DESTINATION_COORDINATE = 29999872;
-    private static final ChunkTicketType<ChunkPos> PRELOAD_TICKET = ChunkTicketType.create(
+    private static final ChunkTicketType<UUID> PRELOAD_TICKET = ChunkTicketType.create(
             "zsg_nether_preload",
-            (left, right) -> Long.compare(left.toLong(), right.toLong()),
+            UUID::compareTo,
             TICKET_EXPIRY_TICKS
     );
     private static final Map<UUID, Warmup> WARMUPS = new HashMap<UUID, Warmup>();
 
     private NetherPortalPreloader() {
+    }
+
+    public static void stop(MinecraftServer server) {
+        Iterator<Warmup> iterator = WARMUPS.values().iterator();
+        while (iterator.hasNext()) {
+            Warmup warmup = iterator.next();
+            if (warmup.world.getServer() == server) {
+                iterator.remove();
+                releaseTickets(warmup);
+            }
+        }
+    }
+
+    public static void disconnect(ServerPlayerEntity player) {
+        Warmup warmup = WARMUPS.get(player.getUuid());
+        if (warmup != null && warmup.world.getServer() == player.getServer()) {
+            logAndClear(player.getUuid(), "player disconnected");
+        }
     }
 
     public static void tick(ServerPlayerEntity player, boolean inNetherPortal, int portalTime) {
@@ -66,7 +88,7 @@ public final class NetherPortalPreloader {
             if (warmup != null) {
                 releaseTickets(warmup);
             }
-            warmup = new Warmup(nether, center);
+            warmup = new Warmup(nether, center, playerId);
             WARMUPS.put(playerId, warmup);
             SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Started for {} at portal time {}/{}",
                     player.getEntityName(), portalTime, player.getMaxNetherPortalTime());
@@ -133,9 +155,18 @@ public final class NetherPortalPreloader {
         try {
             if (!warmup.terrainTicketAdded) {
                 warmup.world.getChunkManager().addTicket(
-                        PRELOAD_TICKET, warmup.center, TERRAIN_TICKET_LEVEL, warmup.center);
+                        PRELOAD_TICKET, warmup.center, TERRAIN_TICKET_RADIUS, warmup.playerId);
                 warmup.terrainTicketAdded = true;
                 SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Requested staged terrain preparation");
+            }
+
+            if (!warmup.terrainRequested) {
+                // A FEATURES ticket permits generation but does not schedule it. Wait for
+                // normal ticket propagation, then request the future without blocking or
+                // adding vanilla's separate temporary ticket (create must remain false).
+                warmup.terrainRequested = ((NetherPreloadChunkAccessor) warmup.world.getChunkManager())
+                        .zsgRooms$requestChunkFuture(warmup.center.x, warmup.center.z, ChunkStatus.FEATURES, false)
+                        != ChunkHolder.UNLOADED_CHUNK_FUTURE;
             }
 
             collectStatus(warmup);
@@ -143,12 +174,11 @@ public final class NetherPortalPreloader {
             if (warmup.terrainReady && !warmup.fullTicketAdded && server != null
                     && shouldUpgradeToFull(portalTime, player.getMaxNetherPortalTime(), server.getTickTime())) {
                 warmup.world.getChunkManager().addTicket(
-                        PRELOAD_TICKET, warmup.center, FULL_TICKET_LEVEL, warmup.center);
+                        PRELOAD_TICKET, warmup.center, FULL_TICKET_RADIUS, warmup.playerId);
                 warmup.fullTicketAdded = true;
                 SeedDebugLog.info("[ZSG-Rooms/NetherWarmup] Promoted destination chunk to full preparation");
+                collectStatus(warmup);
             }
-
-            collectStatus(warmup);
         } catch (RuntimeException error) {
             Warmup removed = WARMUPS.remove(playerId);
             if (removed != null) {
@@ -192,12 +222,12 @@ public final class NetherPortalPreloader {
     private static void releaseTickets(Warmup warmup) {
         if (warmup.fullTicketAdded) {
             warmup.world.getChunkManager().removeTicket(
-                    PRELOAD_TICKET, warmup.center, FULL_TICKET_LEVEL, warmup.center);
+                    PRELOAD_TICKET, warmup.center, FULL_TICKET_RADIUS, warmup.playerId);
             warmup.fullTicketAdded = false;
         }
         if (warmup.terrainTicketAdded) {
             warmup.world.getChunkManager().removeTicket(
-                    PRELOAD_TICKET, warmup.center, TERRAIN_TICKET_LEVEL, warmup.center);
+                    PRELOAD_TICKET, warmup.center, TERRAIN_TICKET_RADIUS, warmup.playerId);
             warmup.terrainTicketAdded = false;
         }
     }
@@ -205,16 +235,19 @@ public final class NetherPortalPreloader {
     private static final class Warmup {
         private final ServerWorld world;
         private final ChunkPos center;
+        private final UUID playerId;
         private final long startedNanos = System.nanoTime();
         private boolean terrainTicketAdded;
+        private boolean terrainRequested;
         private boolean terrainReady;
         private boolean fullTicketAdded;
         private boolean fullReady;
         private boolean loggedComplete;
 
-        private Warmup(ServerWorld world, ChunkPos center) {
+        private Warmup(ServerWorld world, ChunkPos center, UUID playerId) {
             this.world = world;
             this.center = center;
+            this.playerId = playerId;
         }
     }
 }

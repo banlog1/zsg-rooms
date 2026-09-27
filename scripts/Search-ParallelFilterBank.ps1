@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('temple','shipwreck','village','buried_treasure','ruined_portal')][string]$Type = 'temple',
+    [ValidateSet('temple','aa_temple','shipwreck','village','buried_treasure','ruined_portal')][string]$Type = 'temple',
     [ValidateRange(1,4)][int]$Workers = 2,
     [ValidateRange(4,1000000000)][long]$Families = 1000000000,
     [ValidateRange(1,600)][int]$Seconds = 60,
@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'FilterBankState.ps1')
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $PSBoundParameters.ContainsKey('Sisters')) {
-    $Sisters = switch ($Type) { 'temple' {4096}; 'shipwreck' {16384}; 'village' {1024}; 'buried_treasure' {4096}; 'ruined_portal' {4096} }
+    $Sisters = switch ($Type) { 'temple' {4096}; 'aa_temple' {4096}; 'shipwreck' {16384}; 'village' {1024}; 'buried_treasure' {4096}; 'ruined_portal' {4096} }
 }
 if (-not $PSBoundParameters.ContainsKey('FamilyCap')) { $FamilyCap = if ($Type -in @('shipwreck','ruined_portal')) {4} else {2} }
 $capacity = Get-FilterHostCapacity

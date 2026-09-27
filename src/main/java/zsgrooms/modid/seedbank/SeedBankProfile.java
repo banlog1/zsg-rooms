@@ -3,6 +3,7 @@ package zsgrooms.modid.seedbank;
 import java.util.Locale;
 
 public enum SeedBankProfile {
+    AA_THUNDERLESS(zsgrooms.modid.AaThunderless.FILTER, zsgrooms.modid.AaThunderless.LABEL, "aa_temple", "desert_pyramid"),
     TEMPLE("rooms-temple-v5", "ZSG Rooms Desert Temple", "temple", "desert_pyramid"),
     VILLAGE("rooms-village-v5", "ZSG Rooms Village", "village", "village"),
     SHIPWRECK("rooms-shipwreck-v5", "ZSG Rooms Shipwreck", "shipwreck", "shipwreck"),

@@ -2,7 +2,8 @@ param(
     [string]$CubiomesDirectory = 'run/filter-reference/cubiomes',
     [string]$Compiler = 'gcc',
     [switch]$FinderOnly,
-    [switch]$TestsOnly
+    [switch]$TestsOnly,
+    [switch]$EndProbeOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,7 +20,25 @@ $output = Join-Path $root 'run/filter-worker'
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 $files = @('noise.c', 'biomes.c', 'layers.c', 'biomenoise.c', 'generator.c', 'finders.c', 'util.c', 'quadbase.c') |
     ForEach-Object { Join-Path $source $_ }
+# Keep the reviewed checkout clean; apply the End-only model corrections to a build copy.
+$patchedRelative = 'run/filter-worker/cubiomes-patched'
+$patched = Join-Path $root $patchedRelative
+New-Item -ItemType Directory -Force -Path $patched | Out-Null
+Copy-Item -LiteralPath (Join-Path $source 'finders.c') -Destination (Join-Path $patched 'finders.c') -Force
+& git -C $root apply --no-index --ignore-space-change "--directory=$patchedRelative" `
+    (Join-Path $root 'tools/filter-worker/patches/cubiomes-end-city-1.16.1.patch')
+if ($LASTEXITCODE -ne 0) { throw 'Cubiomes End city model corrections failed to apply.' }
+$files = @($files | ForEach-Object { if ([IO.Path]::GetFileName($_) -eq 'finders.c') { Join-Path $patched 'finders.c' } else { $_ } })
+if ($EndProbeOnly -or $TestsOnly) {
+    & $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-ffp-contract=off' '-I' $source `
+        (Join-Path $root 'tools/filter-worker/aa_end_probe.c') @files '-lm' '-o' (Join-Path $output 'aa-end-probe.exe')
+    if ($LASTEXITCODE -ne 0) { throw 'AA End diagnostic probe build failed.' }
+    if ($EndProbeOnly) { exit 0 }
+}
 if ($TestsOnly) {
+    & $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-ffp-contract=off' '-I' $source `
+        (Join-Path $root 'tools/filter-worker/aa_end_test.c') @files '-lm' '-o' (Join-Path $output 'aa-end-test.exe')
+    if ($LASTEXITCODE -ne 0) { throw 'AA End model test build failed.' }
     & $Compiler '-O3' '-std=c99' '-Wall' '-Wextra' '-fwrapv' '-ffp-contract=off' '-I' $source `
         (Join-Path $root 'tools/filter-worker/portal_test.c') @files '-lm' '-o' (Join-Path $output 'portal-test.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Portal model test build failed.' }

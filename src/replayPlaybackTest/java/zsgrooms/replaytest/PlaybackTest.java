@@ -31,6 +31,7 @@ public final class PlaybackTest implements ClientModInitializer {
     private final DetailsSmokeChecks detailsChecks = new DetailsSmokeChecks();
     private final ChestSmokeChecks chestChecks = new ChestSmokeChecks();
     private final TempleSmokeChecks templeChecks = new TempleSmokeChecks();
+    private final MobHighlightSmokeChecks highlightChecks = new MobHighlightSmokeChecks();
 
     @Override
     public void onInitializeClient() {
@@ -72,6 +73,19 @@ public final class PlaybackTest implements ClientModInitializer {
                 return;
             }
             int timestamp = (Integer) time.invoke(sender);
+            if (Boolean.getBoolean("zsgrooms.replayHighlightSmoke")) {
+                if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Mob highlight test timed out");
+                highlightChecks.tick(handler, client);
+                if (highlightChecks.complete()) {
+                    done = true;
+                    handler.getClass().getMethod("endReplay").invoke(handler);
+                    int color = (Integer) Class.forName("zsgrooms.replayviewer.ReplayViewer")
+                            .getMethod("mobHighlightColor", net.minecraft.entity.Entity.class).invoke(null, new Object[]{null});
+                    if (color != -1) throw new IllegalStateException("Highlight hook active outside replay");
+                    client.scheduleStop();
+                }
+                return;
+            }
             if (Boolean.getBoolean("zsgrooms.replayTempleSmoke")) {
                 if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Temple viewer test timed out");
                 if (templeChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {

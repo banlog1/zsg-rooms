@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +63,7 @@ public final class SeedBankClient {
             try {
                 List<String> recent;
                 synchronized (RECENT) { recent = new ArrayList<>(RECENT.computeIfAbsent(profile, key -> new ArrayDeque<>())); }
-                String seed = fetch(getEndpoint(), profile, recent);
+                String seed = fetchWithRecentFamilies(getEndpoint(), profile, recent);
                 String family = Long.toString(Long.parseLong(seed) & 281474976710655L);
                 synchronized (RECENT) {
                     ArrayDeque<String> history = RECENT.get(profile);
@@ -91,6 +92,22 @@ public final class SeedBankClient {
         } catch (Exception error) { throw new IOException("Set a valid HTTPS seed-bank URL in Room Settings; local HTTP is allowed for testing."); }
     }
 
+    static String fetchWithRecentFamilies(String endpoint, SeedBankProfile profile, List<String> excluded) throws IOException {
+        try {
+            return fetch(endpoint, profile, excluded);
+        } catch (NoFreshCandidateException error) {
+            // AA starts with a small bank. Retry only this response, once, in the same profile.
+            if (profile != SeedBankProfile.AA_THUNDERLESS || excluded.isEmpty()) throw error;
+            return fetch(endpoint, profile, Collections.emptyList());
+        }
+    }
+
+    private static final class NoFreshCandidateException extends IOException {
+        private NoFreshCandidateException() {
+            super("No fresh seed candidate available; try again or choose another bank.");
+        }
+    }
+
     static String fetch(String endpoint, SeedBankProfile profile, List<String> excluded) throws IOException {
         if (excluded.size() > 16) throw new IOException("Too many recent seed families.");
         String requestId = UUID.randomUUID().toString();
@@ -116,7 +133,7 @@ public final class SeedBankClient {
             try (OutputStream stream = connection.getOutputStream()) { stream.write(bytes); }
             int status = connection.getResponseCode();
             if (status == 429) throw new IOException("Seed bank rate limit reached; try again shortly.");
-            if (status == 409) throw new IOException("No fresh seed candidate available; try again or choose another bank.");
+            if (status == 409) throw new NoFreshCandidateException();
             if (status != 200) throw new IOException("Seed bank unavailable or empty. No alternate filter was used.");
             ByteArrayOutputStream body = new ByteArrayOutputStream();
             try (InputStream input = connection.getInputStream()) {

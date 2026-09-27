@@ -14,6 +14,7 @@ final class SeedTypeIcon {
 
     static Item item(SeedVisualType type) {
         switch (type) {
+            case AA: return Items.ENCHANTED_BOOK;
             case TREASURE: return Items.CHEST;
             case TEMPLE: return Items.CHISELED_SANDSTONE;
             case VILLAGE: return Items.BELL;

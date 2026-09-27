@@ -34,7 +34,8 @@ create viewer-only `v*` tags because the core updater reads this release feed.
 The viewer requires ReplayMod **1.16.1-2.6.27**, Minecraft 1.16.1, and Fabric
 Loader 0.19.3 or newer. ReplayMod and the viewer remain optional for core racing
 and recording. ReplayMod is downloaded separately by players, not bundled in
-either release JAR. The core updater neither installs nor updates playback mods.
+either release JAR. The core updater updates an already-installed viewer, but
+does not install it for the first time or update ReplayMod.
 SpeedRunIGT is optional for recorded timer data, not a viewer dependency.
 
 For a full release check on JDK 25, run from the repository root:

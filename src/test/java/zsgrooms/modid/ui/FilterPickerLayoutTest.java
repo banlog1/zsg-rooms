@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class FilterPickerLayoutTest {
     @Test
     void everyExistingChoiceAppearsOnce() {
-        assertEquals(20, FilterCatalog.ENTRIES.size());
+        assertEquals(21, FilterCatalog.ENTRIES.size());
         HashSet<String> ids = new HashSet<String>();
         FilterCatalog.ENTRIES.forEach(entry -> assertTrue(ids.add(entry.id)));
-        assertEquals(6, FilterCatalog.entries(FilterCatalog.Group.ROOMS).size());
+        assertEquals(7, FilterCatalog.entries(FilterCatalog.Group.ROOMS).size());
         assertEquals(11, FilterCatalog.entries(FilterCatalog.Group.EXISTING).size());
         assertEquals(3, FilterCatalog.entries(FilterCatalog.Group.OTHER).size());
         assertEquals("rpseedbank", FilterCatalog.find("rpseedbank").id);

@@ -242,6 +242,10 @@ public class InGame {
                 ? ZsgSeedBridge.normalizeSeedType(ZsgSeedBridge.resolveStructure(this.seed)) : selection;
     }
 
+    public boolean isAaThunderless() {
+        return AaThunderless.isFilter(getActiveFilter());
+    }
+
     public void setFinishGoal(int finishGoal) {
         this.finishGoal = Math.max(1, finishGoal);
     }

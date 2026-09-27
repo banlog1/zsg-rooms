@@ -10,8 +10,103 @@ the separate seed-bank account on Workers Free, not the room-relay account.
 
 ## Current Publication
 
-Use `run/seed-service/publications/production-v5-20260925-bt-rp` for uploads
-and as the base for the next extension. Snapshot revision:
+Use `run/seed-service/publications/production-v5-20260927-bt-rp-split` for
+uploads and as the base for the next extension. Snapshot revision:
+`f37980219dddf4234fedb91b84587ee3182ed23503e91427676dff2bf914774c`.
+The stable bank revision remains
+`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
+
+- The equal split is complete: **15,600 queued BT seeds and 15,600 new RP
+  seeds** are live. BT now has **31,232** live seeds; RP has **32,128**.
+  Other live counts are unchanged: **74,523 temple, 24,406 village, 34,784
+  shipwreck, 909 AA**. Total live: **197,982**.
+- The latest completed `bt-rp` snapshot contains 77,833 BT and 32,842 RP records.
+  Its checkpoint and bank checksum match, covering 18,406 committed batches.
+  This extension imports only the **16,314 new RP records**; BT uses the
+  existing queue. The 39,314 newer BT records remain outside this publication.
+- Existing seed slots and pending order are preserved. Desired total:
+  **269,675**. Pending in this publication: **71,693**, comprising **7,319 BT,
+  714 RP, 8,734 temple and 54,926 shipwreck**. The 39,314 newer, unimported BT
+  records above are not included in these queue counts.
+- BT used **46,879 writes and 198,411 reads**; RP used **46,878 writes and
+  214,010 reads**. Total upload cost: **93,757 writes and 412,421 reads**,
+  excluding read-only preflight and final checks.
+- Preflight September 27 UTC usage was **2,750 writes and 338,066 reads**.
+  Recorded writes for that UTC day now total **96,507**, leaving **3,493** as
+  nominal headroom. Recheck usage after the UTC reset before another bulk upload;
+  account analytics can lag recent writes.
+- All 31,200 uploaded records match their sources: BT matches the existing
+  queue slots, and RP matches the latest overnight snapshot without duplicating
+  earlier RP records. Live delivery and family exclusion passed for all six
+  types. Private receipts: `upload-buried_treasure.json`,
+  `upload-ruined_portal.json`, `upload.log`, and `verification.json`.
+- No uploader remains running. No service deployment, relay deployment, mod
+  rebuild, git push or release was needed. Seed values remain private.
+
+## Previous Update, September 27 UTC AA Overnight
+
+`run/seed-service/publications/production-v5-20260927-aa-overnight` was the
+previous upload base and is now superseded. Snapshot revision:
+`1d51d956cde5dd24b77162b6a049ea005f500d0296ce5f10ef9d74895090623c`.
+The stable bank revision remains
+`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
+
+- Added all **907 AA seeds from 668 families** from the completed 12-hour run
+  in `run/model-bank/overnight/aa-temple-v4`. All 6,605 committed batches were
+  verified; five unfinished assignments remain available for the next run.
+  The local resume checkpoint was refreshed and validated.
+- **909 AA seeds from 669 families** are now live, including the original two.
+  Other live counts are unchanged: **74,523 temple, 24,406 village, 34,784
+  shipwreck, 15,632 buried treasure, 16,528 ruined portal**. Total **166,782**;
+  desired total **253,361**; existing pending backlog **86,579**, unchanged.
+- The upload used **2,741 writes and 167,823 reads**, excluding preflight and
+  final verification. Preflight account analytics showed 9 writes and 168,129
+  reads for September 27 UTC. The new upload was limited to AA; no pending
+  ordinary-filter rows were uploaded or reordered.
+- All 907 new remote rows match both the overnight snapshot and publication.
+  Live delivery and family exclusion passed for all six types. Private receipts
+  are `upload.log` and `verification.json` under the new publication directory.
+  Seed values remain private under ignored `run/`.
+- No Worker or relay deployment, mod rebuild, git push, or release was needed.
+  Existing AA Thunderless clients fetch the enlarged bank automatically.
+  No uploader or filter worker remains running from this operation.
+
+## Previous Update, September 27 UTC AA Test Bank
+
+`run/seed-service/publications/production-v5-20260927-aa-test` was the previous
+upload base and is now superseded. Snapshot revision:
+`8535c2db4cc2ca1bc399cd596842bcf1dc1e0fc032d6a9f11f73dfbc89b27ec1`.
+The stable bank revision remains
+`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
+
+- Added exactly **two AA temple seeds**, both current `aa-temple-v4` sister
+  seeds from **one family**, from the baseline production run in
+  `run/filter-bench/timing-performance-20260927/aa_temple-0-baseline.jsonl`.
+  No experimental timing build or older AA sample was promoted.
+- Live counts: **74,523 temple, 24,406 village, 34,784 shipwreck, 15,632 buried
+  treasure, 16,528 ruined portal, 2 AA temple**. Total **165,875**;
+  desired total **252,454**; the existing **86,579** pending rows are unchanged.
+  Every previous slot was verified before appending; no existing seeds moved.
+- Upload receipt: **9 writes and 165,915 reads**, excluding preflight and final
+  checks. This is a two-seed test publication, not a bulk backlog upload.
+- The dedicated seed-service Worker now supports `aa_temple`; deployed version
+  `a2fb2a37-f626-4087-a360-503ef776a29a`. The room relay was not deployed.
+- Select **AA Thunderless** in the mod's Rooms filter picker. AA remains outside
+  the ordinary random mix. In the new client build, only AA retries once without
+  recent-family exclusions after HTTP 409 (no fresh candidate). Other errors
+  and all other profiles retain their existing behavior. An empty AA bank does
+  not fall back to regular temple seeds.
+- Both uploaded rows match the source and publication. Live delivery passed
+  for all six profiles; ordinary family exclusions and the AA 409/retry sequence
+  passed. The private receipt is `verification.json`, with upload counts in
+  `upload.log`, under this publication directory. Seed values remain private.
+- Mod tests/build passed: 486 tests, one skipped, no failures. All 28 seed-service
+  tests passed. The in-game picker was not manually opened during this upload.
+
+## Previous Update, September 25 UTC BT and RP
+
+`run/seed-service/publications/production-v5-20260925-bt-rp` was the previous
+upload base and is now superseded. Snapshot revision:
 `84a316d22e6bc3acd32c3642131d10a02498669de0d32293fb9829b8bc4a878c`.
 The stable bank revision remains
 `fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
