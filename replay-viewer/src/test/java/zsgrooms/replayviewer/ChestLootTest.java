@@ -66,6 +66,23 @@ class ChestLootTest {
     private static ChestLoot loot(int time, int world, String dimension) {
         return new ChestLoot(time, time, world, 0, 42, dimension, "minecraft:chests/ruined_portal", 123);
     }
+
+    @Test void finishingPreservesInvalidationsAndEqualTimestampOrdering() {
+        ChestLootHistory history = new ChestLootHistory();
+        ChestLoot first = loot(10, 0, "minecraft:overworld");
+        history.observe(first);
+        history.invalidate(0, first.dimension, 0, 20);
+        ChestLoot replacement = loot(20, 0, first.dimension);
+        history.observe(replacement);
+        long bytes = history.estimatedBytes();
+        history.finish();
+        assertNull(history.at(0, first.dimension, 0, 9));
+        assertSame(first, history.at(0, first.dimension, 0, 19));
+        assertSame(replacement, history.at(0, first.dimension, 0, 20));
+        assertNull(history.at(1, first.dimension, 0, 20));
+        assertEquals(bytes, history.estimatedBytes());
+        assertTrue(bytes > 0);
+    }
     private static JsonObject row() {
         JsonObject row = new JsonObject(), loot = new JsonObject();
         row.addProperty("time", 10); row.addProperty("chunk", 1); row.addProperty("world", 0);

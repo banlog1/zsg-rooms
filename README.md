@@ -27,8 +27,8 @@ state, and player movement never pass through the room relay.
   and skins.
 - Adds in-game controls for forfeiting, resetting the current run, requesting a
   new seed, or returning to a solo room.
-- Ends a run when the winner enters the End exit portal and displays SpeedRunIGT
-  time when that mod is installed.
+- Advances runners independently through a shared sequence of 1-20 seeds, with
+  continued play for placements in both single-seed and multi-seed races.
 - Offers optional race rules for deterministic RNG, boosted barters, minimum
   bastion iron, cheats, structure-proximity spawning, and removing zombified
   piglins inside bastions, plus Nether entry warmup.
@@ -107,6 +107,44 @@ hover the question marks, but cannot edit them. Rules are locked while a race
 is running. Small windows use separate Race and World tabs. Rule edits do not
 change the selected seed or filter, and require no relay deployment.
 
+## Race Sequences And Placements
+
+Open **Race Format** from the **Race** row when creating a room, or from lobby
+**Options**. **Seeds per race** (1-20) and **Finishers** are separate settings,
+both defaulting to **1**. One seed is a regular race; larger values form a shared,
+ordered sequence. Everyone must use the sequence-capable
+mod version. The host prepares the whole sequence before the synchronized first
+start, but unreached seeds are not included in room snapshots.
+
+Completing a seed loads your next seed without waiting for other runners. One
+continuous real-time clock includes pauses, resets and subsequent loading.
+**Reset Run** retries your current seed without a penalty or clock reset.
+**Skip Seed** adds 30 minutes and advances one stage, including the last stage.
+**Leave Race** records a DNF; a regular one-seed forfeit is also a DNF.
+
+**Finishers = 1** ends a regular race after the winner is decided. Raise it for
+additional placements; use the player count to let everyone finish. The limit
+is capped to the roster at race start. Withdrawals do not count toward it, but
+the race also ends if everyone finishes or withdraws. With one seed and one
+finisher, the last remaining runner wins when all opponents forfeit. There is
+no skip penalty in a single-seed race.
+
+Finishing returns you to the lobby. Open **Standings** to see progress and results.
+Placements remain provisional until the race closes, and are sorted by elapsed
+time plus skip penalties. Close finishes may briefly settle before the cutoff.
+Multi-seed races stay open while another runner can still beat a qualifying
+penalty-adjusted time. Unfinished runners at the cutoff are marked **Unplaced**,
+not as voluntary withdrawals.
+Only exactly equal totals share a place. The host must keep the room open.
+Tournament brackets and points can be enabled separately in the lobby.
+
+Automatic sequence advances and same-seed resets stay in one replay, saved on
+finish or return to the room. Unopened-loot prediction is disabled in multi-seed
+recordings because its current metadata supports only one seed per file;
+recorded chest contents remain available. Ordinary unanimous new-seed voting
+remains available before any runner finishes a single-seed race; sequences use
+penalized skips instead. No relay deployment is needed for these changes.
+
 ## Filter Picker
 
 Click the filter button during room creation, or open **Options** from the lobby,
@@ -137,10 +175,14 @@ the image pack and can remain visible with the match header hidden.
 The optional gallery pack also contains loading backgrounds for temple, village,
 shipwreck, ruined portal and buried treasure seeds. Enable the resource pack and
 leave **Settings > Loading Screen > Loading Images** checked. One matching image stays fixed for
-each world load; Minecraft's chunk-progress square and percentage remain on top.
-Missing artwork or disabling the setting keeps the normal loading screen.
+each world load. The default **ZSG** indicator overlays the Rooms logo on the real
+chunk-progress square. The logo fills from bottom to top with loading progress.
+The logo is bundled in the mod and works without the optional image pack.
+Select **Vanilla** in the same menu to use Minecraft's chunk-progress square.
+Without artwork, Vanilla keeps the normal loading screen.
 **Progress** presets in that menu place the square and percentage in the center
-(default) or any corner. This only affects image-backed loading screens.
+(default) or any corner. ZSG supports these presets with or without artwork;
+Vanilla uses them when loading images are active.
 
 Artwork applies only to worlds launched through ZSG Rooms, including same-seed
 resets. It does not replace dimension-transition or replay-playback screens.
@@ -391,10 +433,39 @@ development mod JARs from `libs/` into `run/mods/`.
 See [Development](docs/DEVELOPMENT.md) before changing dependencies, mixins, or
 the relay.
 
+## Tournaments
+
+In lobby **Options > Tournament**, enable the checkbox and select **Bracket**
+or **Points**. Tournament mode is off by default.
+
+- **Bracket:** single elimination, one match at a time, best of 1, 3, 5 or 7.
+  Each race uses the room's seed count and one qualifying finisher. Draws award
+  no win and replay using the selected seed source. Manual seeds remain fixed.
+- **Players and Byes:** arrange the opening order and explicitly choose who gets
+  each required bye. Six players need two byes in an eight-slot bracket. A bye
+  advances a round without awarding race wins. Review the bracket before starting.
+- **Points:** choose 1-100 rounds and points by placement, such as `10,6,4,2,1`.
+  The room's finisher limit applies, so raise **Finishers** for more scoring places.
+  DNF, unplaced and unlisted places score zero. Exact ties share the points for
+  their place; tied final totals share a tournament place.
+
+Everyone can inspect the tournament from the lobby's **Tournament** button
+(**Event** in compact mode). The host starts each next race manually. Waiting
+bracket players stay in the room and are not included in the loading gate.
+Returning to the room after a race stays in the tournament; leaving the room
+withdraws from the rest of the tournament. A race forfeit loses that race, not
+the entire best-of match. Multi-seed skips still add 30 minutes.
+
+The starting roster, rules and filter stay locked until **End / Reset**, which
+requires host confirmation between races and clears tournament progress.
+New arrivals wait until the next tournament. All players need this update;
+the existing relay works without deployment. Keep the host and room open.
+
 ## Current Limitations
 
-- `Series Goal` is stored and synchronized, but the current match flow still
-  ends after one completed run. A first-to-N scoreboard is not implemented yet.
+- Race sequences, placements, single-elimination brackets and configurable points
+  are supported. Parallel bracket matches, double elimination, host migration,
+  and resuming a tournament after restarting Minecraft are not.
 - The host is authoritative for room state and seed selection. If the host
   cannot reconnect within 60 seconds, the relay closes the room.
 - RNG standardization makes equivalent event sequences deterministic. Different

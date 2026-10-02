@@ -10,8 +10,66 @@ the separate seed-bank account on Workers Free, not the room-relay account.
 
 ## Current Publication
 
-Use `run/seed-service/publications/production-v5-20260927-bt-rp-split` for
+Use `run/seed-service/publications/production-v5-20261003-structure-targets` for
 uploads and as the base for the next extension. Snapshot revision:
+`0f6953fa0a33c1daefcf817f5d3af81b6ce4cdaa79f58a6275a97266a9b7e7bc`.
+The stable bank revision remains
+`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
+
+### October 3 Structure Coordinate Backfill
+
+- Recovered all **309,877** intended starting-structure coordinates from saved
+  accepted model records, with no missing records or coordinate conflicts.
+- Backfilled metadata for all **230,118 live seeds** and prepared all **79,759
+  queued seeds**. No seeds were added, removed, reordered or regenerated.
+- Metadata is stored in 256-entry pages in `bank_structures`, independently of
+  seed slots. Seed strings in each page bind coordinates to the correct entry.
+- Upload plus full readback used **2,434 writes** and **234,425 reads**, including
+  preflight/final counts. Private receipts are `coordinate-upload-*.json` in the
+  current publication. The upload ran October 2 UTC (October 3 local time).
+- The uploader now requires structure metadata and publishes it before new seed
+  counts. Resume only from this enriched publication or a descendant.
+- The mod requests coordinates and preserves them in room/sequence seed metadata.
+  Missing actual structures keep the original safe spawn; no alternate locate
+  target is silently substituted.
+- Deployed Worker version `238a9317-e400-4727-8570-d0bf4f6966b6`. Three live
+  responses for each of the six profiles matched recovered source coordinates
+  and honored recent-family exclusions. Private `coordinate-delivery-*.json`
+  receipts are in the current publication directory.
+- Real Minecraft regression passed on the reported village seed: intended
+  village, smith chest, preload centered on the relocated spawn, identical reset
+  destination, and original-spawn fallback for a deliberately missing target.
+
+- Added **32,136 seeds** to the live bank: **8,734 temple, 11,000 shipwreck,
+  10,800 BT, 714 RP and 888 AA**. All pending temple, RP and AA seeds are now
+  uploaded; village was already fully uploaded.
+- Live counts: **83,257 temple, 24,406 village, 45,784 shipwreck, 42,032 BT,
+  32,842 RP and 1,797 AA**. Total live: **230,118**.
+- The completed AA snapshot contains 1,795 records from 13,200 committed
+  batches. Its checkpoint, bank checksum and journal match, as do the BT/RP
+  snapshot's 110,675 records and 18,406 committed batches. Each run has five
+  unfinished assignments, which were not imported.
+- This extension adds **888 new AA records and 39,314 previously unimported
+  BT records** to the plan, preserving all existing slots and pending order.
+  The BT upload cleared the 7,319 older queued seeds and added 3,481 newer ones.
+  Desired total: **309,877**. Remaining: **79,759**, comprising **43,926
+  shipwreck and 35,833 BT**. Other types have no pending entries.
+- September 28 UTC preflight analytics reported zero account reads and writes.
+  The upload used **96,571 writes and 263,103 reads**, excluding read-only
+  preflight and final verification. The configured budget was 97,000 writes;
+  nominal daily write headroom is **3,429**. Analytics can lag: use the receipt
+  rather than a lower analytics count when budgeting any further writes today.
+- Every new remote row matches the publication. Live delivery and family
+  exclusion passed for all six types. The private receipts are `preflight.json`,
+  `upload.json` and `verification.json` in this publication directory. All 28
+  seed-service tests passed. Seed values remain private under ignored `run/`.
+- No uploader remains running. No Worker or relay deployment, mod rebuild,
+  git push or release was needed. Existing clients fetch the expanded bank.
+
+## Previous Update, September 27 UTC BT and RP Split
+
+Use `run/seed-service/publications/production-v5-20260927-bt-rp-split` for
+the previous, now superseded upload plan. Snapshot revision:
 `f37980219dddf4234fedb91b84587ee3182ed23503e91427676dff2bf914774c`.
 The stable bank revision remains
 `fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.

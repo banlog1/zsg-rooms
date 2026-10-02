@@ -11,6 +11,7 @@ import zsgrooms.modid.ZsgSeedBridge;
 public final class RoomLoadingArtwork {
     public interface ScreenState {
         boolean zsgRooms$hasLoadingArtwork();
+        boolean zsgRooms$hasCustomLoadingScreen();
     }
     private static String pendingSeed;
     private final SeedVisualType type;

@@ -89,6 +89,7 @@ public class RoomSocketTransport {
     public static synchronized void tickFinishTiming() {
         if (server != null && server.isRunning()) {
             RoomServer current = server;
+            RoomSequenceHost.tick(current.roomName, current::broadcastSnapshot);
             current.finishTiming.tick(current.roomName, current::finishAndBroadcast);
         }
     }
@@ -126,7 +127,9 @@ public class RoomSocketTransport {
         }
         runOnClientThread(() -> {
             String type = message.get("type");
-            if ("launch".equals(type)) {
+            InGame localGame = ZsgRooms.getGame(message.get("room"));
+            if ("launch".equals(type) && !zsgrooms.modid.TournamentRaceClient.isLaunchPayload(message.get("value"))
+                    && (localGame == null || localGame.getTournament() == null)) {
                 ZsgRoomsClient.beginSynchronizedStart(message.get("room"), message.get("value"));
             }
             ZsgRooms.applyRoomAction(type, message.get("room"), message.get("player"), message.get("value"));
@@ -188,6 +191,7 @@ public class RoomSocketTransport {
 
     private static class RoomServer {
         private final RoomFinishTiming finishTiming = new RoomFinishTiming();
+        private final RaceSeedPreparation raceSeeds = new RaceSeedPreparation();
         private final String roomName;
         private final String hostName;
         private final ServerSocket serverSocket;
@@ -254,12 +258,16 @@ public class RoomSocketTransport {
         }
 
         private void handleClientAction(ClientHandler sender, String type, String player, String value, long received) {
+            if (RoomSequenceHost.handle(this.roomName, player, type, value, this::broadcastSnapshot)) {
+                releaseStartIfReady();
+                return;
+            }
             if ("forfeit".equals(type) && this.finishTiming.hasPendingFinish()) {
                 return;
             }
             if ("join_room".equals(type)) {
                 Room room = ZsgRooms.getRoom(this.roomName);
-                if (room == null || room.isFull() || room.getPlayer(player) != null) {
+                if (room == null || room.isFull() || room.getPlayer(player) != null || ZsgRooms.getGame(this.roomName).getIsInGame()) {
                     String reason = room != null && room.getPlayer(player) != null
                             ? "That player name is already connected"
                             : "The room is full or unavailable";
@@ -287,6 +295,7 @@ public class RoomSocketTransport {
                 broadcastSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
+                    ZsgRooms.getGame(this.roomName).setSequence(null);
                     requestAndLaunchExactSeed();
                 }
                 return;
@@ -343,13 +352,21 @@ public class RoomSocketTransport {
             if (!this.roomName.equals(room) || !this.hostName.equals(player)) {
                 return;
             }
+            if (RoomSequenceHost.handle(this.roomName, player, type, value, this::broadcastSnapshot)) {
+                releaseStartIfReady();
+                return;
+            }
             if ("forfeit".equals(type) && this.finishTiming.hasPendingFinish()) {
                 return;
             }
             if ("start".equals(type)) {
                 requestAndLaunchExactSeed();
             } else if ("rules".equals(type)) {
-                if (ZsgRooms.changeRoomRules(this.roomName, player, value)) broadcastSnapshot();
+                if (ZsgRooms.changeRoomRules(this.roomName, player, value)) {
+                    seedSelectionChanged();
+                    ensureSeedPrefetch();
+                    broadcastSnapshot();
+                }
             } else if ("filter".equals(type)) {
                 ZsgRooms.applyRoomAction(type, room, player, value);
                 seedSelectionChanged();
@@ -365,6 +382,7 @@ public class RoomSocketTransport {
                 broadcastSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
+                    ZsgRooms.getGame(this.roomName).setSequence(null);
                     requestAndLaunchExactSeed();
                 }
             } else if ("complete_run".equals(type)) {
@@ -410,6 +428,12 @@ public class RoomSocketTransport {
             if (room == null || game == null) {
                 return;
             }
+            if (game.getIsInGame() && game.getSequence() != null || !RoomSequenceHost.compatible(room)) {
+                broadcastSnapshot();
+                return;
+            }
+            if (!RoomSequenceHost.prepareTournament(room, game)) { broadcastSnapshot(); return; }
+            broadcastSnapshot();
 
             String specification = ZsgSeedBridge.normalizeSeedSpecification(game.targetStructure);
             long launchGeneration = beginSeedLaunch();
@@ -421,12 +445,13 @@ public class RoomSocketTransport {
             status = manager.getStatus().isEmpty()
                     ? HostSeedPrefetchManager.STATUS_PREPARING
                     : manager.getStatus();
-            manager.consumeOrRequest(this.roomName, specification).whenComplete((seed, error) ->
+            raceSeeds.prepare(this.roomName, specification, game.getFinishGoal()).whenComplete((seeds, error) ->
                     runOnClientThread(() -> completeSeedLaunch(
-                            launchGeneration, specification, seed, error)));
+                            launchGeneration, specification, seeds, error)));
         }
 
-        private void completeSeedLaunch(long launchGeneration, String specification, String seed, Throwable error) {
+        private void completeSeedLaunch(long launchGeneration, String specification, java.util.List<String> seeds, Throwable error) {
+            String seed = seeds == null || seeds.isEmpty() ? null : seeds.get(0);
             HostSeedPrefetchManager manager = HostSeedPrefetchManager.getInstance();
             if (!isCurrentSeedLaunch(launchGeneration)
                     || !manager.isCurrentSelection(this.roomName, specification)) {
@@ -441,6 +466,30 @@ public class RoomSocketTransport {
                 return;
             }
 
+            Room room = ZsgRooms.getRoom(this.roomName);
+            if (room == null || !RoomSequenceHost.compatible(room)) {
+                finishSeedLaunch(launchGeneration);
+                broadcastSnapshot();
+                return;
+            }
+            InGame tournamentGame = ZsgRooms.getGame(this.roomName);
+            if (tournamentGame != null && tournamentGame.getTournament() != null) {
+                if (!RoomSequenceHost.prepareTournament(room, tournamentGame)
+                        || !ZsgRooms.commitLaunchedRoomSeed(this.roomName, seed, specification)) {
+                    finishSeedLaunch(launchGeneration);
+                    broadcastSnapshot();
+                    return;
+                }
+                RoomSequenceHost.assignSequence(room, tournamentGame, seeds);
+                raceSeeds.clear();
+                broadcastSnapshot();
+                broadcast("launch", this.roomName, this.hostName, zsgrooms.modid.TournamentRaceClient.launchPayload(this.roomName));
+                zsgrooms.modid.TournamentRaceClient.launch(this.roomName, seed);
+                manager.onSeedConsumed(this.roomName, specification);
+                status = "Waiting for tournament runners to load";
+                finishSeedLaunch(launchGeneration);
+                return;
+            }
             ZsgRoomsClient.beginSynchronizedStart(this.roomName, seed);
             if (!ZsgSeedBridge.launchSeedWithAtum(seed)) {
                 ZsgRoomsClient.cancelSynchronizedStart(this.roomName, seed);
@@ -460,6 +509,9 @@ public class RoomSocketTransport {
                 return;
             }
 
+            InGame game = ZsgRooms.getGame(this.roomName);
+            game.setSequence(new zsgrooms.modid.RaceSequence(game.getRaceId(), seeds, room.getPlayerNames(), game.getFinisherLimit()));
+            raceSeeds.clear();
             broadcast("launch", this.roomName, this.hostName, seed);
             manager.onSeedConsumed(this.roomName, specification);
             status = "Waiting for every player to load";
@@ -495,6 +547,7 @@ public class RoomSocketTransport {
         private synchronized void seedSelectionChanged() {
             this.seedLaunchGeneration++;
             this.preparingSeed = false;
+            raceSeeds.clear();
         }
 
         private void announceSeedChangeAgreement() {

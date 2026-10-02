@@ -24,6 +24,7 @@ public class RoomGameRulesScreenTest {
             rules.minimumBastionIron = preset.guaranteesBastionIron();
             rules.removeBastionZombifiedPiglins = preset.removesBastionZombifiedPiglins();
             rules.removeNaturalStriderJockeys = preset.removesNaturalStriderJockeys();
+            rules.preventTempleHostileSpawns = preset.preventsTempleHostileSpawns();
             rules.spawnNearFilterStructure = preset.spawnsNearFilterStructure();
             rules.minimumNearbyAnimals = preset.guaranteesNearbyAnimals();
             rules.netherEntryWarmup = preset.warmsNetherEntry();

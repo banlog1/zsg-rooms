@@ -9,6 +9,7 @@ public final class EndExitTimeCapture {
     private static final LocalRaceClock CLOCK = new LocalRaceClock();
     private static volatile boolean aaMode;
     private static volatile String aaRaceId = "";
+    private static Object lastWorld;
 
     private EndExitTimeCapture() {
     }
@@ -35,8 +36,17 @@ public final class EndExitTimeCapture {
             CLOCK.clear();
             aaMode = false;
             aaRaceId = "";
+            lastWorld = null;
+        } else if (!awaitingStart && (client == null || client.player == null)) {
+            CLOCK.unbindWorld();
+            lastWorld = null;
         } else if (!awaitingStart && client != null && client.player != null) {
             CLOCK.bindWorld(game.getRaceId(), client.getServer(), client.player.getUuid());
+            if (lastWorld != client.getServer()) {
+                lastWorld = client.getServer();
+                aaMode = game.isAaThunderless();
+                aaRaceId = aaMode ? game.getRaceId() : "";
+            }
         }
     }
 
@@ -58,6 +68,8 @@ public final class EndExitTimeCapture {
         MinecraftClient client = MinecraftClient.getInstance();
         client.execute(() -> ZsgRoomsClient.onAaCompleted(raceId));
     }
+
+    public static long elapsed(String raceId) { return CLOCK.elapsed(raceId, System.nanoTime()); }
 
     public static long consume(MinecraftClient client, String raceId) {
         return client == null || client.player == null ? -1L

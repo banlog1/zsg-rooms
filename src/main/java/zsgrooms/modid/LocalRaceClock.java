@@ -73,6 +73,15 @@ final class LocalRaceClock {
         return elapsed;
     }
 
+    synchronized long elapsed(String id, long nowNanos) {
+        return started && raceId.equals(id) ? Math.max(0L, nowNanos - startNanos) : -1L;
+    }
+
+    synchronized void unbindWorld() {
+        server = null;
+        finishElapsedNanos = null;
+    }
+
     synchronized void clear() {
         raceId = "";
         server = null;

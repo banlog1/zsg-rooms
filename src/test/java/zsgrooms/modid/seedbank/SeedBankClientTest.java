@@ -45,6 +45,7 @@ class SeedBankClientTest {
         body.addProperty("requestId", ID);
         body.addProperty("revision", String.join("", Collections.nCopies(64, "a")));
         body.addProperty("seed", SEED);
+        body.add("structure", new JsonParser().parse("[32,192]"));
         return body;
     }
 
@@ -68,7 +69,7 @@ class SeedBankClientTest {
         JsonObject body = response();
         assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.AA_THUNDERLESS, ID));
         body.addProperty("type", "aa_temple");
-        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.AA_THUNDERLESS, ID));
+        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.AA_THUNDERLESS, ID).seed);
         assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
     }
 
@@ -76,7 +77,7 @@ class SeedBankClientTest {
     void ruinedPortalResponsesMustMatchTheirOwnProfile() throws Exception {
         JsonObject body = response();
         body.addProperty("type", "ruined_portal");
-        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.RUINED_PORTAL, ID));
+        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.RUINED_PORTAL, ID).seed);
         assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
         assertThrows(IOException.class, () -> SeedBankClient.parseResponse(response().toString(), SeedBankProfile.RUINED_PORTAL, ID));
     }
@@ -85,17 +86,17 @@ class SeedBankClientTest {
     void buriedTreasureResponsesMustMatchTheirOwnProfile() throws Exception {
         JsonObject body = response();
         body.addProperty("type", "buried_treasure");
-        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.BURIED_TREASURE, ID));
+        assertEquals(SEED, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.BURIED_TREASURE, ID).seed);
         assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
         assertThrows(IOException.class, () -> SeedBankClient.parseResponse(response().toString(), SeedBankProfile.BURIED_TREASURE, ID));
     }
 
     @Test
     void requiresMatchingProfileTypeRequestAndExactStringSeed() throws Exception {
-        assertEquals(SEED, SeedBankClient.parseResponse(response().toString(), SeedBankProfile.TEMPLE, ID));
+        assertEquals(SEED, SeedBankClient.parseResponse(response().toString(), SeedBankProfile.TEMPLE, ID).seed);
         for (String seed : Arrays.asList("-9223372036854775808", "9007199254740993")) {
             JsonObject body = response(); body.addProperty("seed", seed);
-            assertEquals(seed, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
+            assertEquals(seed, SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID).seed);
         }
         for (String field : Arrays.asList("profile", "type", "requestId", "revision", "seed")) {
             JsonObject body = response(); body.addProperty(field, "invalid");
@@ -110,6 +111,23 @@ class SeedBankClientTest {
             JsonObject body = response(); body.addProperty("seed", bad);
             assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
         }
+    }
+
+    @Test void exactStructureCoordinatesAreRequiredAndTravelWithTheSeed() throws Exception {
+        SeedBankEntry entry = SeedBankClient.parseResponse(response().toString(), SeedBankProfile.TEMPLE, ID);
+        assertEquals(32, entry.structureX);
+        assertEquals(192, entry.structureZ);
+        String specification = entry.roomSeed(SeedBankProfile.TEMPLE);
+        assertEquals(SEED, ZsgSeedBridge.extractMinecraftSeed(specification));
+        assertEquals(new net.minecraft.util.math.BlockPos(32, 0, 192),
+                SeedStructureTarget.parse(specification, Long.MAX_VALUE, SeedBankProfile.TEMPLE.specification));
+        for (String coordinates : Arrays.asList("null", "[]", "[32]", "[32,192,0]", "[1.5,2]", "[30000001,0]", "[\"32\",192]", "[4294967296,0]")) {
+            JsonObject body = response();
+            body.add("structure", new JsonParser().parse(coordinates));
+            assertThrows(IOException.class, () -> SeedBankClient.parseResponse(body.toString(), SeedBankProfile.TEMPLE, ID));
+        }
+        JsonObject missing = response(); missing.remove("structure");
+        assertThrows(IOException.class, () -> SeedBankClient.parseResponse(missing.toString(), SeedBankProfile.TEMPLE, ID));
     }
 
     @Test
@@ -143,7 +161,7 @@ class SeedBankClientTest {
         try {
             String endpoint = "http://127.0.0.1:" + server.getAddress().getPort();
             java.util.List<String> recent = Collections.singletonList(Long.toString(Long.MAX_VALUE & 281474976710655L));
-            assertEquals(SEED, SeedBankClient.fetchWithRecentFamilies(endpoint, SeedBankProfile.AA_THUNDERLESS, recent));
+            assertEquals(SEED, SeedBankClient.fetchWithRecentFamilies(endpoint, SeedBankProfile.AA_THUNDERLESS, recent).seed);
             assertEquals(2, calls.get());
             for (SeedBankProfile profile : SeedBankProfile.values()) {
                 if (profile == SeedBankProfile.AA_THUNDERLESS) continue;
@@ -185,7 +203,7 @@ class SeedBankClientTest {
         server.start();
         try {
             String endpoint = "http://127.0.0.1:" + server.getAddress().getPort();
-            assertEquals(SEED, SeedBankClient.fetch(endpoint, SeedBankProfile.TEMPLE, Collections.emptyList()));
+            assertEquals(SEED, SeedBankClient.fetch(endpoint, SeedBankProfile.TEMPLE, Collections.emptyList()).seed);
             assertThrows(IOException.class, () -> SeedBankClient.fetch(endpoint, SeedBankProfile.TEMPLE,
                     Collections.singletonList(Long.toString(Long.MAX_VALUE & 281474976710655L))));
             IOException error = assertThrows(IOException.class, () -> SeedBankClient.fetch(endpoint + "/failure", SeedBankProfile.TEMPLE, Collections.emptyList()));

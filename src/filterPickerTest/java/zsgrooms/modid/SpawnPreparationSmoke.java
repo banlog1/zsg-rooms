@@ -21,6 +21,8 @@ import java.util.UUID;
 
 /** Real startup regression test, never included in the mod JAR. */
 public final class SpawnPreparationSmoke {
+    private static final boolean BANK = Boolean.getBoolean("zsgrooms.bankStructureSmoke");
+    private static final String BANK_SEED = "935645362601973608";
     private static volatile BlockPos original;
     private static volatile BlockPos preload;
     private static volatile Throwable failure;
@@ -45,7 +47,15 @@ public final class SpawnPreparationSmoke {
             require(original != null, "Original spawn was not captured");
             long reference = SharedNetherEntryState.get(world).toTag(new CompoundTag()).getLong("Reference");
             require(reference == SharedNetherEntryState.referenceForSpawn(original).asLong(), "Nether reference changed");
-            if (attempt < 2) {
+            if (BANK && attempt < 2) {
+                BlockPos village = new BlockPos(32, 0, 192);
+                require(preload.equals(new BlockPos(3, 75, 212)), "Bank destination differs from the fresh-process baseline");
+                require(!StructureSpawnProximity.needsRelocation(preload, village, "rooms-village-v5"), "Bank destination exceeds 48 blocks");
+                require(StructureSpawnProximity.hasPreparedSpawn(), "Bank target not prepared before preload");
+                require(world.getBlockState(new BlockPos(48, 73, 209)).isOf(net.minecraft.block.Blocks.CHEST), "Expected smith chest is missing");
+                if (attempt == 0) firstDestination = preload;
+                else require(firstDestination.equals(preload), "Bank target reset changed destination");
+            } else if (!BANK && attempt < 2) {
                 BlockPos temple = world.locateStructure(StructureFeature.DESERT_PYRAMID, original, 160, false);
                 require(temple != null, "Test seed has no temple");
                 require(StructureSpawnProximity.needsRelocation(original, temple, "zsgtemple"), "Fixture did not need relocation");
@@ -55,8 +65,8 @@ public final class SpawnPreparationSmoke {
                 if (attempt == 0) firstDestination = preload;
                 else require(firstDestination.equals(preload), "Reset changed destination");
             } else {
-                require(original.equals(preload), "Disabled rule moved spawn");
-                require(!StructureSpawnProximity.hasPreparedSpawn(), "Disabled rule reused prepared spawn");
+                require(original.equals(preload), "Disabled rule or missing target moved spawn");
+                require(!StructureSpawnProximity.hasPreparedSpawn(), "Disabled rule or missing target reused prepared spawn");
             }
             ZsgRooms.LOGGER.info("[SpawnPreparationSmoke] attempt={} original={} preload={}", attempt, original, preload);
         } catch (Throwable error) { failure = error; }
@@ -64,7 +74,7 @@ public final class SpawnPreparationSmoke {
 
     private void tick(MinecraftClient client) {
         if (finished) return;
-        if (System.nanoTime() - started > 240_000_000_000L) failure = new IllegalStateException("Timed out");
+        if (System.nanoTime() - started > 480_000_000_000L) failure = new IllegalStateException("Timed out");
         if (client.getOverlay() != null || ++ticks < 20) return;
         ticks = 0;
         try {
@@ -76,15 +86,17 @@ public final class SpawnPreparationSmoke {
                 Room room = new Room("spawn-smoke", "12345|structure:manual",
                         new Player(client.getSession().getUsername(), true, true), 2);
                 InGame game = new InGame(room.seed, room.roomName, InGame.SeedType.FIXED, false);
-                game.setSpawnNearFilterStructure(attempt < 2);
+                game.setSpawnNearFilterStructure(BANK || attempt < 2);
                 game.setSharedNetherEntry(true);
                 game.setRngStandardized(false);
                 ZsgRooms.applyRoomSnapshot(RoomSnapshot.capture(room, game).toJson());
-                StructureSpawnProximity.prepareNextLaunch("12345|structure:zsgtemple");
+                StructureSpawnProximity.prepareNextLaunch(BANK
+                        ? BANK_SEED + "|structure:rooms-village-v5|target:" + (attempt < 2 ? "32,192" : "10000,10000") + "|selection:rooms-mix"
+                        : "12345|structure:zsgtemple");
                 original = null;
                 preload = null;
                 Properties properties = new Properties();
-                properties.setProperty("level-seed", "12345");
+                properties.setProperty("level-seed", BANK ? BANK_SEED : "12345");
                 properties.setProperty("generate-structures", "true");
                 loading = true;
                 client.method_29607("spawn-smoke-" + UUID.randomUUID(),
@@ -98,7 +110,9 @@ public final class SpawnPreparationSmoke {
                 client.disconnect();
                 loading = false;
                 if (++attempt == 3) {
-                    ZsgRooms.LOGGER.info("[FilterPickerSmoke] PASS: early spawn preload, 48-block range, cached reset, disabled rule, original Nether reference");
+                    ZsgRooms.LOGGER.info("[FilterPickerSmoke] PASS: {}", BANK
+                            ? "exact bank target, original seed smith chest, preload center, same-seed reset, missing target keeps original spawn"
+                            : "early spawn preload, 48-block range, cached reset, disabled rule, original Nether reference");
                     finished = true;
                     client.scheduleStop();
                 }

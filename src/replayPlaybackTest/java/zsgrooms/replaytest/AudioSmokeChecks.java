@@ -311,7 +311,7 @@ final class AudioSmokeChecks {
         method.invoke(player, 1, using);
     }
     static void outsideReplay() throws Exception {
-        require(!(Boolean) call("muted") && !(Boolean) call("enabled"), "Audio state leaked outside replay playback");
+        require(!(Boolean) call("muted") && !(Boolean) call("enabledForMovement"), "Audio state leaked outside replay playback");
     }
     private static void probe(MinecraftClient client) { client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK, 1)); }
     private static Object call(String name) throws Exception { return call(name, new Class<?>[0]); }

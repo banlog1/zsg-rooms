@@ -1,3 +1,8 @@
+// Fabric API 0.18 reads one mod root, so keep dev resources beside classes.
+tasks.named('compileJava') { destinationDirectory = layout.buildDirectory.dir('filter-picker-main') }
+sourceSets.main.output.resourcesDir = tasks.named('compileJava').get().destinationDirectory.get().asFile
+tasks.named('processResources') { destinationDir = sourceSets.main.output.resourcesDir }
+
 sourceSets {
     filterPickerTest {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
@@ -22,13 +27,24 @@ loom {
             runDir 'run/filter-picker-test'
             vmArg "-Dzsgrooms.seedVisualSmoke=${project.hasProperty('seedVisualSmoke')}"
             vmArg "-Dzsgrooms.aaModeSmoke=${project.hasProperty('aaModeSmoke')}"
+            vmArg "-Dzsgrooms.sequenceSmoke=${project.hasProperty('sequenceSmoke')}"
+            vmArg "-Dzsgrooms.raceFormatSmoke=${project.hasProperty('raceFormatSmoke')}"
+            vmArg "-Dzsgrooms.tournamentSmoke=${project.hasProperty('tournamentSmoke')}"
+            vmArg "-Dzsgrooms.tournamentRaceSmoke=${project.hasProperty('tournamentRaceSmoke')}"
             vmArg "-Dzsgrooms.lobbyRulesSmoke=${project.hasProperty('lobbyRulesSmoke')}"
-            vmArg "-Dzsgrooms.spawnPreparationSmoke=${project.hasProperty('spawnPreparationSmoke')}"
+            vmArg "-Dzsgrooms.spawnPreparationSmoke=${project.hasProperty('spawnPreparationSmoke') || project.hasProperty('bankStructureSmoke')}"
+            vmArg "-Dzsgrooms.bankStructureSmoke=${project.hasProperty('bankStructureSmoke')}"
+            vmArg "-Dzsgrooms.templeSpawnSmoke=${project.hasProperty('templeSpawnSmoke')}"
             vmArg "-Dzsgrooms.loadingPositionSmoke=${project.hasProperty('loadingPositionSmoke')}"
         }
     }
 }
 tasks.named('runFilterPickerTest') {
+    if (project.hasProperty('testJava')) executable = project.property('testJava')
+    if (project.hasProperty('templeSpawnSmoke') || project.hasProperty('bankStructureSmoke') || project.hasProperty('sequenceSmoke') || project.hasProperty('raceFormatSmoke') || project.hasProperty('tournamentSmoke') || project.hasProperty('tournamentRaceSmoke') || project.hasProperty('loadingPositionSmoke') || project.hasProperty('seedVisualSmoke')) {
+        maxHeapSize = '2g'
+        jvmArgs "-XX:ActiveProcessorCount=${project.findProperty('smokeProcessors') ?: 4}", '-Xlog:gc:file=sequence-gc.log'
+    }
     doFirst {
         ext.startedAt = System.currentTimeMillis()
         def pack = file('build/distributions/zsg-rooms-filter-gallery.zip')
@@ -41,6 +57,11 @@ tasks.named('runFilterPickerTest') {
         if (!log.exists() || log.lastModified() < startedAt || !log.text.contains('[FilterPickerSmoke] PASS:')
                 || log.text.contains('[SeedVisualSmoke] FAILED') || log.text.contains('[LobbyRulesSmoke] FAILED')
                 || log.text.contains('[SpawnPreparationSmoke] FAILED') || log.text.contains('[LoadingPositionSmoke] FAILED')
+                || log.text.contains('[TempleSpawnSmoke] FAILED')
+                || log.text.contains('[RaceSequenceSmoke] FAILED')
+                || log.text.contains('[RaceFormatSmoke] FAILED')
+                || log.text.contains('[TournamentSmoke] FAILED')
+                || log.text.contains('[TournamentRaceSmoke] FAILED')
                 || log.text.contains('[AaModeSmoke] FAILED')) {
             throw new GradleException('Filter picker smoke test failed; see run/filter-picker-test/logs/latest.log')
         }

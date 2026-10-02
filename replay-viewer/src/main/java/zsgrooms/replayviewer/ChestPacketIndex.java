@@ -32,6 +32,9 @@ final class ChestPacketIndex {
     private int world = -1, opening, inventoryBytes;
     private String dimension = "";
 
+    // Includes a conservative allowance for decoded item/NBT objects, not an exact heap measurement.
+    long estimatedBytes() { return history.estimatedBytes() + lootHistory.estimatedBytes() + 32L * inventoryBytes; }
+
     ChestPacketIndex(List<ChestOpening> bindings) {
         this(bindings, java.util.Collections.emptyList());
     }

@@ -6,6 +6,15 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ReplayPredictionPolicyTest {
+    @Test void multiSeedFilesNeverReuseTheFirstSeedsUnopenedLootPredictions() {
+        ReplayPredictionPolicy policy = new ReplayPredictionPolicy(123L, true);
+        policy.worldSeed(456L);
+        policy.matchEnded();
+        assertNull(policy.releasedSeed());
+        policy.worldSeed(123L);
+        assertNull(policy.releasedSeed());
+    }
+
     @Test void unannouncedRoomDisconnectAndResetNeverReleaseSeed() {
         ReplayPredictionPolicy policy = new ReplayPredictionPolicy(42, true);
         policy.disconnected(false);

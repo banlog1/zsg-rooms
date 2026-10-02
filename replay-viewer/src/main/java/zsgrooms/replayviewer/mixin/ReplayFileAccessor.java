@@ -9,4 +9,8 @@ import java.io.File;
 @Mixin(value = ZipReplayFile.class, remap = false)
 public interface ReplayFileAccessor {
     @Accessor("input") File zsgViewer$getInput();
+    @Accessor("zipFile") java.util.zip.ZipFile zsgViewer$getZipFile();
+    @Accessor("changedEntries") java.util.Map<String, File> zsgViewer$getChangedEntries();
+    @Accessor("removedEntries") java.util.Set<String> zsgViewer$getRemovedEntries();
+    @Accessor("outputStreams") java.util.Map<String, java.io.OutputStream> zsgViewer$getOutputStreams();
 }

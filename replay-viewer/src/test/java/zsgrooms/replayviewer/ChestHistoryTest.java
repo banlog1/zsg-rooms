@@ -79,4 +79,23 @@ class ChestHistoryTest {
         assertThrows(IOException.class, () -> ChestOpening.read(new JsonParser().parse(valid.replace("274877906944", "1")).getAsJsonArray(), 100));
         assertThrows(IOException.class, () -> ChestOpening.read(new JsonParser().parse(valid.replace("\"syncId\":1", "\"syncId\":200")).getAsJsonArray(), 100));
     }
+
+    @Test void finishingPreservesSnapshotsAndDoubleChestAliases() throws Exception {
+        ChestHistory<String> history = new ChestHistory<>();
+        long second = 1L << 38;
+        history.open(opening(0, "overworld", 0, second), 10);
+        contents(history, 54, 20);
+        history.slot(1, 0, "diamond", 20);
+        ChestHistory.Frame<String> frame = history.at(0, "overworld", 0, 20);
+        long bytes = history.estimatedBytes();
+        history.finish();
+        assertFalse(history.accepts(1));
+        assertSame(frame, history.at(0, "overworld", second, 100));
+        assertEquals("diamond", frame.items.get(0));
+        assertThrows(UnsupportedOperationException.class, () -> frame.items.set(0, "changed"));
+        assertNull(history.at(1, "overworld", 0, 100));
+        assertNull(history.at(0, "nether", 0, 100));
+        assertEquals(bytes, history.estimatedBytes());
+        assertTrue(bytes > 0);
+    }
 }

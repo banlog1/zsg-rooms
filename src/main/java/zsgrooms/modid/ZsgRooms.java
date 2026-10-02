@@ -38,6 +38,7 @@ public class ZsgRooms implements ModInitializer {
 		ServerLifecycleEvents.SERVER_STOPPED.register(WoodLightingStandardization::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(SharedNetherEntry::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(RuinedPortalChestRepair::stop);
+		ServerLifecycleEvents.SERVER_STOPPED.register(TempleSpawnControl::stop);
 		ServerTickEvents.START_WORLD_TICK.register(WoodLightingStandardization::tick);
 		ServerTickEvents.END_SERVER_TICK.register(RuinedPortalChestRepair::tick);
 		DragonPerchHeadlessBenchmark.register();
@@ -262,7 +263,16 @@ public class ZsgRooms implements ModInitializer {
 		if ("join_room".equals(action)) {
 			return;
 		} else if ("profile".equals(action)) {
-			setPlayerUuid(roomName, cleanPlayerName(playerName), value);
+			String[] profile = value == null ? new String[0] : value.split("\\|", 2);
+			setPlayerUuid(roomName, cleanPlayerName(playerName), profile.length == 0 ? "" : profile[0]);
+			Player player = room.getPlayer(cleanPlayerName(playerName));
+            if (player != null) {
+                java.util.List<String> capabilities = profile.length == 2
+                        ? java.util.Arrays.asList(profile[1].split("\\|")) : java.util.Collections.emptyList();
+                player.sequenceVersion = capabilities.contains("sequence:1") ? 1 : 0;
+                player.tournamentVersion = capabilities.contains("tournament:1") ? 1 : 0;
+                player.spawnRulesVersion = capabilities.contains("spawnrules:1") ? 1 : 0;
+            }
 		} else if ("chat".equals(action)) {
 			shareChat(roomName, "<" + cleanPlayerName(playerName) + "> " + value);
 		} else if ("filter".equals(action)) {
@@ -335,7 +345,12 @@ public class ZsgRooms implements ModInitializer {
 		InGame game = ACTIVE_GAMES.get(roomName);
 		if (!RoomRuleSettings.canEdit(room, game, playerName)) return false;
 		RoomRuleSettings rules = RoomRuleSettings.fromJson(value);
-		if (rules == null || rules.toJson().equals(RoomRuleSettings.capture(game).toJson())) return false;
+        if (rules == null) return false;
+        if (game.tournamentLocked() && !rules.resetTournament) return false;
+        if (rules.tournament == null) rules.tournament = game.getTournamentSettings().copy();
+		if (rules.seedCount == 0) rules.seedCount = game.getFinishGoal();
+		if (rules.finisherLimit == 0) rules.finisherLimit = game.getFinisherLimit();
+		if (rules.toJson().equals(RoomRuleSettings.capture(game).toJson())) return false;
 		rules.applyTo(game);
 		shareChat(roomName, "Host updated the room game rules");
 		return true;
@@ -344,7 +359,7 @@ public class ZsgRooms implements ModInitializer {
 	public static void changeRoomFilter(String roomName, String seedType) {
 		Room room = ACTIVE_ROOMS.get(roomName);
 		InGame game = ACTIVE_GAMES.get(roomName);
-		if (room == null || game == null) {
+        if (room == null || game == null || game.getIsInGame() || game.tournamentLocked()) {
 			return;
 		}
 		String seed = ZsgSeedBridge.pendingSeedForSpecification(seedType);
@@ -463,12 +478,17 @@ public class ZsgRooms implements ModInitializer {
 		resetSeedChangeRequests(room);
 	}
 
-	public static boolean launchRoomWithSeed(String roomName, String seed) {
+    public static boolean launchRoomWithSeed(String roomName, String seed) {
+        if (TournamentRaceClient.isLaunchPayload(seed)) return TournamentRaceClient.acceptLaunch(roomName, seed);
 		Room room = ACTIVE_ROOMS.get(roomName);
 		InGame game = ACTIVE_GAMES.get(roomName);
-		if (room == null || game == null || seed == null || seed.trim().isEmpty()) {
-			return false;
-		}
+        if (room == null || game == null || seed == null || seed.trim().isEmpty()) {
+            return false;
+        }
+
+        if (game.getTournament() != null && game.getSequence() != null) {
+            return TournamentRaceClient.launch(roomName, seed);
+        }
 
 		if (!ZsgSeedBridge.launchSeedWithAtum(seed)) {
 			shareChat(roomName, "Could not launch the synchronized seed");
@@ -495,14 +515,17 @@ public class ZsgRooms implements ModInitializer {
 		Room room = ACTIVE_ROOMS.get(roomName);
 		InGame game = ACTIVE_GAMES.get(roomName);
 		String name = cleanPlayerName(playerName);
-		if (room == null || game == null || !game.getIsInGame() || room.getPlayer(name) == null
-				|| seed == null || !seed.equals(game.getSeed())) {
+        if (room == null || game == null || !game.getIsInGame() || room.getPlayer(name) == null
+                || seed == null || !seed.equals(game.getSeed())
+                || game.getSequence() != null && !game.getSequence().active(name)) {
 			return false;
 		}
-		boolean added = game.markPlayerReady(name);
-		if (added) {
-			shareChat(roomName, name + " finished loading (" + game.getReadyPlayerCount()
-					+ "/" + room.getPlayerCount() + ")");
+        boolean added = game.markPlayerReady(name);
+        if (added) {
+            int total = game.getSequence() == null ? room.getPlayerCount()
+                    : (int) game.getSequence().standings().stream().filter(r -> !r.done()).count();
+            shareChat(roomName, name + " finished loading (" + game.getReadyPlayerCount()
+                    + "/" + total + ")");
 		}
 		return added;
 	}
@@ -510,7 +533,10 @@ public class ZsgRooms implements ModInitializer {
 	public static boolean areAllPlayersWorldReady(String roomName) {
 		Room room = ACTIVE_ROOMS.get(roomName);
 		InGame game = ACTIVE_GAMES.get(roomName);
-		return room != null && game != null && game.areAllPlayersReady(room.getPlayerNames());
+		if (room == null || game == null) return false;
+		List<String> players = room.getPlayerNames();
+		if (game.getSequence() != null) players.removeIf(name -> !game.getSequence().active(name));
+		return game.areAllPlayersReady(players);
 	}
 
 	public static boolean releaseSynchronizedStart(String roomName, String seed) {
@@ -557,9 +583,18 @@ public class ZsgRooms implements ModInitializer {
 		ACTIVE_ROOMS.put(snapshot.roomName, room);
 
 		InGame game = new InGame(snapshot.seed, snapshot.roomName, InGame.SeedType.FIXED, snapshot.inGame);
+		InGame previous = ACTIVE_GAMES.get(snapshot.roomName);
+		if (snapshot.sequence != null && previous != null && snapshot.raceId.equals(previous.getRaceId())) {
+			// Keep the loaded seed until the client schedules its own stage transition.
+			game.setSeed(previous.getSeed());
+		}
+        game.setSequence(snapshot.sequence);
+        game.setTournamentSettings(snapshot.tournamentSettings);
+        game.setTournament(snapshot.tournament);
 		game.restoreRaceId(snapshot.raceId);
 		game.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(snapshot.filter);
 		game.setFinishGoal(snapshot.finishGoal);
+		game.setFinisherLimit(snapshot.finisherLimit);
 		game.setCheatsAllowed(snapshot.cheatsAllowed);
 		game.setRngStandardized(snapshot.rngStandardized);
 		game.setReduceZeroCycleFlyAways(snapshot.reduceZeroCycleFlyAways);
@@ -567,6 +602,7 @@ public class ZsgRooms implements ModInitializer {
 		game.setMinimumBastionIron(snapshot.minimumBastionIron);
 		game.setRemoveBastionZombifiedPiglins(snapshot.removeBastionZombifiedPiglins);
 		game.setRemoveNaturalStriderJockeys(snapshot.removeNaturalStriderJockeys);
+		game.setPreventTempleHostileSpawns(snapshot.preventTempleHostileSpawns);
 		game.setSpawnNearFilterStructure(snapshot.spawnNearFilterStructure);
 		game.setMinimumNearbyAnimals(snapshot.minimumNearbyAnimals);
 		game.setNetherEntryWarmup(snapshot.netherEntryWarmup);
@@ -589,8 +625,16 @@ public class ZsgRooms implements ModInitializer {
 		if (player != null && player != room.host) {
 			room.removePlayer(player);
 			InGame game = ACTIVE_GAMES.get(roomName);
-			if (game != null) {
+            if (game != null) {
+                if (game.getTournament() != null) game.getTournament().withdraw(player.getName());
 				game.removeReadyPlayer(player.getName());
+				if (game.getSequence() != null) {
+					game.getSequence().withdraw(player.getName());
+					if (game.getSequence().complete()) {
+						game.getSequence().closeAtLimit(-1, 0, false);
+						game.setInGame(false);
+					}
+				}
 			}
 		}
 	}
@@ -779,6 +823,7 @@ public class ZsgRooms implements ModInitializer {
 		BastionIronGuarantee.configure(minimumBastionIron);
 		BastionZombifiedPiglinControl.configure(removeBastionZombifiedPiglins);
 		StriderJockeyControl.configure(removeNaturalStriderJockeys);
+		TempleSpawnControl.configure(server, game != null && game.preventsTempleHostileSpawns());
 		PauseWorldSaveControl.configure(disablePauseWorldSaves);
 		SeedDebugLog.info(
 				"[ZSG-Rooms/StriderJockeys] enabled={}",

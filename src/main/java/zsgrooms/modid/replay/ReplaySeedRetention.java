@@ -1,10 +1,11 @@
 package zsgrooms.modid.replay;
 
-/** A recording belongs to one actual world seed, independent of room/filter metadata. */
+/** Keep resets and assigned sequence stages together; apply retention to other seed changes. */
 final class ReplaySeedRetention {
     enum Action { CONTINUE, SAVE, DISCARD }
 
-    private final long seed;
+    private long seed;
+    private Long sequenceSeed;
     private boolean completed;
 
     ReplaySeedRetention(long seed) {
@@ -15,7 +16,14 @@ final class ReplaySeedRetention {
         completed = true;
     }
 
+    void expectSequenceSeed(Long nextSeed) { sequenceSeed = nextSeed; }
+
     Action onReplacement(long nextSeed, boolean keepSeedChanges) {
+        if (sequenceSeed != null && sequenceSeed == nextSeed) {
+            seed = nextSeed;
+            sequenceSeed = null;
+            return Action.CONTINUE;
+        }
         if (seed == nextSeed) return Action.CONTINUE;
         return completed || keepSeedChanges ? Action.SAVE : Action.DISCARD;
     }

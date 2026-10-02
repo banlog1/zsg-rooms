@@ -41,7 +41,20 @@ public abstract class GameMenuScreenMixin extends Screen {
         int gap = 4;
         int buttonWidth = (totalWidth - gap * 2) / 3;
 
-        if (ZsgInGameActions.isSoloRoom()) {
+        if (ZsgInGameActions.isSequenceRace()) {
+            this.addButton(new ButtonWidget(left, y, buttonWidth, 20, new LiteralText("Skip Seed"), button -> {
+                ZsgInGameActions.forfeit(this.client);
+            }));
+            this.addButton(new ButtonWidget(left + buttonWidth + gap, y, buttonWidth, 20, new LiteralText("Reset Run"), button -> {
+                ZsgInGameActions.resetCurrentRun(this.client);
+            }));
+            this.addButton(new ButtonWidget(left + (buttonWidth + gap) * 2, y, buttonWidth, 20, new LiteralText("Leave Race"), button -> {
+                this.client.openScreen(new net.minecraft.client.gui.screen.ConfirmScreen(confirmed -> {
+                    if (confirmed) ZsgInGameActions.returnToRoom(this.client);
+                    else this.client.openScreen(this);
+                }, new LiteralText("Leave this race?"), new LiteralText("Your result will be DNF. Other runners will continue.")));
+            }));
+        } else if (ZsgInGameActions.isSoloRoom()) {
             this.addButton(new ButtonWidget(left, y, buttonWidth, 20, new LiteralText("Room"), button -> {
                 ZsgInGameActions.returnToRoom(this.client);
             }));

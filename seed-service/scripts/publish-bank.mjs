@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { resolve, dirname, basename } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PROFILE, SCHEMA_VERSION, TYPES, validateRecord } from "../src/bank-format.js";
+import { structurePages } from "./structure-pages.mjs";
 
 // Only consolidated, committed bank snapshots belong here, never in-progress attempts.
 export async function publishBank(inputs, output, rowsPerPart = 25000) {
@@ -57,6 +58,13 @@ export async function publishBank(inputs, output, rowsPerPart = 25000) {
     const parts = [];
     const revision = manifest.revision;
     const slots = Object.fromEntries(TYPES.map(type => [type, 0]));
+    const byType = Object.fromEntries(TYPES.map(type => [type, records.filter(row => row.type === type)]));
+    const pages = structurePages({ byType });
+    for (const page of pages) {
+      const statement = `INSERT OR IGNORE INTO bank_structures(revision,type,page,entries) VALUES ('${revision}','${page.type}',${page.page},'${page.entries}');`;
+      sql.push(statement);
+      part.push(statement);
+    }
     for (let i = 0; i < records.length; i += 50) {
       const values = records.slice(i, i + 50).map(row =>
         `('${revision}','${row.type}',${slots[row.type]++},'${row.seed}','${row.family}')`);
@@ -81,7 +89,7 @@ export async function publishBank(inputs, output, rowsPerPart = 25000) {
     sql.push(...activation);
     await writeFile(resolve(staging, "activate.sql"), activation.join("\n") + "\n", { flag: "wx" });
     await writeFile(resolve(staging, "import-plan.json"), JSON.stringify({ revision, parts,
-      activation: "activate.sql", estimatedRowsWritten: records.length * 3 + 8 }, null, 2) + "\n", { flag: "wx" });
+      activation: "activate.sql", estimatedRowsWritten: records.length * 3 + pages.length * 2 + 8 }, null, 2) + "\n", { flag: "wx" });
     await writeFile(resolve(staging, "import.sql"), sql.join("\n") + "\n", { flag: "wx" });
     // Never overwrite a published revision, including one another publisher just created.
     await rename(staging, destination);

@@ -12,7 +12,7 @@ public abstract class RoomLoadingInputMixin {
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void zsgRooms$blockHiddenPreviewControls(int key, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
         if ((Object) this instanceof RoomLoadingArtwork.ScreenState
-                && ((RoomLoadingArtwork.ScreenState) (Object) this).zsgRooms$hasLoadingArtwork()) {
+                && ((RoomLoadingArtwork.ScreenState) (Object) this).zsgRooms$hasCustomLoadingScreen()) {
             cir.setReturnValue(true);
         }
     }

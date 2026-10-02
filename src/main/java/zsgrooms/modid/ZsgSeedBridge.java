@@ -318,7 +318,7 @@ public class ZsgSeedBridge {
         if (bank != null) {
             return SeedBankClient.request(bank).thenApply(seed -> {
                 lastSeedSource = "zsg-rooms-seed-bank";
-                return buildSeedForStructure(seed, bank.specification, 4);
+                return seed.roomSeed(bank);
             });
         }
         if (!isFsgFilterSeedType(seedType)) {
@@ -446,6 +446,10 @@ public class ZsgSeedBridge {
     }
 
     public static boolean launchSeedWithAtum(String seed) {
+        if (!zsgrooms.modid.seedbank.SeedStructureTarget.hasRequiredTarget(seed)) {
+            ZsgRooms.LOGGER.warn("Cannot launch bank seed without valid structure coordinates. Update the host and request a new seed.");
+            return false;
+        }
         String minecraftSeed = extractMinecraftSeed(seed);
         if (minecraftSeed.isEmpty()) {
             logToFile("Cannot launch Atum world: seed is empty");

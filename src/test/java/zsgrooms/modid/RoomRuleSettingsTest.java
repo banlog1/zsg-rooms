@@ -12,9 +12,26 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RoomRuleSettingsTest {
+    @Test void templeRuleIsOptionalForOldPayloadsButMustBeBooleanWhenPresent() {
+        JsonObject object = new JsonParser().parse(new RoomRuleSettings().toJson()).getAsJsonObject();
+        object.remove("preventTempleHostileSpawns");
+        assertFalse(RoomRuleSettings.fromJson(object.toString()).preventTempleHostileSpawns);
+        for (String value : new String[]{"null", "1", "\"true\"", "[]"}) {
+            object.add("preventTempleHostileSpawns", new JsonParser().parse(value));
+            assertNull(RoomRuleSettings.fromJson(object.toString()));
+        }
+        object.addProperty("preventTempleHostileSpawns", true);
+        assertTrue(RoomRuleSettings.fromJson(object.toString()).preventTempleHostileSpawns);
+        assertFalse(RoomSnapshot.fromJson("{\"roomName\":\"old\"}").preventTempleHostileSpawns);
+    }
+
     @Test void everyRuleRoundTripsIndependentlyThroughGameAndSnapshot() throws Exception {
         for (Field field : RoomRuleSettings.class.getFields()) {
+            if (field.getType() != boolean.class || field.getName().equals("resetTournament")) continue;
             RoomRuleSettings rules = new RoomRuleSettings();
+            rules.seedCount = 1;
+            rules.finisherLimit = 1;
+            rules.tournament = new TournamentSettings();
             field.setBoolean(rules, true);
             InGame game = new InGame("123|structure:rooms-temple-v5", "rules", InGame.SeedType.FIXED, false);
             RoomRuleSettings.fromJson(rules.toJson()).applyTo(game);
@@ -23,6 +40,39 @@ class RoomRuleSettingsTest {
             assertTrue(ZsgRooms.applyRoomSnapshot(RoomSnapshot.capture(room, game).toJson()));
             assertEquals(rules.toJson(), RoomRuleSettings.capture(ZsgRooms.getGame(room.roomName)).toJson());
         }
+    }
+
+    @Test void raceFormatDefaultsToOneAndRoundTripsSeparately() {
+        InGame game = new InGame("123", "format", InGame.SeedType.FIXED, false);
+        assertEquals(1, game.getFinishGoal());
+        assertEquals(1, game.getFinisherLimit());
+        RoomRuleSettings rules = RoomRuleSettings.capture(game);
+        rules.seedCount = 3;
+        rules.finisherLimit = 2;
+        RoomRuleSettings.fromJson(rules.toJson()).applyTo(game);
+        assertEquals(3, game.getFinishGoal());
+        assertEquals(2, game.getFinisherLimit());
+        new RoomRuleSettings().applyTo(game);
+        assertEquals(3, game.getFinishGoal());
+        assertEquals(2, game.getFinisherLimit());
+        Room room = new Room("format-" + UUID.randomUUID(), "123", new Player("Host", true, true), 4);
+        assertTrue(ZsgRooms.applyRoomSnapshot(RoomSnapshot.capture(room, game).toJson()));
+        assertEquals(2, ZsgRooms.getGame(room.roomName).getFinisherLimit());
+        assertEquals(1, RoomSnapshot.fromJson("{\"roomName\":\"old\"}").finisherLimit);
+    }
+
+    @Test void invalidRaceFormatCannotComeFromRulePackets() {
+        JsonObject object = new JsonParser().parse(new RoomRuleSettings().toJson()).getAsJsonObject();
+        for (String value : new String[]{"-1", "65", "1.5", "null", "true", "\"2\""}) {
+            object.add("finisherLimit", new JsonParser().parse(value));
+            assertNull(RoomRuleSettings.fromJson(object.toString()), value);
+        }
+        object.addProperty("finisherLimit", 2);
+        object.addProperty("seedCount", 21);
+        assertNull(RoomRuleSettings.fromJson(object.toString()));
+        object.remove("seedCount");
+        object.remove("finisherLimit");
+        assertNotNull(RoomRuleSettings.fromJson(object.toString()));
     }
 
     @Test void onlyLobbyHostCanApplyChangesAndOtherMatchStateIsUntouched() {

@@ -110,6 +110,11 @@ stored snapshot and then publishes a fresh one from local state.
 These sources resolve immediately on the host. They still follow the same
 snapshot, launch, local world creation, and synchronized-ready flow.
 
+While waiting for the initial start, a loaded client retries `world_ready` every
+two seconds until its readiness appears in the host snapshot or the race is
+released. This recovers notifications lost while the host relay connection was
+offline without sending periodic readiness messages after acknowledgement.
+
 ### Reset and new seed
 
 `Reset Run` launches the current exact seed only on the requesting client. A
@@ -130,6 +135,53 @@ before generation.
 ## Relay Connection Lifecycle
 
 ### Close-Finish Timing
+
+New relay and LAN races use `RaceSequence` and `RoomSequenceHost`, including
+length-one races. `complete_run` and `forfeit` carry versioned reports with
+race ID, zero-based stage, action (`finish`, `skip`, `dnf`), and cumulative
+elapsed nanoseconds as a decimal string. The host rejects stale/duplicate
+stages and decreasing times, applies 30-minute skip penalties, and publishes
+standings in the existing snapshot channel. The separate `finisherLimit`
+defaults to one and is capped to the starting roster. At the settled cutoff,
+unfinished runners are `stopped` (unplaced), distinct from `dnf`. Everyone
+finishing or withdrawing also ends the room race. In a one-seed, one-finisher
+race the final active runner can win by forfeit without a seed completion.
+Each client returns independently. New races require the sequence
+capability sent in the existing `profile` action. No new relay action is needed.
+
+The host prefetches the full ordered sequence before the first start. Public
+snapshots expose only the prefix already reached by at least one runner.
+Future seeds stay in host memory. Relay reconnects during the same process
+retain that state; process restart/host migration is not supported.
+
+`TournamentSettings` contains lobby configuration; `Tournament` holds the frozen
+roster, explicit byes, best-of wins, round scores and the active/last race IDs.
+`RoomSequenceHost` selects the current participants, settles race results and
+scores once per completed race. Brackets use a one-finisher ledger; points use
+the room's configured limit. A bracket withdrawal can award a forfeit win at
+any sequence length without inventing a completed seed.
+
+Tournament snapshots and rules travel through existing relay messages. Profiles
+advertise `tournament:1` in addition to `sequence:1`; hosts reject incompatible
+clients before starting a tournament. The `launch` value for tournaments is a
+JSON envelope containing the public assignment snapshot, so client loading
+does not depend on a separately delivered snapshot. `TournamentRaceClient`
+deduplicates launch IDs and loads only assigned runners. Waiting players are
+excluded from ready checks and progress actions. When the host is waiting,
+penalty-cutoff deadlines use a host monotonic clock beginning at start release.
+Reported runner durations still determine the actual standings.
+
+Host-only `rules` edits may explicitly reset the tournament between races;
+ordinary edits cannot clear results. Filter and rule changes are otherwise
+locked for the tournament. Disconnect/Leave Room withdraws the player from
+future rounds; returning to the lobby after a race does not.
+
+The arbiter below remains for legacy/non-sequence paths. Sequence cutoff logic
+uses a two-second collection window when an active final-stage runner has
+reached the End completion milestones. A penalized qualifying result cannot
+close a sequence until active runners can no longer beat it, based on the
+continuous host race duration with a two-second allowance. These deadlines are
+host-local and never serialized; final results use reported elapsed durations.
 
 `RaceFinishArbiter` implements the shared relay/direct-socket finish policy.
 `RoomFinishTiming` drives collection from the host client tick. Winner selection

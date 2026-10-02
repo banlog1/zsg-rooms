@@ -46,6 +46,7 @@ final class ViewerControls {
     private final ReplayAnalysis analysis = new ReplayAnalysis();
     private final FollowDetailOptions details = new FollowDetailOptions();
     private final DetailedFollowHud detailHud = new DetailedFollowHud();
+    private final QuickHeldItems quickHands = new QuickHeldItems();
     private final PlaybackMode playback;
     private final GuiCheckbox autoHide = new GuiCheckbox().setLabel("Auto-hide").setChecked(true);
     private final GuiCheckbox showChat = new GuiCheckbox().setLabel("Chat").setChecked(false);
@@ -206,6 +207,7 @@ final class ViewerControls {
             metadataApplied = true;
             ReplayViewer.raceContext(recordingIndex.recording);
         }
+        updateQuickHands();
         if (editing) return;
         int time = handler.getReplaySender().currentTimeStamp();
         int width = client.getWindow().getScaledWidth();
@@ -321,7 +323,26 @@ final class ViewerControls {
         if (statusVisible()) analysis.render(matrices, view);
     }
     void refreshTimestamp() { lastSecond = -1; }
-    void close() { IndicatorTooltips.beginFrame(false); playback.close(); analysis.clear(); milestoneIndex.close(); recordingIndex.close(); }
+    void close() { IndicatorTooltips.beginFrame(false); quickHands.clear(); playback.close(); analysis.clear(); milestoneIndex.close(); recordingIndex.close(); }
+
+    private void updateQuickHands() {
+        if (!handler.isQuickMode() || client.world == null || recordingIndex.hud == null) {
+            quickHands.clear();
+            return;
+        }
+        int time = handler.getReplaySender().currentTimeStamp();
+        RaceRecording recording = recordingIndex.recording;
+        RaceRecording.Interval interval = recording == null ? null : recording.intervalAt(time);
+        PlayerEntity target = FarFollowController.recordedPlayer(client);
+        PlayerHudTrack.Frame frame = target == null || interval == null || recording.loading.at(time) ? null
+                : recordingIndex.hud.at(time, interval.world, target.getEntityId(), interval.start);
+        quickHands.update(target, frame, time);
+    }
+
+    net.minecraft.item.ItemStack quickHeldItem(PlayerEntity player, net.minecraft.entity.EquipmentSlot slot) {
+        if (!handler.isQuickMode() || playback.busy() || client.world == null || player.world != client.world) return null;
+        return quickHands.get(player, slot, handler.getReplaySender().currentTimeStamp());
+    }
 
     private boolean statusVisible() {
         return !editing && !client.options.hudHidden && client.world != null

@@ -71,6 +71,10 @@ public enum RoomRulePreset {
         return this.removeNaturalStriderJockeys;
     }
 
+    public boolean preventsTempleHostileSpawns() {
+        return this == STANDARD_ZSG_ROOMS || this == STANDARD_ZSG_VANILLA_BARTERS;
+    }
+
     public boolean spawnsNearFilterStructure() {
         return this.spawnNearFilterStructure;
     }
@@ -110,7 +114,8 @@ public enum RoomRulePreset {
                     && rules.minimumNearbyAnimals == preset.guaranteesNearbyAnimals()
                     && rules.netherEntryWarmup == preset.warmsNetherEntry()
                     && rules.reduceZeroCycleFlyAways == preset.reducesZeroCycleFlyAways()
-                    && rules.sharedNetherEntry == preset.sharesNetherEntry()) return preset;
+                    && rules.sharedNetherEntry == preset.sharesNetherEntry()
+                    && rules.preventTempleHostileSpawns == preset.preventsTempleHostileSpawns()) return preset;
         }
         return CUSTOM;
     }

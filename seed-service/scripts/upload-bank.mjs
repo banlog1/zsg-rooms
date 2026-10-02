@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { PROFILE, TYPES } from "../src/bank-format.js";
 import { readPublication } from "./bank-publication.mjs";
+import { syncStructurePages } from "./structure-pages.mjs";
 
 const exec = promisify(execFile);
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -64,6 +65,12 @@ export async function uploadBank(publication, execute, { writeBudget, maxNewSeed
   const claimed = await query(`SELECT plan FROM bank_upload_state WHERE revision='${revision}'`);
   if (claimed[0]?.plan !== manifest.revision) throw new Error("Another uploader registered a different plan.");
   const guard = `EXISTS (SELECT 1 FROM bank_upload_state WHERE revision='${revision}' AND plan='${manifest.revision}')`;
+  await syncStructurePages(publication, async sql => {
+    const result = await execute(sql);
+    writes += result.rowsWritten;
+    reads += result.rowsRead;
+    return result;
+  }, { writeBudget: writeBudget - writes, guard });
   const publishCount = async type => {
     if (!counts[type]) return;
     await query(`INSERT INTO bank_types(revision,type,count) SELECT '${revision}','${type}',${counts[type]} WHERE ${guard}
@@ -102,7 +109,7 @@ export function wranglerExecutor(config, run = exec) {
     try {
       const { stdout } = await run(process.execPath, [resolve(root, "relay/node_modules/wrangler/bin/wrangler.js"),
         "d1", "execute", "BANK", "--remote", "--config", config, "--command", sql, "--json"], {
-        cwd: root, windowsHide: true, timeout: 60000, maxBuffer: 4 * 1024 * 1024,
+        cwd: root, windowsHide: true, timeout: 60000, maxBuffer: 16 * 1024 * 1024,
         env: { ...process.env, WRANGLER_SEND_METRICS: "false", WRANGLER_LOG: "log",
           WRANGLER_WRITE_LOGS: "false", WRANGLER_LOG_SANITIZE: "true" }
       });

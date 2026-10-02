@@ -23,7 +23,8 @@ public class RoomGameRulesScreen extends Screen {
     private static final int PRESET_ARROW_WIDTH = 24;
     private static final int PRESET_LABEL_WIDTH = 280;
     private static final int RACE_RULE_COUNT = 6;
-    private static final int WORLD_RULE_COUNT = 6;
+    private static final int WORLD_RULE_COUNT = 7;
+    private static final int STACKED_MIN_HEIGHT = 410;
 
     private final Screen parent;
     private final BooleanSupplier editable;
@@ -50,6 +51,7 @@ public class RoomGameRulesScreen extends Screen {
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
     private boolean removeNaturalStriderJockeys;
+    private boolean preventTempleHostileSpawns;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
@@ -61,11 +63,11 @@ public class RoomGameRulesScreen extends Screen {
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
             boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
-            RoomRulePreset preset) {
+            boolean preventTempleHostileSpawns, RoomRulePreset preset) {
         this(parent, allowCheats, rngStandardization, boostedBarters, minimumBastionIron,
                 removeBastionZombifiedPiglins, removeNaturalStriderJockeys, spawnNearFilterStructure,
                 minimumNearbyAnimals, netherEntryWarmup, disablePauseWorldSaves, reduceZeroCycleFlyAways,
-                sharedNetherEntry, preset, () -> true,
+                sharedNetherEntry, preventTempleHostileSpawns, preset, () -> true,
                 (rules, selected) -> parent.setGameRules(
                         rules.allowCheats,
                         rules.rngStandardization,
@@ -78,7 +80,7 @@ public class RoomGameRulesScreen extends Screen {
                         rules.netherEntryWarmup,
                         rules.disablePauseWorldSaves,
                         rules.reduceZeroCycleFlyAways,
-                        rules.sharedNetherEntry, selected));
+                        rules.sharedNetherEntry, rules.preventTempleHostileSpawns, selected));
     }
 
     private RoomGameRulesScreen(Screen parent, boolean allowCheats, boolean rngStandardization,
@@ -86,7 +88,7 @@ public class RoomGameRulesScreen extends Screen {
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
             boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
-            RoomRulePreset preset,
+            boolean preventTempleHostileSpawns, RoomRulePreset preset,
             BooleanSupplier editable, BiConsumer<RoomRuleSettings, RoomRulePreset> save) {
         super(new LiteralText("Room Game Rules"));
         this.editable = editable;
@@ -99,6 +101,7 @@ public class RoomGameRulesScreen extends Screen {
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
         this.removeNaturalStriderJockeys = removeNaturalStriderJockeys;
+        this.preventTempleHostileSpawns = preventTempleHostileSpawns;
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
@@ -121,8 +124,8 @@ public class RoomGameRulesScreen extends Screen {
                 rules.netherEntryWarmup,
                 rules.disablePauseWorldSaves,
                 rules.reduceZeroCycleFlyAways,
-                rules.sharedNetherEntry, RoomRulePreset.matching(rules),
-                () -> RoomRuleSettings.canEdit(ZsgRooms.getRoom(roomName), ZsgRooms.getGame(roomName),
+                rules.sharedNetherEntry, rules.preventTempleHostileSpawns, RoomRulePreset.matching(rules),
+                () -> !ZsgRooms.getGame(roomName).tournamentLocked() && RoomRuleSettings.canEdit(ZsgRooms.getRoom(roomName), ZsgRooms.getGame(roomName),
                         ZsgRoomsClient.localPlayerName(net.minecraft.client.MinecraftClient.getInstance())),
                 (updated, preset) -> ZsgRoomsClient.sendRoomAction("rules", roomName, updated.toJson()));
         screen.roomName = roomName;
@@ -137,6 +140,7 @@ public class RoomGameRulesScreen extends Screen {
         rules.minimumBastionIron = this.minimumBastionIron;
         rules.removeBastionZombifiedPiglins = this.removeBastionZombifiedPiglins;
         rules.removeNaturalStriderJockeys = this.removeNaturalStriderJockeys;
+        rules.preventTempleHostileSpawns = this.preventTempleHostileSpawns;
         rules.spawnNearFilterStructure = this.spawnNearFilterStructure;
         rules.minimumNearbyAnimals = this.minimumNearbyAnimals;
         rules.netherEntryWarmup = this.netherEntryWarmup;
@@ -159,6 +163,7 @@ public class RoomGameRulesScreen extends Screen {
             this.minimumBastionIron = rules.minimumBastionIron;
             this.removeBastionZombifiedPiglins = rules.removeBastionZombifiedPiglins;
             this.removeNaturalStriderJockeys = rules.removeNaturalStriderJockeys;
+            this.preventTempleHostileSpawns = rules.preventTempleHostileSpawns;
             this.spawnNearFilterStructure = rules.spawnNearFilterStructure;
             this.minimumNearbyAnimals = rules.minimumNearbyAnimals;
             this.netherEntryWarmup = rules.netherEntryWarmup;
@@ -222,7 +227,7 @@ public class RoomGameRulesScreen extends Screen {
         this.addButton(this.presetHelpButton);
 
         this.twoColumnLayout = useTwoColumns(panelWidth(), this.height);
-        this.tabbedGroups = !this.twoColumnLayout && this.height < 370;
+        this.tabbedGroups = !this.twoColumnLayout && this.height < STACKED_MIN_HEIGHT;
         int groupTop = presetY + buttonHeight + (isCompact() ? 5 : 10);
         this.firstGroupHeaderY = groupTop;
         this.firstGroupX = contentX;
@@ -387,6 +392,16 @@ public class RoomGameRulesScreen extends Screen {
                 () -> this.sharedNetherEntry,
                 () -> this.sharedNetherEntry = !this.sharedNetherEntry,
                 false);
+        addRuleRow(
+                "No Temple Hostile Spawns",
+                "Prevents natural hostile-mob spawns inside every desert temple and its underground "
+                        + "treasure chamber, on any seed type. Outside spawns, passive mobs, spawners and "
+                        + "summoned mobs are unchanged. Existing mobs are not removed and can still walk in. "
+                        + "Applies to every runner; independent of RNG standardization.",
+                x, y + rowGap * 6, width, height,
+                () -> this.preventTempleHostileSpawns,
+                () -> this.preventTempleHostileSpawns = !this.preventTempleHostileSpawns,
+                false);
     }
 
     private void addRuleRow(
@@ -542,6 +557,7 @@ public class RoomGameRulesScreen extends Screen {
         this.minimumBastionIron = this.preset.guaranteesBastionIron();
         this.removeBastionZombifiedPiglins = this.preset.removesBastionZombifiedPiglins();
         this.removeNaturalStriderJockeys = this.preset.removesNaturalStriderJockeys();
+        this.preventTempleHostileSpawns = this.preset.preventsTempleHostileSpawns();
         this.spawnNearFilterStructure = this.preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = this.preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = this.preset.warmsNetherEntry();
@@ -592,7 +608,7 @@ public class RoomGameRulesScreen extends Screen {
     }
 
     private int panelHeight() {
-        return Math.min(useTwoColumns(panelWidth(), this.height) || this.height < 370 ? 300 : 390, this.height - 12);
+        return Math.min(useTwoColumns(panelWidth(), this.height) || this.height < STACKED_MIN_HEIGHT ? 300 : 420, this.height - 12);
     }
 
     private int panelY() {
@@ -609,7 +625,7 @@ public class RoomGameRulesScreen extends Screen {
 
     private int twoColumnRowGap(int rowTop, int buttonHeight) {
         int available = actionY() - rowTop - buttonHeight - 5;
-        return Math.max(buttonHeight + 1, Math.min(28, available / (RACE_RULE_COUNT - 1)));
+        return Math.max(buttonHeight + 1, Math.min(28, available / (Math.max(RACE_RULE_COUNT, WORLD_RULE_COUNT) - 1)));
     }
 
     private int singleColumnRowGap(int rowTop, int buttonHeight) {

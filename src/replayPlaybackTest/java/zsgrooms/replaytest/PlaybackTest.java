@@ -35,6 +35,14 @@ public final class PlaybackTest implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (Boolean.getBoolean("zsgrooms.viewerSeekProfile")) {
+            new ViewerSeekProfile().start();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.viewerProfile")) {
+            new ViewerProfile().start();
+            return;
+        }
         ClientTickEvents.END_CLIENT_TICK.register(client -> { if (viewer == null) tick(client); });
         // ReplayMod can stop client ticks while paused or seeking; the driver must still progress.
         new EventRegistrations().on(PreRenderCallback.EVENT, () -> {

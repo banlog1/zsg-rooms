@@ -25,6 +25,7 @@ public class RoomLobbyScreen extends Screen {
     private TextFieldWidget chatField;
     private ButtonWidget optionsButton;
     private ButtonWidget startButton;
+    private ButtonWidget standingsButton;
     private ButtonWidget copyCodeButton;
     private ButtonWidget codeVisibilityButton;
     private boolean roomCodeVisible;
@@ -77,14 +78,14 @@ public class RoomLobbyScreen extends Screen {
             this.optionsButton = addLobbyButton(8 + (buttonWidth + gap), buttonY, buttonWidth, "Options", "options");
             addLobbyButton(8 + (buttonWidth + gap) * 2, buttonY, buttonWidth, "Rules", "rules");
             this.startButton = addLobbyButton(8 + (buttonWidth + gap) * 3, buttonY, buttonWidth, "Start", "start");
-            addLobbyButton(8 + (buttonWidth + gap) * 4, buttonY, buttonWidth, "Share", "share");
+            this.standingsButton = addLobbyButton(8 + (buttonWidth + gap) * 4, buttonY, buttonWidth, "Share", "share");
         } else {
             int bottomY = footerTop + 16;
             addLobbyButton(16, bottomY, 96, "Leave Room", "leave");
             this.optionsButton = addLobbyButton(this.width - 440, bottomY, 100, "Options", "options");
             addLobbyButton(this.width - 332, bottomY, 100, "Game Rules", "rules");
             this.startButton = addLobbyButton(this.width - 224, bottomY, 100, "Start Race", "start");
-            addLobbyButton(this.width - 116, bottomY, 100, "Share Seed", "share");
+            this.standingsButton = addLobbyButton(this.width - 116, bottomY, 100, "Share Seed", "share");
         }
         updateHostControls();
         Room room = ZsgRooms.getRoom(this.roomName);
@@ -256,7 +257,7 @@ public class RoomLobbyScreen extends Screen {
             int textX = avatarX + avatarSize + 8;
             boolean canMute = !localName.equals(name);
             if (compact) {
-                String label = name + (i == 0 ? " - Host" : " - Ready");
+                String label = name + " - " + runnerStatus(name, i == 0);
                 int reservedWidth = canMute ? 58 : 8;
                 this.textRenderer.drawWithShadow(matrices,
                         trimToWidth(label, rowWidth - (textX - rowX) - reservedWidth), textX, y + 6, nameColor);
@@ -264,7 +265,7 @@ public class RoomLobbyScreen extends Screen {
                 int reservedWidth = canMute ? 62 : 8;
                 this.textRenderer.drawWithShadow(matrices,
                         trimToWidth(name, rowWidth - (textX - rowX) - reservedWidth), textX, y + 5, nameColor);
-                this.textRenderer.drawWithShadow(matrices, i == 0 ? "Host - Ready" : "Runner - Ready", textX, y + 19, 0xB8B8B8);
+                this.textRenderer.drawWithShadow(matrices, trimToWidth(runnerStatus(name, i == 0), rowWidth - (textX - rowX) - reservedWidth), textX, y + 19, 0xB8B8B8);
             }
         }
 
@@ -274,6 +275,18 @@ public class RoomLobbyScreen extends Screen {
             String more = "+" + (names.size() - visibleCount) + " more players";
             this.textRenderer.drawWithShadow(matrices, more, this.width - this.textRenderer.getWidth(more) - 12, maxY - 10, 0xAAAAAA);
         }
+    }
+
+    private String runnerStatus(String name, boolean host) {
+        zsgrooms.modid.InGame game = ZsgRooms.getGame(roomName);
+        zsgrooms.modid.RaceSequence race = game == null ? null : game.getSequence();
+        zsgrooms.modid.RaceSequence.Runner runner = race == null ? null : race.runner(name);
+        if (runner == null) return game != null && game.getTournament() != null ? "Waiting - Tournament" : host ? "Host - Ready" : "Ready";
+        if (runner.wonByForfeit) return "#1 - Win by forfeit";
+        if (runner.stopped) return "Unplaced - Race ended";
+        if (runner.dnf) return "DNF";
+        if (runner.finished) return "#" + race.place(name) + (race.complete() ? " " : "* ") + zsgrooms.modid.RaceSequence.time(runner.adjustedNanos());
+        return "Seed " + (runner.stage + 1) + "/" + race.goal;
     }
 
     private void drawRoomDetails(MatrixStack matrices, String seed, int y) {
@@ -305,7 +318,10 @@ public class RoomLobbyScreen extends Screen {
         int chatTop = top + 1;
         int chatBottom = chatBottom();
         fill(matrices, 0, chatTop, this.width, footerTop(), 0x88000000);
-        drawCenteredString(matrices, this.textRenderer, "Waiting for host to start...", this.width / 2, chatTop + 7, 0xFFFFFF);
+        zsgrooms.modid.InGame game = ZsgRooms.getGame(this.roomName);
+        String raceStatus = game != null && game.getTournament() != null ? game.getTournament().status()
+                : game != null && game.getIsInGame() ? "Race in progress" : "Waiting for host to start...";
+        drawCenteredString(matrices, this.textRenderer, trimToWidth(raceStatus, width - 20), this.width / 2, chatTop + 7, 0xFFFFFF);
 
         int chatX = 14;
         int chatPanelTop = chatTop + 25;
@@ -439,7 +455,11 @@ public class RoomLobbyScreen extends Screen {
             } else if ("start".equals(action)) {
                 ZsgRoomsClient.sendRoomAction("start", this.roomName, "");
             } else if ("share".equals(action)) {
-                ZsgRoomsClient.sendRoomAction("share_seed", this.roomName, "");
+                zsgrooms.modid.InGame game = ZsgRooms.getGame(this.roomName);
+                if (game != null && game.getTournament() != null) this.client.openScreen(new TournamentStandingsScreen(this, this.roomName, null));
+                else if (game != null && game.getTournamentSettings().enabled) this.client.openScreen(new TournamentScreen(this, this.roomName));
+                else if (game != null && game.getSequence() != null) this.client.openScreen(new RaceStandingsScreen(this, this.roomName));
+                else ZsgRoomsClient.sendRoomAction("share_seed", this.roomName, "");
             }
         });
         this.addButton(widget);
@@ -450,12 +470,18 @@ public class RoomLobbyScreen extends Screen {
         Room room = ZsgRooms.getRoom(this.roomName);
         String localName = ZsgRoomsClient.localPlayerName(this.client);
         boolean isHost = room != null && room.host != null && localName.equals(room.host.getName());
+        zsgrooms.modid.InGame game = ZsgRooms.getGame(this.roomName);
+        boolean racing = game != null && game.getIsInGame();
         if (this.optionsButton != null) {
-            this.optionsButton.active = isHost;
+            this.optionsButton.active = isHost && !racing;
         }
         if (this.startButton != null) {
-            this.startButton.active = isHost;
+            this.startButton.active = isHost && !racing && (game == null || game.getTournament() == null || !game.getTournament().complete);
+            this.startButton.setMessage(new LiteralText(game != null && game.getTournament() != null ? "Next" : isCompact() ? "Start" : "Start Race"));
         }
+        if (this.standingsButton != null) this.standingsButton.setMessage(new LiteralText(
+                game != null && game.getTournamentSettings().enabled ? isCompact() ? "Event" : "Tournament"
+                : game != null && game.getSequence() != null ? "Standings" : isCompact() ? "Share" : "Share Seed"));
     }
 
     private boolean isCompact() {

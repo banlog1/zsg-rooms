@@ -48,6 +48,8 @@ public class SynchronizedStartScreen extends Screen {
         Room room = ZsgRooms.getRoom(this.roomName);
         InGame game = ZsgRooms.getGame(this.roomName);
         int total = room == null ? 1 : Math.max(1, room.getPlayerCount());
+        if (game != null && game.getSequence() != null)
+            total = Math.max(1, (int) game.getSequence().standings().stream().filter(r -> !r.done()).count());
         int ready = game == null ? 1 : Math.min(total, game.getReadyPlayerCount());
         return ready + " / " + total + " ready";
     }

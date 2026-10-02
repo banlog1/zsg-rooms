@@ -11,6 +11,9 @@ import net.minecraft.util.Formatting;
 import net.minecraft.world.World;
 import zsgrooms.modid.Room;
 import zsgrooms.modid.InGame;
+import zsgrooms.modid.RaceSequence;
+import zsgrooms.modid.RaceSequenceClient;
+import zsgrooms.modid.EndExitTimeCapture;
 import zsgrooms.modid.BastionIronGuarantee;
 import zsgrooms.modid.ZsgRooms;
 import zsgrooms.modid.ZsgRoomsClient;
@@ -21,7 +24,7 @@ public class ZsgInGameActions {
     private static final String EXIT_PORTAL_RESULT = "Beat the seed";
     private static final String EXIT_PORTAL_TIME_PREFIX = EXIT_PORTAL_RESULT + " in ";
     private static final String EXIT_PORTAL_TIME_SUFFIX = " IGT";
-    private static int returnTicks = -1;
+    private static final RaceReturnTimer RETURN_TIMER = new RaceReturnTimer();
     private static String pendingWinner;
     private static String pendingReason;
     private ZsgInGameActions() {
@@ -51,7 +54,7 @@ public class ZsgInGameActions {
     public static void resetCurrentRun(MinecraftClient client) {
         String roomName = ZsgRooms.getActiveRoomName();
         InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
-        if (client == null || game == null || !game.getIsInGame()) {
+        if (client == null || !RaceSequenceClient.canPlay(game)) {
             return;
         }
 
@@ -71,11 +74,51 @@ public class ZsgInGameActions {
 
     public static void forfeit(MinecraftClient client) {
         String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        if (game != null && game.getSequence() != null) {
+            if (!RaceSequenceClient.canPlay(game) || !game.isSynchronizedStartReleased()) return;
+            long elapsed = EndExitTimeCapture.elapsed(game.getRaceId());
+            if (elapsed < 0) return;
+            if (game.getFinishGoal() > 1) {
+                client.openScreen(new net.minecraft.client.gui.screen.ConfirmScreen(confirmed -> {
+                    client.openScreen(null);
+                    if (confirmed) RaceSequenceClient.report(game, "skip", EndExitTimeCapture.elapsed(game.getRaceId()));
+                }, new LiteralText("Skip this seed?"), new LiteralText("Penalty: +30:00 to your total race time.")));
+            } else {
+                client.openScreen(null);
+                RaceSequenceClient.report(game, "dnf", elapsed);
+            }
+            return;
+        }
         if (roomName != null) {
             ZsgRoomsClient.sendRoomAction("forfeit", roomName, "");
         } else {
             showMatchResult(client, ZsgRooms.forfeitActiveRoom(localPlayerName(client)), "Forfeit");
         }
+    }
+
+    public static void showSequenceResult(MinecraftClient client, RaceSequence race, RaceSequence.Runner runner) {
+        clearMatchResult();
+        RETURN_TIMER.bind(ZsgRooms.getActiveRoomName(), race.raceId);
+        ReplayPrototype.matchEnded();
+        ReplayPrototype.stopRecording();
+        String title = runner.wonByForfeit ? "Victory!" : runner.stopped ? "Race Over" : runner.dnf ? "DNF" : "Finished!";
+        if (race.complete() && race.finisherLimit == 1 && runner.finished && race.place(runner.name) == 1) {
+            title = race.standings().stream().filter(r -> r.placed() && race.place(r.name) == 1).count() > 1 ? "Draw!" : "Victory!";
+        }
+        String subtitle = runner.wonByForfeit ? "Last remaining runner" : runner.stopped ? "Finisher limit reached"
+                : runner.dnf ? "Race withdrawn" : RaceSequence.time(runner.adjustedNanos())
+                + (race.complete() ? " - Place " : " - Provisional place ") + race.place(runner.name);
+        client.inGameHud.setTitles(null, null, 5, 80, 15);
+        client.inGameHud.setTitles(new LiteralText(title).formatted(Formatting.GOLD), null, -1, -1, -1);
+        client.inGameHud.setTitles(null, new LiteralText(subtitle), -1, -1, -1);
+        RETURN_TIMER.start();
+    }
+
+    public static boolean isSequenceRace() {
+        Room room = ZsgRooms.getActiveRoom();
+        InGame game = room == null ? null : ZsgRooms.getGame(room.roomName);
+        return game != null && game.getSequence() != null && game.getFinishGoal() > 1;
     }
 
     public static void showMatchResult(MinecraftClient client, String winner, String reason) {
@@ -84,6 +127,10 @@ public class ZsgInGameActions {
         }
 
         String result = reason == null || reason.trim().isEmpty() ? "Match finished" : reason.trim();
+        clearMatchResult();
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        RETURN_TIMER.bind(roomName, game == null ? null : game.getRaceId());
         ReplayPrototype.matchEnded();
         if ((localPlayerName(client).equals(winner) && isExitPortalResult(result)
                 || zsgrooms.modid.net.RaceFinishArbiter.DRAW_REASON.equals(result)
@@ -172,6 +219,13 @@ public class ZsgInGameActions {
     }
 
     public static void tick(MinecraftClient client) {
+        String roomName = ZsgRooms.getActiveRoomName();
+        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
+        String raceId = game == null ? null : game.getRaceId();
+        if (!RETURN_TIMER.retain(roomName, raceId)) {
+            clearMatchResult();
+            return;
+        }
         if (pendingWinner != null && isReadyForOverworldResult(client)) {
             String winner = pendingWinner;
             String reason = pendingReason;
@@ -179,14 +233,15 @@ public class ZsgInGameActions {
             pendingReason = null;
             displayMatchResult(client, winner, reason);
         }
-        if (returnTicks < 0) {
-            return;
-        }
-        returnTicks--;
-        if (returnTicks == 0) {
-            returnTicks = -1;
+        if (RETURN_TIMER.tick(roomName, raceId)) {
             returnToRoom(client);
         }
+    }
+
+    public static void clearMatchResult() {
+        RETURN_TIMER.clear();
+        pendingWinner = null;
+        pendingReason = null;
     }
 
     private static void displayMatchResult(MinecraftClient client, String winner, String result) {
@@ -205,7 +260,7 @@ public class ZsgInGameActions {
         client.inGameHud.setTitles(titleText, null, -1, -1, -1);
         client.inGameHud.setTitles(null, subtitleText, -1, -1, -1);
         client.inGameHud.setOverlayMessage(winnerText, false);
-        returnTicks = 90;
+        RETURN_TIMER.start();
     }
 
     private static boolean isReadyForOverworldResult(MinecraftClient client) {
@@ -218,9 +273,14 @@ public class ZsgInGameActions {
     }
 
     public static void returnToRoom(MinecraftClient client) {
+        clearMatchResult();
         String roomName = ZsgRooms.getActiveRoomName();
         if (client == null || roomName == null) {
             return;
+        }
+        InGame game = ZsgRooms.getGame(roomName);
+        if (game != null && game.getSequence() != null && game.getSequence().active(localPlayerName(client))) {
+            RaceSequenceClient.report(game, "dnf", EndExitTimeCapture.elapsed(game.getRaceId()));
         }
         ReplayPrototype.returnedToRoom();
         if (client.world != null) {

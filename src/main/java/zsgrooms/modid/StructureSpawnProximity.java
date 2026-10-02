@@ -18,6 +18,7 @@ import net.minecraft.world.gen.chunk.ChunkGenerator;
 import net.minecraft.world.gen.chunk.StructureConfig;
 import net.minecraft.world.gen.feature.StructureFeature;
 import zsgrooms.modid.seedbank.SeedBankProfile;
+import zsgrooms.modid.seedbank.SeedStructureTarget;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -50,6 +51,7 @@ public final class StructureSpawnProximity {
     private static volatile boolean preparedSpawn;
     private static String filterId = "";
     private static volatile String pendingLaunchSeed;
+    private static String launchSpecification;
 
     private StructureSpawnProximity() {
     }
@@ -62,9 +64,11 @@ public final class StructureSpawnProximity {
     static String consumeLaunchFilter(long worldSeed, String fallback) {
         String seed = pendingLaunchSeed;
         pendingLaunchSeed = null;
+        launchSpecification = null;
         if (seed != null) {
             try {
                 if (Long.parseLong(ZsgSeedBridge.extractMinecraftSeed(seed)) == worldSeed) {
+                    launchSpecification = seed;
                     return ZsgSeedBridge.resolveStructure(seed);
                 }
             } catch (NumberFormatException ignored) {
@@ -94,9 +98,15 @@ public final class StructureSpawnProximity {
         }
 
         BlockPos originalSpawn = world.getSpawnPos();
-        SpawnCacheKey cacheKey = new SpawnCacheKey(world.getSeed(), filterId);
+        BlockPos bankTarget = SeedStructureTarget.parse(launchSpecification, world.getSeed(), filterId);
+        boolean bankFilter = SeedBankProfile.find(filterId) != null;
+        if (bankFilter && bankTarget == null) {
+            ZsgRooms.LOGGER.warn("Missing or mismatched {} structure coordinates; keeping original spawn", filterId);
+            return;
+        }
+        SpawnCacheKey cacheKey = new SpawnCacheKey(world.getSeed(), filterId + ":" + bankTarget);
         BlockPos cachedSpawn = SPAWN_CACHE.get(cacheKey);
-        if (enabled && cachedSpawn != null && !minimumNearbyAnimalsEnabled && !preparePools) {
+        if (!bankFilter && enabled && cachedSpawn != null && !minimumNearbyAnimalsEnabled && !preparePools) {
             BlockPos refreshedSpawn = world.getTopPosition(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES,
                     new BlockPos(cachedSpawn.getX(), 0, cachedSpawn.getZ()));
             if (isSafeSpawn(world, refreshedSpawn)) {
@@ -111,7 +121,8 @@ public final class StructureSpawnProximity {
         long locateStarted = System.nanoTime();
         LocatedTarget located;
         try {
-            located = locateTarget(world, structure, originalSpawn, filterId);
+            located = bankFilter ? verifyBankTarget(world, structure, bankTarget)
+                    : locateTarget(world, structure, originalSpawn, filterId);
         } catch (RuntimeException exception) {
             ZsgRooms.LOGGER.warn("Could not locate the {} spawn structure: {}", filterId, exception.getMessage());
             return;
@@ -182,6 +193,19 @@ public final class StructureSpawnProximity {
                     world.locateStructure(structure, origin, SEARCH_RADIUS_CHUNKS, false), 0, false);
         }
         return locateGeneratedRuinedPortal(world, origin, requiresSeedbankLoot(selectedFilter));
+    }
+
+    private static LocatedTarget verifyBankTarget(ServerWorld world, StructureFeature<?> structure, BlockPos target) {
+        ChunkPos pos = new ChunkPos(target);
+        Chunk chunk = world.getChunk(pos.x, pos.z, ChunkStatus.STRUCTURE_STARTS);
+        StructureStart<?> start = world.getStructureAccessor().getStructureStart(
+                ChunkSectionPos.from(pos, 0), structure, chunk);
+        if (start == null || !start.hasChildren()) {
+            ZsgRooms.LOGGER.warn("Expected {} structure missing at {}; keeping original spawn", filterId, target);
+            return null;
+        }
+        SeedDebugLog.info("Using bank {} structure at {} (no locate search)", filterId, target);
+        return new LocatedTarget(target, 0, false);
     }
 
     static boolean requiresSeedbankLoot(String selectedFilter) {

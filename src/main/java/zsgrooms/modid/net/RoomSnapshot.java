@@ -19,10 +19,14 @@ public class RoomSnapshot {
     public String roomName = "";
     public String seed = "";
     public String raceId = "";
+    public zsgrooms.modid.RaceSequence sequence;
+    public zsgrooms.modid.TournamentSettings tournamentSettings = new zsgrooms.modid.TournamentSettings();
+    public zsgrooms.modid.Tournament tournament;
     public String hostName = "";
     public String filter = "room";
     public int maxPlayers = 8;
     public int finishGoal = 1;
+    public int finisherLimit = 1;
     public boolean inGame;
     public boolean cheatsAllowed;
     public boolean rngStandardized;
@@ -31,6 +35,7 @@ public class RoomSnapshot {
     public boolean minimumBastionIron;
     public boolean removeBastionZombifiedPiglins;
     public boolean removeNaturalStriderJockeys;
+    public boolean preventTempleHostileSpawns;
     public boolean spawnNearFilterStructure;
     public boolean minimumNearbyAnimals;
     public boolean netherEntryWarmup;
@@ -60,8 +65,12 @@ public class RoomSnapshot {
         }
         if (game != null) {
             snapshot.raceId = game.getRaceId();
+            snapshot.tournamentSettings = game.getTournamentSettings().copy();
+            snapshot.tournament = game.getTournament();
+            snapshot.sequence = game.getSequence() == null ? null : game.getSequence().publicCopy();
             snapshot.filter = ZsgSeedBridge.normalizeSeedType(game.targetStructure);
             snapshot.finishGoal = game.getFinishGoal();
+            snapshot.finisherLimit = game.getFinisherLimit();
             snapshot.inGame = game.getIsInGame();
             snapshot.cheatsAllowed = game.areCheatsAllowed();
             snapshot.rngStandardized = game.isRngStandardized();
@@ -70,6 +79,7 @@ public class RoomSnapshot {
             snapshot.minimumBastionIron = game.hasMinimumBastionIron();
             snapshot.removeBastionZombifiedPiglins = game.removesBastionZombifiedPiglins();
             snapshot.removeNaturalStriderJockeys = game.removesNaturalStriderJockeys();
+            snapshot.preventTempleHostileSpawns = game.preventsTempleHostileSpawns();
             snapshot.spawnNearFilterStructure = game.spawnsNearFilterStructure();
             snapshot.minimumNearbyAnimals = game.hasMinimumNearbyAnimals();
             snapshot.netherEntryWarmup = game.hasNetherEntryWarmup();
@@ -96,6 +106,9 @@ public class RoomSnapshot {
             if (snapshot.players == null) {
                 snapshot.players = new ArrayList<PlayerState>();
             }
+            if (snapshot.sequence != null && !snapshot.sequence.valid(snapshot.raceId)) return null;
+            if (snapshot.tournamentSettings == null || !snapshot.tournamentSettings.valid()
+                    || snapshot.tournament != null && !snapshot.tournament.valid()) return null;
             if (snapshot.messages == null) {
                 snapshot.messages = new ArrayList<String>();
             }
@@ -120,6 +133,9 @@ public class RoomSnapshot {
         public boolean inRoom = true;
         public boolean requestingSeedChange;
         public boolean host;
+        public int sequenceVersion;
+        public int tournamentVersion;
+        public int spawnRulesVersion;
 
         private static PlayerState capture(Player player) {
             PlayerState state = new PlayerState();
@@ -128,12 +144,18 @@ public class RoomSnapshot {
             state.inRoom = player.getIsInRoom();
             state.requestingSeedChange = player.getIsRequestingSeedChange();
             state.host = player.getIsHost();
+            state.sequenceVersion = player.sequenceVersion;
+            state.tournamentVersion = player.tournamentVersion;
+            state.spawnRulesVersion = player.spawnRulesVersion;
             return state;
         }
 
         public Player toPlayer() {
             Player player = new Player(this.name, this.uuid, this.inRoom, this.host);
             player.setRequestingSeedChange(this.requestingSeedChange);
+            player.sequenceVersion = this.sequenceVersion;
+            player.tournamentVersion = this.tournamentVersion;
+            player.spawnRulesVersion = this.spawnRulesVersion;
             return player;
         }
     }

@@ -25,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import zsgrooms.modid.NaturalSpawnRngAccess;
+import zsgrooms.modid.TempleSpawnControl;
 import zsgrooms.modid.RngStandardization;
 import zsgrooms.modid.SeedDebugLog;
 import zsgrooms.modid.rng.MirroringRandom;
@@ -230,6 +231,15 @@ public abstract class SpawnHelperMixin {
                         + "pack={} attempt={} pos={} tick={} reason={} distanceSquared={}",
                 cycle.getSection().getChunkX(), cycle.getSection().getChunkZ(), cycle.getCycleIndex(),
                 cycle.getPackIndex(), cycle.getAttemptIndex(), pos, world.getTime(), reason, squaredDistance);
+    }
+
+    @Inject(method = ENVIRONMENT_METHOD, at = @At("RETURN"), cancellable = true)
+    private static void zsgRooms$preventTempleHostileSpawns(
+            ServerWorld world, SpawnGroup group, StructureAccessor structures, ChunkGenerator generator,
+            Biome.SpawnEntry entry, BlockPos.Mutable pos, double squaredDistance,
+            CallbackInfoReturnable<Boolean> cir
+    ) {
+        if (cir.getReturnValue() && TempleSpawnControl.shouldReject(world, group, pos)) cir.setReturnValue(false);
     }
 
     @Inject(method = ENVIRONMENT_METHOD, at = @At("HEAD"), cancellable = true)

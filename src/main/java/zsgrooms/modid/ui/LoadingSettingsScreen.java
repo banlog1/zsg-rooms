@@ -17,9 +17,19 @@ public final class LoadingSettingsScreen extends Screen {
     @Override protected void init() {
         int left = (width - panelWidth()) / 2 + 16;
         int y = panelY() + 32;
-        int row = Math.min(24, (panelHeight() - 40) / 7);
+        int row = Math.min(24, (panelHeight() - 40) / 8);
         int buttonHeight = Math.min(20, row - 2);
         int buttonWidth = panelWidth() - 32;
+        int modeWidth = (buttonWidth - 4) / 2;
+        for (LoadingIndicatorStyle style : LoadingIndicatorStyle.values()) {
+            ButtonWidget button = addButton(new ButtonWidget(left + style.ordinal() * (modeWidth + 4), y,
+                    modeWidth, buttonHeight, new LiteralText(style.label), pressed -> {
+                RoomUiPreferences.setLoadingIndicatorStyle(style);
+                client.openScreen(this);
+            }));
+            button.active = style != RoomUiPreferences.getLoadingIndicatorStyle();
+        }
+        y += row;
         addButton(new CheckboxWidget(left, y, buttonWidth, buttonHeight,
                 new LiteralText("Loading Images"), RoomUiPreferences.areLoadingImagesEnabled()) {
             @Override public void onPress() {
@@ -52,6 +62,6 @@ public final class LoadingSettingsScreen extends Screen {
     @Override public void onClose() { client.openScreen(parent); }
 
     private int panelWidth() { return Math.min(272, width - 20); }
-    private int panelHeight() { return Math.min(214, height - 12); }
+    private int panelHeight() { return Math.min(238, height - 12); }
     private int panelY() { return Math.max(6, (height - panelHeight()) / 2); }
 }

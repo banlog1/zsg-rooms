@@ -92,7 +92,19 @@ final class LobbyRulesSmoke {
                     break;
                 case 10:
                     capture(client, "rules-world-small.png");
+                    ButtonWidget templeToggle = null;
+                    for (Element element : client.currentScreen.children()) {
+                        if (element instanceof ButtonWidget) {
+                            ButtonWidget button = (ButtonWidget) element;
+                            if (button.getMessage().getString().equals("Off")
+                                    && (templeToggle == null || button.y > templeToggle.y)) templeToggle = button;
+                        }
+                    }
+                    require(templeToggle != null, "Temple rule toggle missing");
+                    templeToggle.onPress();
+                    capture(client, "rules-world-small-temple-on.png");
                     click(client, "Done");
+                    require(ZsgRooms.getGame(ROOM).preventsTempleHostileSpawns(), "Temple rule did not save");
                     client.openScreen(new MatchHudSettingsScreen(lobby));
                     stage = 7;
                     break;
@@ -159,6 +171,15 @@ final class LobbyRulesSmoke {
                     && button.y + button.getHeight() <= screen.height, "Control outside viewport: " + button.getMessage().getString());
             require(client.textRenderer.getWidth(button.getMessage()) <= button.getWidth() - 2,
                     "Label overflow: " + button.getMessage().getString());
+            if (screen instanceof RoomGameRulesScreen) {
+                for (Element other : screen.children()) {
+                    if (!(other instanceof ButtonWidget) || other == element) continue;
+                    ButtonWidget b = (ButtonWidget) other;
+                    require(button.x >= b.x + b.getWidth() || b.x >= button.x + button.getWidth()
+                                    || button.y >= b.y + b.getHeight() || b.y >= button.y + button.getHeight(),
+                            "Overlapping rule controls");
+                }
+            }
         }
         ScreenshotUtils.saveScreenshot(client.runDirectory, name, client.getWindow().getFramebufferWidth(),
                 client.getWindow().getFramebufferHeight(), client.getFramebuffer(), message -> {});

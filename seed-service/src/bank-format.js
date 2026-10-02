@@ -10,6 +10,9 @@ export function isSeed(value) {
   return number !== 0n && number >= MIN_SEED && number <= MAX_SEED && String(number) === value;
 }
 
+export const isStructure = value => Array.isArray(value) && value.length === 2
+  && value.every(n => Number.isSafeInteger(n) && Math.abs(n) <= 30000000);
+
 export function validateRecord(record) {
   if (!record || record.profile !== PROFILE || record.status !== "MODEL_ACCEPTED"
       || !TYPES.includes(record.type) || !isSeed(record.seed)) {
@@ -54,5 +57,5 @@ export function validateRecord(record) {
       throw new Error("Invalid seed-bank coordinates.");
     }
   }
-  return { profile: PROFILE, type: record.type, seed: record.seed, family };
+  return { profile: PROFILE, type: record.type, seed: record.seed, family, structure: [...record.structure] };
 }

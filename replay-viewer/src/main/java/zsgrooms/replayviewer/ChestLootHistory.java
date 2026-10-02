@@ -9,25 +9,32 @@ import java.util.Map;
 /** At most one observation and one invalidation per bounded manifest entry. */
 final class ChestLootHistory {
     private final Map<String, List<Frame>> frames = new HashMap<>();
-    private final Map<String, ChestLoot> live = new HashMap<>();
+    private final ChestPositions<ChestLoot> live = new ChestPositions<>();
+
+    long estimatedBytes() {
+        long bytes = 1024L * frames.size();
+        for (List<Frame> history : frames.values()) bytes += 1024L * history.size();
+        return bytes;
+    }
+
+    void finish() { live.clear(); }
 
     void observe(ChestLoot loot) {
-        live.put(loot.key(), loot);
+        live.put(loot.world, loot.dimension, loot.pos, loot);
         append(loot.key(), loot.time, loot);
     }
 
     void invalidate(int world, String dimension, long pos, int time) {
-        String key = ChestOpening.key(world, dimension, pos);
-        if (live.remove(key) != null) append(key, time, null);
+        if (live.remove(world, dimension, pos) != null) append(ChestOpening.key(world, dimension, pos), time, null);
     }
 
     void block(int world, String dimension, long pos, int state, int time) {
-        ChestLoot loot = live.get(ChestOpening.key(world, dimension, pos));
+        ChestLoot loot = live.get(world, dimension, pos);
         if (loot != null && loot.state != state) invalidate(world, dimension, pos, time);
     }
 
     void chunk(int world, String dimension, int x, int z, int time) {
-        java.util.Iterator<ChestLoot> it = live.values().iterator();
+        java.util.Iterator<ChestLoot> it = live.values(world, dimension).iterator();
         while (it.hasNext()) {
             ChestLoot loot = it.next();
             if (loot.world == world && loot.dimension.equals(dimension) && loot.inChunk(x, z)) {

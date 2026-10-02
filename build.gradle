@@ -101,7 +101,7 @@ dependencies {
 	if (project.hasProperty('replayPlaybackFile')) {
 		modRuntimeOnly files('replay-prototype/build/reference/replaymod-1.16.1-2.6.27.jar')
 		if (project.findProperty('replayViewer') == 'true') {
-			modRuntimeOnly files("replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}.jar")
+			modRuntimeOnly files(project.findProperty('replayViewerJar') ?: "replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}.jar")
 		}
 		if (project.findProperty('replayPlaybackMods') == 'true') {
 			modRuntimeOnly fileTree(dir: 'run/replay-playback-test/reference-mods', include: '*.jar',
@@ -132,6 +132,17 @@ if (project.hasProperty('replayPlaybackFile')) {
 				source sourceSets.replayPlaybackTest
 				runDir 'run/replay-playback-test'
 				vmArg "-Dzsgrooms.replayPlaybackFile=${project.property('replayPlaybackFile')}"
+				vmArg "-Dzsgrooms.viewerProfile=${project.findProperty('viewerProfile') ?: false}"
+				vmArg "-Dzsgrooms.viewerSeekProfile=${project.findProperty('viewerSeekProfile') ?: false}"
+				vmArg "-Dzsgrooms.viewerSeekBatchLights=${project.findProperty('viewerSeekBatchLights') ?: false}"
+				vmArg "-Dzsgrooms.viewerSeekFast=${project.findProperty('viewerSeekFast') ?: false}"
+				vmArg "-Dzsgrooms.viewerProfileColdIndexes=${project.findProperty('viewerProfileColdIndexes') ?: false}"
+				vmArg "-Dzsgrooms.viewerProfileOutput=${file(project.findProperty('viewerProfileOutput') ?: 'run/viewer-performance/baseline.jsonl').absolutePath}"
+				if (project.hasProperty('viewerProfileJfr')) {
+					vmArg '-Xms512m'
+					vmArg '-Xmx2g'
+					vmArg "-XX:StartFlightRecording=filename=${file(project.property('viewerProfileJfr')).absolutePath},settings=profile,dumponexit=true"
+				}
 				vmArg "-Dzsgrooms.replayPlaybackEnd=${project.findProperty('replayPlaybackEnd') ?: 118000}"
 				vmArg "-Dzsgrooms.replayViewerSmoke=${project.findProperty('replayViewerSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayHighlightSmoke=${project.findProperty('replayHighlightSmoke') ?: false}"
@@ -183,6 +194,22 @@ tasks.withType(JavaCompile).configureEach {
 
 test {
 	useJUnitPlatform()
+}
+
+tasks.register('raceRelayTest', Test) {
+	description = 'Opt-in race/reconnect integration tests against a local relay only.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	filter { includeTestsMatching 'zsgrooms.modid.net.RaceRelayIntegrationTest' }
+	systemProperty 'zsgrooms.testRelay', project.findProperty('testRelay') ?: 'http://127.0.0.1:8799'
+	workingDir file('run/relay-race-test')
+	doFirst { workingDir.mkdirs() }
+	maxHeapSize = '512m'
+	maxParallelForks = 1
+	outputs.upToDateWhen { false }
+	testLogging { showStandardStreams = true }
 }
 
 tasks.register('replayRecorderBenchmark', Test) {
@@ -284,8 +311,19 @@ tasks.named('runReplayPrototype') {
 }
 
 tasks.matching { it.name == 'runReplayPlaybackTest' }.configureEach {
+	if (project.hasProperty('viewerProfileJava')) executable = project.property('viewerProfileJava')
 	doFirst { ext.testStartedAt = System.currentTimeMillis() }
 	doLast {
+		if (project.findProperty('viewerSeekProfile') == 'true') {
+			def log = file('run/replay-playback-test/logs/latest.log')
+			if (!log.exists() || log.lastModified() < testStartedAt || !log.text.contains('[ViewerSeekProfile] PASS')
+					|| log.text.contains('[ViewerSeekProfile] FAIL')) throw new GradleException('Viewer seeking profile did not complete')
+		}
+		if (project.findProperty('viewerProfile') == 'true') {
+			def log = file('run/replay-playback-test/logs/latest.log')
+			if (!log.exists() || log.lastModified() < testStartedAt || !log.text.contains('[ViewerProfile] PASS')
+					|| log.text.contains('[ViewerProfile] FAIL')) throw new GradleException('Viewer profiling did not complete')
+		}
 		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true'
 				|| project.findProperty('replayStartupSmoke') == 'true' || project.findProperty('replayDetailsSmoke') == 'true'
 				|| project.findProperty('replayChestSmoke') == 'true' || project.findProperty('replayTempleSmoke') == 'true'

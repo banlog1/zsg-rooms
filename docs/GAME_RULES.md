@@ -19,6 +19,24 @@ The new ZSG Rooms Temple/Village **bank profiles** also have built-in
 Those two profiles are not vanilla-verifiable even with all room rules off.
 The original FSG profiles are unaffected.
 
+## No Temple Hostile Spawns
+
+Rooms using this rule or a Rooms seed-bank filter require all runners to have the
+spawn-rules update. The host refuses to start with an incompatible guest. Bank
+launches without valid structure coordinates are rejected instead of silently
+using a different spawn; update the host and request a new seed in that case.
+
+Prevents natural hostile-mob spawning inside every generated desert temple,
+including its underground treasure chamber. Applies on any seed type, including
+AA, and independently of RNG standardization. Enabled in both Standard presets;
+disabled in Raw. The host can change it in Game Rules before starting a race.
+
+The check uses local structure references, not a locate search or an entity scan.
+It does not remove existing mobs or prevent outside mobs from walking in.
+Passive mobs, outside spawns, other dimensions, spawners, spawn eggs and commands
+are unaffected. Every runner receives the same setting. Older rooms without the
+setting retain vanilla spawning until the host enables it or reapplies Standard.
+
 ## Allow Cheats
 
 Calls Minecraft's player-manager cheat setting for the local race server. This
@@ -436,10 +454,42 @@ sets their stage to zero with the label `Restarting`.
 reported when Minecraft sends the `GAME_WON` state after the player enters the
 End exit portal.
 
-The host validates and broadcasts the first completion as the match result. A
-forfeit or a player leaving a two-player active match can also decide the
-winner. The result returns all clients to their existing room state after the
-on-screen title delay.
+The host validates each runner's completion independently. In a multi-seed
+race it advances that runner through the shared sequence. Skipping a stage
+adds 30 minutes; leaving the race is a DNF. One-seed forfeits are also DNF.
+Race Format separates seeds per race from the finisher limit; both default to
+one. Increase Finishers for additional placements. The host caps it to the
+starting roster. Withdrawals do not count toward the limit; everyone finishing
+or withdrawing also ends the race. A normal one-seed, one-finisher forfeit gives
+the last remaining runner the win, without a penalty or a fake seed completion.
+Unfinished runners at the cutoff are unplaced. Close finishes briefly settle;
+multi-seed play continues while a runner can beat a qualifying penalized time.
+Final standings compare cumulative elapsed time plus penalties. Exactly equal
+totals share a place.
+
+## Tournament Rules
+
+Tournament mode is optional and defaults off. Single-elimination brackets use
+best of 1/3/5/7 race wins, independently of seeds per race. Each bracket race
+uses one qualifying finisher. The race's existing time, reset and skip rules
+still apply. A draw grants no win; repeat the race with the selected seed source.
+Leaving the race forfeits only that race; leaving the room forfeits remaining
+matches. In a bracket race, the last remaining runner wins by forfeit even when
+the race contains multiple seeds. Two DNFs produce no winner and replay.
+
+Opening byes are assigned explicitly by the host, not randomly. The host must
+assign exactly the number required to fill a power-of-two bracket. Byes advance
+a round without counted wins. The opening order determines the other pairings.
+
+Points tournaments have 1-100 rounds and non-increasing integer placement points
+(0-10000). The configured finisher limit still applies. DNF, unplaced and
+unlisted places earn zero. Ties share their place's points and skip subsequent
+places; equal final totals share a place. A withdrawn player keeps earned points.
+Results are scored once per race ID, only after the race is fully settled.
+
+Settings and roster lock at tournament start. Only the current pair races in a
+bracket; other players wait. The host starts each race manually and must stay
+connected. Resetting an event requires host confirmation between races.
 
 ## Clear Speedrun Worlds
 

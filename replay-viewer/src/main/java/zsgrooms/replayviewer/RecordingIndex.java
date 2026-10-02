@@ -30,11 +30,16 @@ final class RecordingIndex implements AutoCloseable {
     }
 
     static File file(ReplayFile replay) {
+        ReplayFileAccessor archive = archive(replay);
+        return archive == null ? null : archive.zsgViewer$getInput();
+    }
+
+    static ReplayFileAccessor archive(ReplayFile replay) {
         Object archive = replay;
         for (int i = 0; i < 8 && archive instanceof DelegatingReplayFileAccessor; i++) {
             archive = ((DelegatingReplayFileAccessor) archive).zsgViewer$getDelegate();
         }
-        return archive instanceof ReplayFileAccessor ? ((ReplayFileAccessor) archive).zsgViewer$getInput() : null;
+        return archive instanceof ReplayFileAccessor ? (ReplayFileAccessor) archive : null;
     }
 
     @Override public void close() { closed = true; worker.interrupt(); }

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { PROFILE, SCHEMA_VERSION, TYPES, isSeed } from "../src/bank-format.js";
+import { PROFILE, SCHEMA_VERSION, TYPES, isSeed, isStructure } from "../src/bank-format.js";
 
 export const digest = text => createHash("sha256").update(text).digest("hex");
 export const isRevision = value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
@@ -11,7 +11,8 @@ export function validateRows(rows) {
   const families = new Map();
   for (const row of rows) {
     if (row.profile !== PROFILE || !TYPES.includes(row.type) || !isSeed(row.seed)
-        || row.family !== String(BigInt(row.seed) & ((1n << 48n) - 1n))) {
+        || row.family !== String(BigInt(row.seed) & ((1n << 48n) - 1n))
+        || (row.structure !== undefined && !isStructure(row.structure))) {
       throw new Error("Invalid publication record.");
     }
     if (seeds.has(row.seed)) throw new Error("Duplicate seed in publication.");

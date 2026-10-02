@@ -22,7 +22,8 @@ public class RoomSetupScreen extends Screen {
     private TextFieldWidget roomCodeField;
     private TextFieldWidget serverAddressField;
     private TextFieldWidget maxPlayersField;
-    private TextFieldWidget finishGoalField;
+    private int seedCount = 1;
+    private int finisherLimit = 1;
     private TextFieldWidget manualSeedField;
     private ButtonWidget roomCodeVisibilityButton;
     private ButtonWidget seedTypeButton;
@@ -35,6 +36,7 @@ public class RoomSetupScreen extends Screen {
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
     private boolean removeNaturalStriderJockeys;
+    private boolean preventTempleHostileSpawns;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
@@ -61,7 +63,6 @@ public class RoomSetupScreen extends Screen {
         String roomCode = fieldText(this.roomCodeField, this.createMode ? randomRoomCode() : "");
         String serverAddress = fieldText(this.serverAddressField, RoomWebSocketTransport.getRelayUrl());
         String maxPlayersText = fieldText(this.maxPlayersField, "10");
-        String finishGoalText = fieldText(this.finishGoalField, "1");
         String manualSeed = fieldText(this.manualSeedField, "");
 
         int panelX = panelX();
@@ -106,9 +107,15 @@ public class RoomSetupScreen extends Screen {
         this.maxPlayersField.setText(maxPlayersText);
         this.addButton(this.maxPlayersField);
 
-        this.finishGoalField = new TextFieldWidget(this.textRenderer, fieldX, y + rowGap * 3, fieldWidth, 20, new LiteralText("Series Goal"));
-        this.finishGoalField.setText(finishGoalText);
-        this.addButton(this.finishGoalField);
+        ButtonWidget raceFormat = new ButtonWidget(fieldX, y + rowGap * 3, fieldWidth, 20,
+                RaceFormatScreen.summary(this.seedCount, this.finisherLimit), button ->
+                this.client.openScreen(new RaceFormatScreen(this, this.seedCount, this.finisherLimit,
+                        parseInt(this.maxPlayersField.getText(), 10), (seeds, finishers) -> {
+                    this.seedCount = seeds;
+                    this.finisherLimit = finishers;
+                })));
+        raceFormat.active = this.createMode;
+        this.addButton(raceFormat);
 
         this.seedTypeButton = new ButtonWidget(fieldX, y + rowGap * 4, fieldWidth, 20, seedTypeText(), button -> {
             this.client.openScreen(new FilterPickerScreen(this, currentSeedType(), value -> this.selectedSeedType = value));
@@ -126,7 +133,8 @@ public class RoomSetupScreen extends Screen {
                     this.boostedBarters, this.minimumBastionIron, this.removeBastionZombifiedPiglins,
                     this.removeNaturalStriderJockeys, this.spawnNearFilterStructure,
                     this.minimumNearbyAnimals, this.netherEntryWarmup,
-                    this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.sharedNetherEntry, this.rulePreset));
+                    this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways, this.sharedNetherEntry,
+                    this.preventTempleHostileSpawns, this.rulePreset));
         });
         this.gameRulesButton.active = this.createMode;
         this.addButton(this.gameRulesButton);
@@ -141,7 +149,7 @@ public class RoomSetupScreen extends Screen {
         this.addButton(new ButtonWidget(fieldX, actionY, primaryWidth, 20, new LiteralText(this.createMode ? "Create Room" : "Join Room"), button -> {
             String selectedRoomCode = this.roomCodeField.getText().trim();
             int maxPlayers = parseInt(this.maxPlayersField.getText(), 10);
-            int finishGoal = parseInt(this.finishGoalField.getText(), 1);
+            int finishGoal = this.seedCount;
             String seedType = selectedSeedTypeValue();
             if (!ZsgSeedBridge.isValidManualSeedSpecification(seedType)) {
                 this.statusText = "Enter a manual Minecraft seed";
@@ -158,6 +166,8 @@ public class RoomSetupScreen extends Screen {
                         this.minimumNearbyAnimals, this.netherEntryWarmup,
                         this.removeNaturalStriderJockeys, this.disablePauseWorldSaves, this.reduceZeroCycleFlyAways,
                         this.sharedNetherEntry);
+                ZsgRooms.getGame(selectedRoomCode).setFinisherLimit(this.finisherLimit);
+                ZsgRooms.getGame(selectedRoomCode).setPreventTempleHostileSpawns(this.preventTempleHostileSpawns);
                 ZsgRooms.setPlayerUuid(selectedRoomCode, playerName, playerUuid);
                 boolean hosted = RoomWebSocketTransport.host(relayUrl, selectedRoomCode, playerName);
                 if (!hosted) {
@@ -198,7 +208,6 @@ public class RoomSetupScreen extends Screen {
         this.roomCodeField.tick();
         this.serverAddressField.tick();
         this.maxPlayersField.tick();
-        this.finishGoalField.tick();
         this.manualSeedField.tick();
         updateSuggestion(this.serverAddressField, "https://your-relay.workers.dev");
         updateSuggestion(this.manualSeedField, "Enter a Minecraft seed");
@@ -244,7 +253,7 @@ public class RoomSetupScreen extends Screen {
         this.textRenderer.drawWithShadow(matrices, "Room", labelX, y + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Relay", labelX, y + rowGap + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Players", labelX, y + rowGap * 2 + 6, 0xD0D0D0);
-        this.textRenderer.drawWithShadow(matrices, "Series Goal", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
+        this.textRenderer.drawWithShadow(matrices, "Race", labelX, y + rowGap * 3 + 6, 0xD0D0D0);
         this.textRenderer.drawWithShadow(matrices, "Filter", labelX, y + rowGap * 4 + 6, 0xD0D0D0);
         boolean aa = zsgrooms.modid.AaThunderless.isFilter(currentSeedType());
         this.textRenderer.drawWithShadow(matrices, aa ? "Win goal" : "Manual", labelX, y + rowGap * 5 + 6, 0xD0D0D0);
@@ -286,7 +295,7 @@ public class RoomSetupScreen extends Screen {
         textY = drawWrappedText(matrices, "Enter the deployed relay URL, create a room, then share the short room code with your friend.", textX, textY + 13, textWidth, 0xD8D8D8);
         this.textRenderer.drawWithShadow(matrices, "Friend", textX, textY + 3, 0xA8D8FF);
         textY = drawWrappedText(matrices, "Open Join Room and enter the same relay URL and room code. No ports or tunnel programs are needed.", textX, textY + 16, textWidth, 0xD8D8D8);
-        textY = drawWrappedText(matrices, "Series Goal is reserved for first-to-N match series; current races finish after one completed run.", textX, textY + 4, textWidth, 0xD8D8D8);
+        textY = drawWrappedText(matrices, "Race Format sets seeds per race and finishers separately. Both default to 1.", textX, textY + 4, textWidth, 0xD8D8D8);
         drawWrappedText(matrices, "Worlds stay local; the relay only carries room and race state.", textX, textY + 4, textWidth, 0x88FF88);
         drawCenteredString(matrices, this.textRenderer, "Click anywhere or press Esc to close", this.width / 2, y + boxH - 15, 0x777777);
     }
@@ -307,7 +316,7 @@ public class RoomSetupScreen extends Screen {
             boolean removeNaturalStriderJockeys, boolean spawnNearFilterStructure,
             boolean minimumNearbyAnimals, boolean netherEntryWarmup,
             boolean disablePauseWorldSaves, boolean reduceZeroCycleFlyAways, boolean sharedNetherEntry,
-            RoomRulePreset rulePreset) {
+            boolean preventTempleHostileSpawns, RoomRulePreset rulePreset) {
         this.allowCheats = allowCheats;
         this.rngStandardization = rngStandardization;
         this.reduceZeroCycleFlyAways = reduceZeroCycleFlyAways;
@@ -315,6 +324,7 @@ public class RoomSetupScreen extends Screen {
         this.minimumBastionIron = minimumBastionIron;
         this.removeBastionZombifiedPiglins = removeBastionZombifiedPiglins;
         this.removeNaturalStriderJockeys = removeNaturalStriderJockeys;
+        this.preventTempleHostileSpawns = preventTempleHostileSpawns;
         this.spawnNearFilterStructure = spawnNearFilterStructure;
         this.minimumNearbyAnimals = minimumNearbyAnimals;
         this.netherEntryWarmup = netherEntryWarmup;
@@ -337,6 +347,7 @@ public class RoomSetupScreen extends Screen {
         this.minimumBastionIron = preset.guaranteesBastionIron();
         this.removeBastionZombifiedPiglins = preset.removesBastionZombifiedPiglins();
         this.removeNaturalStriderJockeys = preset.removesNaturalStriderJockeys();
+        this.preventTempleHostileSpawns = preset.preventsTempleHostileSpawns();
         this.spawnNearFilterStructure = preset.spawnsNearFilterStructure();
         this.minimumNearbyAnimals = preset.guaranteesNearbyAnimals();
         this.netherEntryWarmup = preset.warmsNetherEntry();

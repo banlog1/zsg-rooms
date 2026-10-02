@@ -280,8 +280,8 @@ public final class ReplayPrototype {
     public static boolean hasReturnedToRoom() {
         zsgrooms.modid.InGame game = returnedGame;
         zsgrooms.modid.Room room = ZsgRooms.getActiveRoom();
-        return game != null && room != null && ZsgRooms.getGame(room.roomName) == game
-                && java.util.Objects.equals(returnedRaceId, game.getRaceId())
+        return game != null && room != null && ZsgRooms.getGame(room.roomName) != null
+                && java.util.Objects.equals(returnedRaceId, ZsgRooms.getGame(room.roomName).getRaceId())
                 && MinecraftClient.getInstance().getServer() == null;
     }
 
@@ -306,6 +306,20 @@ public final class ReplayPrototype {
                 session.manifest.finishRace(raceId, elapsedNanos, igtMillis);
                 session.retention.completed();
             }
+        }
+    }
+
+    public static void expectSequenceSeed(String seed) {
+        Session session = CURRENT.get();
+        if (session == null) return;
+        synchronized (session.connections) {
+            Long expected = null;
+            if (seed != null) {
+                String value = zsgrooms.modid.ZsgSeedBridge.extractMinecraftSeed(seed);
+                try { expected = Long.valueOf(value); }
+                catch (NumberFormatException ignored) { expected = (long) value.hashCode(); }
+            }
+            session.retention.expectSequenceSeed(expected);
         }
     }
 
@@ -359,6 +373,8 @@ public final class ReplayPrototype {
                     if (!previous.connections.canAttach()) return;
                     ReplaySeedRetention.Action action = previous.retention.onReplacement(seed, preferences.keepSeedChanges);
                     if (action == ReplaySeedRetention.Action.CONTINUE) {
+                        previous.prediction.worldSeed(seed);
+                        previous.manifest.allowTemplePrediction(previous.prediction.releasedSeed());
                         previous.connections.attach(connection);
                         previous.worldChanging = true;
                         previous.player = null;

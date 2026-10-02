@@ -55,6 +55,7 @@ public final class SeedPresentationSmoke {
                     client.options.guiScale = 2;
                     GLFW.glfwSetWindowSize(client.getWindow().getHandle(), 1280, 720);
                     RoomUiPreferences.setLoadingImagesEnabled(true);
+                    RoomUiPreferences.setLoadingIndicatorStyle(LoadingIndicatorStyle.ZSG);
                     break;
                 case 1: client.openScreen(new HudScreen()); break;
                 case 2:
@@ -73,7 +74,11 @@ public final class SeedPresentationSmoke {
                     RoomUiPreferences.setLoadingImagesEnabled(false);
                     require(!active(client), "Loading toggle ignored");
                     client.currentScreen.mouseClicked(9, 9, 0);
+                    require(clicks == 0, "Logo-only screen passed hidden preview input");
+                    RoomUiPreferences.setLoadingIndicatorStyle(LoadingIndicatorStyle.VANILLA);
+                    client.currentScreen.mouseClicked(9, 9, 0);
                     require(clicks == 1, "Disabled artwork still blocked controls");
+                    RoomUiPreferences.setLoadingIndicatorStyle(LoadingIndicatorStyle.ZSG);
                     RoomUiPreferences.setLoadingImagesEnabled(true);
                     openLoading(client, "rooms-shipwreck-v5");
                     break;

@@ -19,6 +19,8 @@ public class RoomOptionsScreen extends Screen {
     private ButtonWidget seedTypeButton;
     private String selectedSeedType = "zsg";
     private String initialManualSeed = "";
+    private int seedCount = 1;
+    private int finisherLimit = 1;
 
     public RoomOptionsScreen(Screen parent, String roomName) {
         super(new LiteralText("Room Options"));
@@ -28,6 +30,10 @@ public class RoomOptionsScreen extends Screen {
         Room room = ZsgRooms.getRoom(roomName);
         if (room != null) {
             InGame game = ZsgRooms.getGame(roomName);
+            if (game != null) {
+                this.seedCount = game.getFinishGoal();
+                this.finisherLimit = game.getFinisherLimit();
+            }
             String specification = game == null ? ZsgSeedBridge.seedSpecificationFromSeed(room.getSeed()) : game.targetStructure;
             String current = ZsgSeedBridge.normalizeSeedType(specification);
             if ("manual".equals(current)) {
@@ -60,18 +66,40 @@ public class RoomOptionsScreen extends Screen {
         this.addButton(this.manualSeedField);
         updateManualSeedState();
 
+        ButtonWidget raceFormat = addButton(new ButtonWidget(contentX, y + 60, contentWidth, 20,
+                RaceFormatScreen.summary(this.seedCount, this.finisherLimit), button -> {
+            Room room = ZsgRooms.getRoom(this.roomName);
+            this.client.openScreen(new RaceFormatScreen(this, this.seedCount, this.finisherLimit,
+                    room == null ? 64 : room.maxPlayers, (seeds, finishers) -> {
+                this.seedCount = seeds;
+                this.finisherLimit = finishers;
+            }));
+        }));
+
+        addButton(new ButtonWidget(contentX, y + 86, contentWidth, 20, new LiteralText("Tournament"),
+                button -> this.client.openScreen(new TournamentScreen(this, this.roomName))));
+        InGame currentGame = ZsgRooms.getGame(this.roomName);
+        boolean locked = currentGame != null && currentGame.tournamentLocked();
+        raceFormat.active = !locked;
+        this.seedTypeButton.active = !locked;
+        if (locked) this.manualSeedField.active = false;
+
         int buttonWidth = (contentWidth - 8) / 2;
-        this.addButton(new ButtonWidget(contentX, y + 66, buttonWidth, 20, new LiteralText("Apply"), button -> {
+        this.addButton(new ButtonWidget(contentX, y + 116, buttonWidth, 20, new LiteralText("Apply"), button -> {
             String seedType = selectedSeedTypeValue();
             if (!ZsgSeedBridge.isValidManualSeedSpecification(seedType)) {
                 button.setMessage(new LiteralText("Enter Seed"));
                 return;
             }
             ZsgRoomsClient.sendRoomAction("filter", this.roomName, seedType);
+            zsgrooms.modid.RoomRuleSettings rules = zsgrooms.modid.RoomRuleSettings.capture(ZsgRooms.getGame(this.roomName));
+            rules.seedCount = this.seedCount;
+            rules.finisherLimit = this.finisherLimit;
+            ZsgRoomsClient.sendRoomAction("rules", this.roomName, rules.toJson());
             this.client.openScreen(this.parent);
-        }));
+        })).active = !locked;
 
-        this.addButton(new ButtonWidget(contentX + buttonWidth + 8, y + 66, buttonWidth, 20, new LiteralText("Back"), button -> {
+        this.addButton(new ButtonWidget(contentX + buttonWidth + 8, y + 116, buttonWidth, 20, new LiteralText("Back"), button -> {
             this.client.openScreen(this.parent);
         }));
     }
@@ -92,11 +120,11 @@ public class RoomOptionsScreen extends Screen {
         int panelX = panelX();
         int panelY = panelY();
         int panelWidth = panelWidth();
-        fill(matrices, panelX, panelY, panelX + panelWidth, panelY + 150, 0xCC070707);
+        fill(matrices, panelX, panelY, panelX + panelWidth, panelY + 202, 0xCC070707);
         fill(matrices, panelX, panelY, panelX + panelWidth, panelY + 28, 0xAA1A120C);
         fill(matrices, panelX, panelY + 28, panelX + panelWidth, panelY + 29, 0xFF000000);
         drawCenteredString(matrices, this.textRenderer, "Room Options", this.width / 2, panelY + 10, 0xFFFFFF);
-        drawCenteredString(matrices, this.textRenderer, "Filter for the next seed", this.width / 2, panelY + 36, 0xA8D8FF);
+        drawCenteredString(matrices, this.textRenderer, "Next race", this.width / 2, panelY + 36, 0xA8D8FF);
         super.render(matrices, mouseX, mouseY, delta);
         if (zsgrooms.modid.AaThunderless.isFilter(currentSeedType())) {
             drawCenteredString(matrices, this.textRenderer, "Win: All advancements except", this.width / 2, panelY + 85, 0xFFCC55);
@@ -137,7 +165,7 @@ public class RoomOptionsScreen extends Screen {
     }
 
     private int panelY() {
-        return Math.max(10, (this.height - 150) / 2);
+        return Math.max(10, (this.height - 202) / 2);
     }
 
     private void updateManualSeedSuggestion() {

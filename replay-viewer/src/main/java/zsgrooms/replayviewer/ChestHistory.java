@@ -11,10 +11,14 @@ import java.util.Map;
 /** Immutable snapshots after indexing; queries never depend on playback/Quick Mode packet order. */
 final class ChestHistory<T> {
     private final Map<String, List<Frame<T>>> frames = new HashMap<>();
-    private final Map<String, ChestOpening> live = new HashMap<>();
+    private final ChestPositions<ChestOpening> live = new ChestPositions<>();
     private ChestOpening active;
     private List<T> contents;
     private int storedSlots;
+
+    long estimatedBytes() { return 256L * storedSlots + 1024L * frames.size(); }
+
+    void finish() { close(); live.clear(); }
 
     void open(ChestOpening opening, int time) throws IOException {
         active = opening;
@@ -23,8 +27,8 @@ final class ChestHistory<T> {
         invalidate(opening.world, opening.dimension, opening.first, time);
         invalidate(opening.world, opening.dimension, opening.second, time);
         active = opening;
-        live.put(opening.key(opening.first), opening);
-        live.put(opening.key(opening.second), opening);
+        live.put(opening.world, opening.dimension, opening.first, opening);
+        live.put(opening.world, opening.dimension, opening.second, opening);
         append(opening, time, null);
     }
 
@@ -45,16 +49,17 @@ final class ChestHistory<T> {
     }
 
     void block(int world, String dimension, long pos, int state, int time) throws IOException {
-        ChestOpening opening = live.get(ChestOpening.key(world, dimension, pos));
+        ChestOpening opening = live.get(world, dimension, pos);
         if (opening != null && state != (pos == opening.first ? opening.stateFirst : opening.stateSecond)) {
             invalidate(world, dimension, pos, time);
         }
     }
 
     void chunk(int world, String dimension, int x, int z, int time) throws IOException {
-        if (live.isEmpty()) return;
+        java.util.Collection<ChestOpening> current = live.values(world, dimension);
+        if (current.isEmpty()) return;
         // Chunk replacement cannot establish container identity. Fail closed until another opening.
-        for (ChestOpening opening : new ArrayList<>(live.values())) {
+        for (ChestOpening opening : new ArrayList<>(current)) {
             if (opening.world == world && opening.dimension.equals(dimension)
                     && (inChunk(opening.first, x, z) || inChunk(opening.second, x, z))) {
                 invalidate(world, dimension, opening.first, time);
@@ -65,9 +70,9 @@ final class ChestHistory<T> {
     private static boolean inChunk(long pos, int x, int z) { return (pos >> 42) == x && (pos << 26 >> 42) == z; }
 
     private void invalidate(int world, String dimension, long pos, int time) throws IOException {
-        ChestOpening old = live.remove(ChestOpening.key(world, dimension, pos));
+        ChestOpening old = live.remove(world, dimension, pos);
         if (old == null) return;
-        live.remove(old.key(old.first)); live.remove(old.key(old.second));
+        live.remove(old.world, old.dimension, old.first); live.remove(old.world, old.dimension, old.second);
         append(old, time, null);
         if (active == old) close();
     }

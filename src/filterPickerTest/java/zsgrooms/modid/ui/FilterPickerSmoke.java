@@ -25,6 +25,26 @@ public final class FilterPickerSmoke implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (Boolean.getBoolean("zsgrooms.templeSpawnSmoke")) {
+            new zsgrooms.modid.TempleSpawnSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.tournamentRaceSmoke")) {
+            new zsgrooms.modid.net.TournamentRaceSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.tournamentSmoke")) {
+            new TournamentSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.raceFormatSmoke")) {
+            new RaceFormatSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.sequenceSmoke")) {
+            new zsgrooms.modid.net.RaceSequenceSmoke().initialize();
+            return;
+        }
         if (Boolean.getBoolean("zsgrooms.aaModeSmoke")) {
             new zsgrooms.modid.AaModeSmoke().initialize();
             return;

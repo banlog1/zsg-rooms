@@ -106,12 +106,16 @@ local command above to start it for Minecraft testing.
   "profile": "zsg-model-only-v5",
   "type": "temple",
   "requestId": "12345678-1234-1234-1234-123456789abc",
-  "excludeFamilies": []
+  "excludeFamilies": [],
+  "requireStructure": true
 }
 ```
 
 Success returns schema version 1, the matching profile/type/request ID, the active
-bank revision ID and one string-valued seed. The bank ID remains stable as rows
+bank revision ID, one string-valued seed and its intended `structure: [x,z]`.
+New clients require these coordinates; missing metadata returns 503, never a
+different filter or a guessed target. Older clients can omit `requireStructure`.
+The bank ID remains stable as rows
 are appended; it is not a content hash of the currently available prefix.
 There is no seed-list or bulk-download
 endpoint. All responses use `Cache-Control: no-store`. SQL import is an operator
@@ -155,9 +159,33 @@ References: [D1 local development](https://developers.cloudflare.com/d1/best-pra
 
 ## Gameplay Boundary
 
-Delivery sends the exact seed and profile, not model coordinates. Existing spawn
-and Nether-entry rules still determine runtime positions. The original snapshots
-retain coordinates for later work; the compact service publication does not.
+Delivery includes the starting structure coordinates from the original model
+record. The host carries them in the shared seed specification (`|target:x,z`)
+through room synchronization, sequence changes and same-seed resets. Spawn,
+nearby-animal and lava preparation check that exact structure's start chunk;
+bank profiles never use Minecraft's region-ring locate search to substitute a
+different structure. Missing or mismatched targets leave the original spawn
+unchanged. Manual seeds and external FSG profiles retain their existing behavior.
+The shared Nether-entry reference remains based on the original spawn.
+
+Private D1 `bank_structures` pages hold up to 256 slot-bound coordinate records
+each, including the seed string to detect mismatches. Only the selected seed's
+coordinates leave the service. Uploads verify existing page prefixes, append
+metadata before advertising new seeds, and read it back. Existing seed slots,
+family history and random-selection weights do not change.
+
+For old publications, recover coordinates from saved accepted records before
+uploading. No filter rerun or Minecraft world generation is involved:
+
+```powershell
+node seed-service/scripts/backfill-structures.mjs BASE_PUBLICATION NEW_PUBLICATION SOURCE_BANK_JSONL [MORE_SOURCE_FILES ...]
+node seed-service/scripts/upload-bank.mjs NEW_PUBLICATION --write-budget 5000 --max-new-seeds 0
+```
+
+The backfill refuses missing/conflicting coordinates and preserves the bank ID
+and all slot assignments. Use the enriched publication as the base for future
+extensions. Local databases also need the enriched import or metadata migration
+before the updated mod can use them.
 
 A modeled lava opportunity can fail to generate. The Temple and Village bank
 profiles now perform a separate [runtime terrain repair](../docs/SEED_BANK_TERRAIN.md)

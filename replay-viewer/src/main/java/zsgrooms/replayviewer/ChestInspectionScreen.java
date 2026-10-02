@@ -27,7 +27,10 @@ final class ChestInspectionScreen extends Screen {
         super(new LiteralText(rows == 6 ? "Large Chest" : "Chest"));
         this.handler = handler;
         this.frame = frame;
-        this.items = frame != null ? frame.items : predicted;
+        java.util.List<ItemStack> source = frame != null ? frame.items : predicted;
+        this.items = source == null ? null : new java.util.ArrayList<>(source.size());
+        // GUI renderers/tooltips must not mutate item stacks shared by cached replay histories.
+        if (source != null) for (ItemStack stack : source) this.items.add(stack.copy());
         this.rows = rows;
         this.world = net.minecraft.client.MinecraftClient.getInstance().world;
         this.status = frame != null && frame.items != null ? "Last recorded: " + ViewerLayout.time(frame.time)

@@ -30,12 +30,15 @@ final class LoadingPositionSmoke {
                 client.options.guiScale = 2;
                 client.options.maxFps = 60;
                 RoomUiPreferences.setLoadingImagesEnabled(true);
+                RoomUiPreferences.setLoadingIndicatorStyle(LoadingIndicatorStyle.VANILLA);
                 GLFW.glfwSetWindowSize(client.getWindow().getHandle(), 1280, 720);
                 client.openScreen(new RoomSettingsScreen(new TitleScreen()));
                 stage++;
             } else if (stage == 1) {
                 click(client, "Loading Screen...");
                 require(client.currentScreen instanceof LoadingSettingsScreen, "Settings link missing");
+                click(client, "ZSG");
+                require(RoomUiPreferences.getLoadingIndicatorStyle() == LoadingIndicatorStyle.ZSG, "Style did not save");
                 click(client, "Progress: Bottom Right");
                 require(RoomUiPreferences.getLoadingProgressPosition() == LoadingProgressPosition.BOTTOM_RIGHT, "Preset did not save");
                 stage++;
@@ -63,17 +66,47 @@ final class LoadingPositionSmoke {
                 if (image == 10) {
                     RoomUiPreferences.setLoadingImagesEnabled(false);
                     require(!((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasLoadingArtwork(), "Disabled art still active");
-                    RoomUiPreferences.setLoadingImagesEnabled(true);
-                    RoomUiPreferences.setLoadingProgressPosition(LoadingProgressPosition.CENTER);
-                    ZsgRooms.LOGGER.info("[FilterPickerSmoke] PASS: loading preset selection, settings sizes, ten loading layouts and inactive-art fallback");
-                    finished = true;
-                    client.scheduleStop();
+                    require(((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasCustomLoadingScreen(), "Logo requires artwork");
+                    stage = 6;
                     return;
                 }
                 showLoading(client);
-            } else {
+            } else if (stage == 5) {
                 showLoading(client);
                 stage = 4;
+            } else if (stage == 6) {
+                capture(client, "loading-logo-without-art.png");
+                RoomUiPreferences.setLoadingIndicatorStyle(LoadingIndicatorStyle.VANILLA);
+                require(!((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasCustomLoadingScreen(), "Vanilla fallback still overridden");
+                stage++;
+            } else if (stage == 7) {
+                capture(client, "loading-vanilla-without-art.png");
+                RoomUiPreferences.setLoadingImagesEnabled(true);
+                stage++;
+            } else if (stage == 8) {
+                require(((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasLoadingArtwork(), "Vanilla lost background");
+                capture(client, "loading-vanilla-with-art.png");
+                RoomUiPreferences.setLoadingIndicatorStyle(LoadingIndicatorStyle.ZSG);
+                RoomLoadingArtwork.cancel();
+                client.openScreen(new LevelLoadingScreen(new WorldGenerationProgressTracker(11)));
+                require(!((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasCustomLoadingScreen(), "Unrelated world got room logo");
+                client.openScreen(new TitleScreen());
+                client.getResourcePackManager().setEnabledProfiles(java.util.Collections.singleton("vanilla"));
+                client.reloadResources();
+                stage++;
+            } else if (stage == 9) {
+                RoomUiPreferences.setLoadingProgressPosition(LoadingProgressPosition.CENTER);
+                RoomLoadingArtwork.prepare("12345|structure:rooms-temple-v5");
+                client.openScreen(new LevelLoadingScreen(new WorldGenerationProgressTracker(11)));
+                require(!((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasLoadingArtwork(), "Pack did not unload");
+                require(((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasCustomLoadingScreen(), "Packless logo inactive");
+                require(client.getResourceManager().containsResource(new net.minecraft.util.Identifier("zsg-rooms", "textures/gui/loading_logo.png")), "Bundled logo missing");
+                stage++;
+            } else {
+                capture(client, "loading-logo-without-pack.png");
+                ZsgRooms.LOGGER.info("[FilterPickerSmoke] PASS: indicator selection, settings sizes, ten logo layouts at 0-100%, vanilla fallback, unrelated-world isolation and logo without image pack");
+                finished = true;
+                client.scheduleStop();
             }
         } catch (Throwable error) {
             finished = true;
@@ -88,8 +121,9 @@ final class LoadingPositionSmoke {
         WorldGenerationProgressTracker tracker = new WorldGenerationProgressTracker(11);
         tracker.start();
         tracker.start(new ChunkPos(0, 0));
+        int remaining = (23 * 23 * (image % 5) + 3) / 4;
         for (int x = -11; x <= 11; x++) for (int z = -11; z <= 11; z++) {
-            tracker.setChunkStatus(new ChunkPos(x, z), ChunkStatus.FULL);
+            if (remaining-- > 0) tracker.setChunkStatus(new ChunkPos(x, z), ChunkStatus.FULL);
         }
         client.openScreen(new LevelLoadingScreen(tracker));
         require(((RoomLoadingArtwork.ScreenState) client.currentScreen).zsgRooms$hasLoadingArtwork(), "Artwork missing");

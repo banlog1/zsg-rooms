@@ -32,7 +32,7 @@ contains:
 | Room | Generated room code. Share this exact code with guests. |
 | Relay | Cloudflare Worker hostname or URL. A bare `workers.dev` hostname is accepted; the mod adds HTTPS/WSS automatically. |
 | Players | Maximum room size. The relay enforces the synchronized value. |
-| Series Goal | Stored and synchronized first-to-N target. The current implementation still ends each match after one completed run. |
+| Race | Opens Race Format. Seeds per race (1-20) and Finishers are independent; both default to 1. Hover either control for its rules. |
 | Filter | Seed source used when the host starts the next race. |
 | Manual | Enabled only for `Manual Seed`; accepts a Minecraft numeric or text seed. |
 | Game Rules | Host-only gameplay modifications copied into the room snapshot. |
@@ -189,6 +189,46 @@ Atum reset requests that do not come from one of these authorized room actions
 are blocked while the room controls the run. The F3 debug overlay is closed
 before world generation to avoid the known reset-time crash path.
 
+## Tournaments
+
+Open **Options > Tournament** in the room. Check **Tournament** (default off).
+Select **Bracket** for single elimination or **Points** for cumulative scores.
+Hover the controls for the rules.
+
+Bracket matches are best of 1, 3, 5 or 7 races. Each race can still contain
+multiple seeds; finishing one seed is not a match win. Bracket races use one
+qualifying finisher. A draw awards neither player a win and repeats the race
+with the selected seed source. Manual seeds stay fixed.
+
+Under **Players and Byes**, arrange the opening order and select exactly the
+required number of byes. Agree the recipients with the players before starting.
+There are no random bye assignments. **Standings / Bracket** previews the opening
+matches. Bye recipients advance one round without receiving race wins.
+
+The bracket shows connected rounds through to the final, with scores and winner
+highlights. Drag to pan, use **+ / -** or Ctrl-scroll to zoom, and **Fit** to see
+the entire bracket. The scrollbars and arrow keys also pan; Shift-scroll moves
+horizontally. Hover a match for full player names and its status. Points standings
+use a ranked table with scores and withdrawal status.
+
+For points, set the round count and a comma-separated list of placement points.
+The room's **Finishers** setting controls how many players may finish each round.
+Unlisted places, unplaced players and DNF score zero. Equal race times share
+their place's points, with subsequent places skipped. Equal tournament totals
+share a final place; there is no hidden tiebreaker.
+
+The host starts each race or next match from the lobby. Only the current bracket
+pair loads the world. The host can run the room while waiting for their own match.
+Open **Tournament** (**Event** in compact layouts) for standings, the bracket,
+setup and the last race's results. Return to Room stays in the event. Forfeit
+or Leave Race affects the current race only; Leave Room withdraws from all
+remaining matches or rounds. Points already earned are retained.
+
+Rules, filter and starting roster lock when the host starts the tournament.
+New arrivals wait until the next event. Between races the host can use
+**End / Reset** and confirm to clear progress and unlock setup. Keep the host's
+game open; tournaments cannot resume after restarting Minecraft.
+
 ## Winning and Returning
 
 Killing the dragon updates progress, but it does not finish the match. Victory
@@ -196,7 +236,20 @@ is detected from Minecraft's `GAME_WON` event when the player enters the End
 exit portal. The local winner's result waits until the player has returned to
 the Overworld and left the credits/loading screen.
 
-The result shows:
+For sequence-capable rooms, the result shows **Finished!** and your total race
+time with your current placement. Other runners keep playing. **Standings** in
+the lobby remains provisional until the finisher limit is settled or everyone
+finishes or withdraws. The default limit is one; increase **Finishers** in
+**Race Format** to allow more placements. Unfinished runners are unplaced when
+the cutoff is reached. A sequence
+skip adds 30 minutes to the total and advances one stage; leaving is a DNF.
+The first seed starts together; subsequent loading counts toward total time.
+Single-seed forfeits lose the race with no time penalty. With the default
+one-finisher limit, the last remaining runner wins if all opponents forfeit.
+For multi-seed penalties, a finisher does not close the race while another
+runner can still beat their adjusted time.
+
+Legacy rooms using the previous finish protocol show:
 
 - `Victory!` for the local winner, or `<name> Wins!` for other players.
 - `Final IGT: <time>` when SpeedRunIGT returned a time.
@@ -215,7 +268,7 @@ recorded durations produce `Draw!`; there is no 50 ms margin. Nanosecond storage
 does not mean start/event capture is physically accurate to a nanosecond. IGT
 remains display/history-only, and is never used as a fallback race clock.
 
-If another current player has already reported `Free the End`, the host waits
+In legacy rooms only, if another current player has already reported `Free the End`, the host waits
 two seconds after the first completion report for close finishes. Otherwise
 the result is finalized on the next host client tick without that wait. A late
 dragon-defeat report can bypass this window, and finish reports arriving after

@@ -58,13 +58,13 @@ public final class SeedBankClient {
         Files.write(CONFIG, endpoint.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static CompletableFuture<String> request(SeedBankProfile profile) {
+    public static CompletableFuture<SeedBankEntry> request(SeedBankProfile profile) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 List<String> recent;
                 synchronized (RECENT) { recent = new ArrayList<>(RECENT.computeIfAbsent(profile, key -> new ArrayDeque<>())); }
-                String seed = fetchWithRecentFamilies(getEndpoint(), profile, recent);
-                String family = Long.toString(Long.parseLong(seed) & 281474976710655L);
+                SeedBankEntry seed = fetchWithRecentFamilies(getEndpoint(), profile, recent);
+                String family = Long.toString(Long.parseLong(seed.seed) & 281474976710655L);
                 synchronized (RECENT) {
                     ArrayDeque<String> history = RECENT.get(profile);
                     history.remove(family);
@@ -92,7 +92,7 @@ public final class SeedBankClient {
         } catch (Exception error) { throw new IOException("Set a valid HTTPS seed-bank URL in Room Settings; local HTTP is allowed for testing."); }
     }
 
-    static String fetchWithRecentFamilies(String endpoint, SeedBankProfile profile, List<String> excluded) throws IOException {
+    static SeedBankEntry fetchWithRecentFamilies(String endpoint, SeedBankProfile profile, List<String> excluded) throws IOException {
         try {
             return fetch(endpoint, profile, excluded);
         } catch (NoFreshCandidateException error) {
@@ -108,13 +108,14 @@ public final class SeedBankClient {
         }
     }
 
-    static String fetch(String endpoint, SeedBankProfile profile, List<String> excluded) throws IOException {
+    static SeedBankEntry fetch(String endpoint, SeedBankProfile profile, List<String> excluded) throws IOException {
         if (excluded.size() > 16) throw new IOException("Too many recent seed families.");
         String requestId = UUID.randomUUID().toString();
         JsonObject request = new JsonObject();
         request.addProperty("profile", SeedBankProfile.MODEL_PROFILE);
         request.addProperty("type", profile.type);
         request.addProperty("requestId", requestId);
+        request.addProperty("requireStructure", true);
         JsonArray families = new JsonArray();
         for (String family : excluded) families.add(family);
         request.add("excludeFamilies", families);
@@ -144,8 +145,8 @@ public final class SeedBankClient {
                     body.write(buffer, 0, count);
                 }
             }
-            String seed = parseResponse(new String(body.toByteArray(), StandardCharsets.UTF_8), profile, requestId);
-            if (excluded.contains(Long.toString(Long.parseLong(seed) & 281474976710655L))) {
+            SeedBankEntry seed = parseResponse(new String(body.toByteArray(), StandardCharsets.UTF_8), profile, requestId);
+            if (excluded.contains(Long.toString(Long.parseLong(seed.seed) & 281474976710655L))) {
                 throw new IOException("Seed bank returned a recently prepared family.");
             }
             return seed;
@@ -157,7 +158,7 @@ public final class SeedBankClient {
         } finally { connection.disconnect(); }
     }
 
-    static String parseResponse(String response, SeedBankProfile profile, String requestId) throws IOException {
+    static SeedBankEntry parseResponse(String response, SeedBankProfile profile, String requestId) throws IOException {
         try {
             JsonObject body = new JsonParser().parse(response).getAsJsonObject();
             JsonElement seedValue = body.get("seed");
@@ -170,12 +171,21 @@ public final class SeedBankClient {
             String seed = seedValue.getAsString();
             long value = Long.parseLong(seed);
             if (value == 0L || !Long.toString(value).equals(seed)) throw new IllegalArgumentException();
-            return seed;
+            JsonArray structure = body.getAsJsonArray("structure");
+            if (structure == null || structure.size() != 2) throw new IllegalArgumentException();
+            return new SeedBankEntry(seed, coordinate(structure.get(0)), coordinate(structure.get(1)));
         } catch (RuntimeException error) { throw new IOException("Seed bank returned an invalid or mismatched record."); }
     }
 
     private static String stringField(JsonObject body, String name) {
         if (!body.getAsJsonPrimitive(name).isString()) throw new IllegalArgumentException();
         return body.get(name).getAsString();
+    }
+
+    private static int coordinate(JsonElement element) {
+        if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) throw new IllegalArgumentException();
+        int value = element.getAsBigDecimal().intValueExact();
+        if (Math.abs((long) value) > 30000000L) throw new IllegalArgumentException();
+        return value;
     }
 }

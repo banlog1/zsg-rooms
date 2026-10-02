@@ -158,6 +158,13 @@ public final class ReplayViewer implements ClientModInitializer {
                 && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.hideChat();
     }
 
+    public static net.minecraft.item.ItemStack quickHeldItem(net.minecraft.entity.player.PlayerEntity player,
+                                                            net.minecraft.entity.EquipmentSlot slot) {
+        if (switching || instance == null || instance.controls == null || instance.current == null
+                || ReplayModReplay.instance == null || ReplayModReplay.instance.getReplayHandler() != instance.current) return null;
+        return instance.controls.quickHeldItem(player, slot);
+    }
+
     public static int mobHighlightColor(net.minecraft.entity.Entity entity) {
         if (switching || instance == null || instance.current == null || instance.controls == null
                 || ReplayModReplay.instance == null || ReplayModReplay.instance.getReplayHandler() != instance.current) return -1;

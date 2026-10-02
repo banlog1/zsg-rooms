@@ -8,6 +8,36 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LocalRaceClockTest {
+    @Test void unloadingReleasesWorldWithoutLosingSequenceClock() {
+        LocalRaceClock clock = new LocalRaceClock();
+        clock.arm("race", server, player);
+        clock.onResumedTick(server, 100L);
+        clock.capture(server, player, 200L);
+        clock.unbindWorld();
+        assertFalse(clock.capture(server, player, 300L));
+        assertEquals(-1L, clock.consume("race", server, player));
+        assertEquals(300L, clock.elapsed("race", 400L));
+        Object next = new Object();
+        clock.bindWorld("race", next, player);
+        assertNull(clock.onResumedTick(next, 500L));
+        assertTrue(clock.capture(next, player, 600L));
+        assertEquals(500L, clock.consume("race", next, player));
+    }
+
+    @Test void sequenceClockIncludesLoadingAndDoesNotRestartBetweenFinishes() {
+        LocalRaceClock clock = new LocalRaceClock();
+        clock.arm("race", server, player);
+        clock.onResumedTick(server, 100L);
+        clock.capture(server, player, 200L);
+        assertEquals(100L, clock.consume("race", server, player));
+        assertEquals(300L, clock.elapsed("race", 400L));
+        Object next = new Object();
+        clock.bindWorld("race", next, player);
+        clock.capture(next, player, 500L);
+        assertEquals(400L, clock.consume("race", next, player));
+        assertEquals(-1L, clock.elapsed("wrong-race", 600L));
+    }
+
     private final UUID player = new UUID(0L, 1L);
     private final Object server = new Object();
 

@@ -6,6 +6,9 @@ public class Player {
     public boolean isInRoom;
     public boolean isRequestingSeedChange;
     public boolean isHost;
+    public int sequenceVersion;
+    public int tournamentVersion;
+    public int spawnRulesVersion;
 
     public Player(String name, boolean isInRoom, boolean isHost) {
         this(name, "", isInRoom, isHost);

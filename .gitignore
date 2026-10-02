@@ -76,3 +76,25 @@ node_modules/
 .wrangler/
 .dev.vars
 .dev.vars.*
+
+# local tools and unrelated prototype work
+/.tools/
+/farmer-assets/
+/farmer-preview-godot/
+
+# Python/editor caches and backup files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+*.swp
+*.swo
+*~
+Thumbs.db
+Desktop.ini
+
+# generated logo comparisons and unused artwork draft
+/branding/zsg-rooms/font-options/
+/branding/zsg-rooms/qwdawd.png

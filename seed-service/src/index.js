@@ -1,4 +1,5 @@
 import { PROFILE, SCHEMA_VERSION, TYPES, isSeed } from "./bank-format.js";
+import { STRUCTURE_PAGE_SIZE, structureForSlot } from "./structure-pages.js";
 
 function response(status, data) {
   return new Response(JSON.stringify(data), { status, headers: {
@@ -69,8 +70,12 @@ export async function serveSeed(request, env, chooseSlot = randomSlot) {
     const excluded = new Set(body.excludeFamilies);
     const chosen = candidates.find(row => !excluded.has(row.family));
     if (!chosen) return response(409, { error: "no_fresh_candidate" });
+    const page = await env.BANK.prepare(`SELECT entries FROM bank_structures WHERE revision=? AND type=? AND page=?`)
+      .bind(bank.revision, body.type, Math.floor(chosen.slot / STRUCTURE_PAGE_SIZE)).first();
+    const structure = page ? structureForSlot(page.entries, chosen.slot, chosen.seed) : undefined;
+    if (body.requireStructure === true && !structure) return response(503, { error: "structure_metadata_missing" });
     return response(200, { schemaVersion: SCHEMA_VERSION, profile: PROFILE, type: body.type,
-      requestId: body.requestId, revision: bank.revision, seed: chosen.seed });
+      requestId: body.requestId, revision: bank.revision, seed: chosen.seed, structure });
   } catch {
     // Database failures and request data must never reach response text or logs.
     return response(503, { error: "bank_unavailable" });

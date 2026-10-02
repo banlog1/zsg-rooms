@@ -21,7 +21,8 @@ export async function extendBank(base, output, inputs) {
         const row = validateRecord(JSON.parse(line));
         const existing = known.get(row.seed);
         if (existing) {
-          if (existing.type !== row.type || existing.family !== row.family) {
+          if (existing.type !== row.type || existing.family !== row.family
+              || (existing.structure && JSON.stringify(existing.structure) !== JSON.stringify(row.structure))) {
             throw new Error("Snapshot conflicts with an existing seed assignment.");
           }
           continue;

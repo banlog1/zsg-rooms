@@ -31,6 +31,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
     private static Object worldBeforeLaunch;
     private static boolean awaitingSynchronizedStart;
     private static boolean worldReadySent;
+    private static long nextWorldReadyRetry;
 
     @Override
     public void onInitializeClient() {
@@ -61,7 +62,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
     public static void onAdvancementCompleted(String advancementId, String title) {
         String roomName = ZsgRooms.getActiveRoomName();
         InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
-        if (game == null || !game.getIsInGame() || !game.isSynchronizedStartReleased()) {
+        if (!RaceSequenceClient.canPlay(game) || !game.isSynchronizedStartReleased()) {
             return;
         }
         String raceKey = roomName + "|" + game.getRaceId() + "|" + game.getSeed();
@@ -91,7 +92,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
     }
 
     private static void completeLocalRun(String roomName, InGame game) {
-        if (game == null || !game.getIsInGame() || !game.isSynchronizedStartReleased()) {
+        if (!RaceSequenceClient.canPlay(game) || !game.isSynchronizedStartReleased()) {
             return;
         }
         String raceKey = roomName + "|" + game.getRaceId() + "|" + game.getSeed();
@@ -102,7 +103,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
         MinecraftClient client = MinecraftClient.getInstance();
         long elapsedNanos = EndExitTimeCapture.consume(client, game.getRaceId());
         long completedIgt = SpeedRunIgtBridge.currentInGameTimeMilliseconds();
-        zsgrooms.modid.replay.ReplayPrototype.raceFinished(game.getRaceId(), elapsedNanos, completedIgt);
+        if (game.getSequence() == null) zsgrooms.modid.replay.ReplayPrototype.raceFinished(game.getRaceId(), elapsedNanos, completedIgt);
         RunHistoryTracker.completeRun(game, completedIgt);
         if (elapsedNanos < 0L) {
             ZsgRooms.LOGGER.warn("Race completion not submitted: local start or finish timing is unavailable");
@@ -111,6 +112,10 @@ public class ZsgRoomsClient implements ClientModInitializer {
                         "[ZSG Room] Seed completed, but local race timing is unavailable. Result not submitted.")
                         .formatted(Formatting.RED));
             }
+            return;
+        }
+        if (game.getSequence() != null) {
+            RaceSequenceClient.report(game, "finish", elapsedNanos);
             return;
         }
         String result = RaceFinishArbiter.completion(game.getRaceId(), elapsedNanos, completedIgt);
@@ -133,6 +138,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
             resetLocalAdvancementTracking();
         }
         wasInGame = inGame;
+        RaceSequenceClient.tick(client, game);
         tickSynchronizedStart(client, roomName, game);
         EndExitTimeCapture.tickClient(game, client, awaitingSynchronizedStart);
         RoomWebSocketTransport.tickFinishTiming();
@@ -141,6 +147,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
     }
 
     public static void beginSynchronizedStart(String roomName, String seed) {
+        ZsgInGameActions.clearMatchResult();
         MinecraftClient client = MinecraftClient.getInstance();
         synchronizedRoomName = roomName == null ? "" : roomName;
         synchronizedSeed = seed == null ? "" : seed;
@@ -207,11 +214,17 @@ public class ZsgRoomsClient implements ClientModInitializer {
         }
         if (!worldReadySent && isNewWorldPlayable(client)) {
             worldReadySent = true;
+            nextWorldReadyRetry = System.nanoTime() + 2_000_000_000L;
             client.openScreen(new SynchronizedStartScreen(synchronizedRoomName));
             sendRoomAction("world_ready", synchronizedRoomName, synchronizedSeed);
             if (game.isSynchronizedStartReleased()) {
                 releaseSynchronizedStart(synchronizedRoomName, synchronizedSeed);
             }
+        } else if (worldReadySent && !game.getReadyPlayers().contains(localPlayerName(client))
+                && System.nanoTime() - nextWorldReadyRetry >= 0) {
+            // The guest socket can stay open while the host is offline and miss this message.
+            nextWorldReadyRetry = System.nanoTime() + 2_000_000_000L;
+            sendRoomAction("world_ready", synchronizedRoomName, synchronizedSeed);
         }
     }
 
@@ -231,6 +244,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
     }
 
     public static void sendRoomAction(String action, String roomName, String value) {
+        if ("profile".equals(action)) value = value + "|sequence:1|tournament:1|spawnrules:1";
         MinecraftClient client = MinecraftClient.getInstance();
         String playerName = localPlayerName(client);
         if (RoomWebSocketTransport.sendAction(action, roomName, playerName, value)) {
@@ -242,6 +256,9 @@ public class ZsgRoomsClient implements ClientModInitializer {
         if (RoomSocketTransport.sendAction(action, roomName, playerName, value)) {
             return;
         }
+        InGame current = ZsgRooms.getGame(roomName);
+        // A disconnected guest must never adjudicate a sequence locally.
+        if (current != null && current.getSequence() != null) return;
         if (client != null && client.getNetworkHandler() != null && ClientSidePacketRegistry.INSTANCE.canServerReceive(ZsgRoomNetworking.ROOM_ACTION)) {
             ClientSidePacketRegistry.INSTANCE.sendToServer(ZsgRoomNetworking.ROOM_ACTION, ZsgRoomNetworking.packet(action, roomName, playerName, value));
         } else {

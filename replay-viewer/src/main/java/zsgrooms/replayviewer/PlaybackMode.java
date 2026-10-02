@@ -28,6 +28,10 @@ final class PlaybackMode {
     }
 
     boolean quick() { return handler.isQuickMode(); }
+    boolean fastSeeking() { return ((SeekLightingAccess) handler).zsgViewer$fastSeeking(); }
+    void setFastSeeking(boolean enabled) {
+        if (!closed && !busy && !quick()) ((SeekLightingAccess) handler).zsgViewer$fastSeeking(enabled);
+    }
     boolean busy() { return busy; }
     boolean available() { return !closed && !busy && !ReplayMod.isMinimalMode(); }
     String status() {
@@ -102,5 +106,5 @@ final class PlaybackMode {
         changed.run();
     }
 
-    void close() { closed = true; initialization = null; }
+    void close() { ((SeekLightingAccess) handler).zsgViewer$fastSeeking(false); closed = true; initialization = null; }
 }

@@ -106,6 +106,7 @@ public class RoomWebSocketTransport {
     public static synchronized void tickFinishTiming() {
         if (connection != null && connection.host && connection.isOpen()) {
             RelayConnection current = connection;
+            RoomSequenceHost.tick(current.roomName, current::sendSnapshot);
             current.finishTiming.tick(current.roomName, current::finishAndBroadcast);
         }
     }
@@ -244,6 +245,7 @@ public class RoomWebSocketTransport {
 
     private static class RelayConnection implements SimpleWebSocketClient.Listener {
         private final RoomFinishTiming finishTiming = new RoomFinishTiming();
+        private final RaceSeedPreparation raceSeeds = new RaceSeedPreparation();
         private static final long RECONNECT_WINDOW_MILLIS = 60000L;
 
         private final URI uri;
@@ -377,10 +379,18 @@ public class RoomWebSocketTransport {
             if (!this.playerName.equals(player)) {
                 return;
             }
+            if (RoomSequenceHost.handle(this.roomName, player, type, value, this::sendSnapshot)) {
+                releaseStartIfReady();
+                return;
+            }
             if ("start".equals(type)) {
                 requestAndLaunchExactSeed();
             } else if ("rules".equals(type)) {
-                if (ZsgRooms.changeRoomRules(this.roomName, player, value)) sendSnapshot();
+                if (ZsgRooms.changeRoomRules(this.roomName, player, value)) {
+                    seedSelectionChanged();
+                    ensureSeedPrefetch();
+                    sendSnapshot();
+                }
             } else if ("filter".equals(type)) {
                 ZsgRooms.applyRoomAction(type, this.roomName, player, value);
                 seedSelectionChanged();
@@ -396,6 +406,7 @@ public class RoomWebSocketTransport {
                 sendSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
+                    ZsgRooms.getGame(this.roomName).setSequence(null);
                     requestAndLaunchExactSeed();
                 }
             } else if ("advancement".equals(type)) {
@@ -418,13 +429,17 @@ public class RoomWebSocketTransport {
         }
 
         private void handleGuestAction(String type, String player, String value, long received) {
+            if (RoomSequenceHost.handle(this.roomName, player, type, value, this::sendSnapshot)) {
+                releaseStartIfReady();
+                return;
+            }
             if ("join_room".equals(type)) {
                 Room room = ZsgRooms.getRoom(this.roomName);
                 if (room != null && room.getPlayer(player) != null) {
                     sendSnapshot();
                     return;
                 }
-                if (room == null || room.isFull()) {
+                if (room == null || room.isFull() || ZsgRooms.getGame(this.roomName).getIsInGame()) {
                     send("error", player, "The room is full or unavailable");
                     send("kick", player, "Room join was rejected");
                     return;
@@ -447,6 +462,7 @@ public class RoomWebSocketTransport {
                 sendSnapshot();
                 if (ready) {
                     announceSeedChangeAgreement();
+                    ZsgRooms.getGame(this.roomName).setSequence(null);
                     requestAndLaunchExactSeed();
                 }
                 return;
@@ -515,6 +531,10 @@ public class RoomWebSocketTransport {
         }
 
         private void handlePlayerLeave(String player) {
+            if (RoomSequenceHost.handle(this.roomName, player, "leave_room", "", this::sendSnapshot)) {
+                releaseStartIfReady();
+                return;
+            }
             Room room = ZsgRooms.getRoom(this.roomName);
             InGame game = ZsgRooms.getGame(this.roomName);
             String winner = room == null ? null : room.findFirstOtherPlayerName(player);
@@ -583,6 +603,12 @@ public class RoomWebSocketTransport {
             if (room == null || game == null) {
                 return;
             }
+            if (game.getIsInGame() && game.getSequence() != null || !RoomSequenceHost.compatible(room)) {
+                sendSnapshot();
+                return;
+            }
+            if (!RoomSequenceHost.prepareTournament(room, game)) { sendSnapshot(); return; }
+            sendSnapshot();
 
             String specification = ZsgSeedBridge.normalizeSeedSpecification(game.targetStructure);
             long launchGeneration = beginSeedLaunch();
@@ -594,12 +620,13 @@ public class RoomWebSocketTransport {
             status = manager.getStatus().isEmpty()
                     ? HostSeedPrefetchManager.STATUS_PREPARING
                     : manager.getStatus();
-            manager.consumeOrRequest(this.roomName, specification).whenComplete((seed, error) ->
+            raceSeeds.prepare(this.roomName, specification, game.getFinishGoal()).whenComplete((seeds, error) ->
                     runOnClientThread(() -> completeSeedLaunch(
-                            launchGeneration, specification, seed, error)));
+                            launchGeneration, specification, seeds, error)));
         }
 
-        private void completeSeedLaunch(long launchGeneration, String specification, String seed, Throwable error) {
+        private void completeSeedLaunch(long launchGeneration, String specification, java.util.List<String> seeds, Throwable error) {
+            String seed = seeds == null || seeds.isEmpty() ? null : seeds.get(0);
             HostSeedPrefetchManager manager = HostSeedPrefetchManager.getInstance();
             if (!isCurrentSeedLaunch(launchGeneration)
                     || !manager.isCurrentSelection(this.roomName, specification)) {
@@ -614,6 +641,30 @@ public class RoomWebSocketTransport {
                 return;
             }
 
+            Room room = ZsgRooms.getRoom(this.roomName);
+            if (room == null || !RoomSequenceHost.compatible(room)) {
+                finishSeedLaunch(launchGeneration);
+                sendSnapshot();
+                return;
+            }
+            InGame tournamentGame = ZsgRooms.getGame(this.roomName);
+            if (tournamentGame != null && tournamentGame.getTournament() != null) {
+                if (!RoomSequenceHost.prepareTournament(room, tournamentGame)
+                        || !ZsgRooms.commitLaunchedRoomSeed(this.roomName, seed, specification)) {
+                    finishSeedLaunch(launchGeneration);
+                    sendSnapshot();
+                    return;
+                }
+                RoomSequenceHost.assignSequence(room, tournamentGame, seeds);
+                raceSeeds.clear();
+                sendSnapshot();
+                send("launch", this.playerName, zsgrooms.modid.TournamentRaceClient.launchPayload(this.roomName));
+                zsgrooms.modid.TournamentRaceClient.launch(this.roomName, seed);
+                manager.onSeedConsumed(this.roomName, specification);
+                status = "Waiting for tournament runners to load";
+                finishSeedLaunch(launchGeneration);
+                return;
+            }
             ZsgRoomsClient.beginSynchronizedStart(this.roomName, seed);
             if (!ZsgSeedBridge.launchSeedWithAtum(seed)) {
                 ZsgRoomsClient.cancelSynchronizedStart(this.roomName, seed);
@@ -633,6 +684,9 @@ public class RoomWebSocketTransport {
                 return;
             }
 
+            InGame game = ZsgRooms.getGame(this.roomName);
+            game.setSequence(new zsgrooms.modid.RaceSequence(game.getRaceId(), seeds, room.getPlayerNames(), game.getFinisherLimit()));
+            raceSeeds.clear();
             send("launch", this.playerName, seed);
             manager.onSeedConsumed(this.roomName, specification);
             status = "Waiting for every player to load";
@@ -671,6 +725,7 @@ public class RoomWebSocketTransport {
         private synchronized void seedSelectionChanged() {
             this.seedLaunchGeneration++;
             this.preparingSeed = false;
+            raceSeeds.clear();
         }
 
         @Override
@@ -708,7 +763,9 @@ public class RoomWebSocketTransport {
             } else {
                 runOnClientThread(() -> {
                     String value = decoded.get("value");
-                    if ("launch".equals(type)) {
+                    InGame localGame = ZsgRooms.getGame(decoded.get("room"));
+                    if ("launch".equals(type) && !zsgrooms.modid.TournamentRaceClient.isLaunchPayload(value)
+                            && (localGame == null || localGame.getTournament() == null)) {
                         ZsgRoomsClient.beginSynchronizedStart(decoded.get("room"), value);
                     }
                     ZsgRooms.applyRoomAction(type, decoded.get("room"), decoded.get("player"), value);

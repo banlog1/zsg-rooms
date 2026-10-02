@@ -22,6 +22,7 @@ public class InGame {
     public String targetStructure;
     public int requiredIronCount;
     public int finishGoal;
+    private int finisherLimit = 1;
     private boolean cheatsAllowed;
     private boolean rngStandardized;
     private boolean reduceZeroCycleFlyAways;
@@ -29,6 +30,7 @@ public class InGame {
     private boolean minimumBastionIron;
     private boolean removeBastionZombifiedPiglins;
     private boolean removeNaturalStriderJockeys;
+    private boolean preventTempleHostileSpawns;
     private boolean spawnNearFilterStructure;
     private boolean minimumNearbyAnimals;
     private boolean netherEntryWarmup;
@@ -36,6 +38,20 @@ public class InGame {
     private boolean disablePauseWorldSaves;
     private boolean synchronizedStartReleased;
     private String raceId = "";
+    private RaceSequence sequence;
+    private TournamentSettings tournamentSettings = new TournamentSettings();
+    private Tournament tournament;
+    private transient long startReleasedNanos;
+
+    public TournamentSettings getTournamentSettings() { return tournamentSettings; }
+    public void setTournamentSettings(TournamentSettings settings) { tournamentSettings = settings.copy(); }
+    public Tournament getTournament() { return tournament; }
+    public void setTournament(Tournament tournament) { this.tournament = tournament; }
+    public boolean tournamentLocked() { return tournament != null; }
+    public long hostRaceElapsed() { return startReleasedNanos == 0 ? -1 : System.nanoTime() - startReleasedNanos; }
+
+    public RaceSequence getSequence() { return sequence; }
+    public void setSequence(RaceSequence sequence) { this.sequence = sequence; }
 
     private boolean loadingScreenVisible;
     private final Set<String> readyPlayers;
@@ -109,6 +125,8 @@ public class InGame {
     }
 
     public void startGame() {
+        this.startReleasedNanos = 0;
+        this.sequence = null;
         this.raceId = java.util.UUID.randomUUID().toString();
         this.isInGame = true;
         this.loadingScreenVisible = false;
@@ -159,6 +177,7 @@ public class InGame {
             return false;
         }
         synchronizedStartReleased = true;
+        startReleasedNanos = System.nanoTime();
         return true;
     }
 
@@ -233,7 +252,8 @@ public class InGame {
         String normalizedStructure = ZsgSeedBridge.normalizeSeedType(structureType);
         this.targetStructure = ZsgSeedBridge.normalizeSeedSpecification(structureType);
         this.requiredIronCount = Math.max(1, minimumIron);
-        this.seed = ZsgSeedBridge.buildSeedForStructure(baseSeed, normalizedStructure, this.requiredIronCount);
+        this.seed = zsgrooms.modid.seedbank.SeedStructureTarget.preserve(this.seed,
+                ZsgSeedBridge.buildSeedForStructure(baseSeed, normalizedStructure, this.requiredIronCount));
     }
 
     public String getActiveFilter() {
@@ -247,12 +267,18 @@ public class InGame {
     }
 
     public void setFinishGoal(int finishGoal) {
-        this.finishGoal = Math.max(1, finishGoal);
+        this.finishGoal = Math.max(1, Math.min(RaceSequence.MAX_SEEDS, finishGoal));
     }
 
     public int getFinishGoal() {
         return this.finishGoal;
     }
+
+    public void setFinisherLimit(int limit) {
+        this.finisherLimit = Math.max(1, Math.min(64, limit));
+    }
+
+    public int getFinisherLimit() { return this.finisherLimit; }
 
     public boolean areCheatsAllowed() {
         return cheatsAllowed;
@@ -304,6 +330,14 @@ public class InGame {
 
     public boolean removesNaturalStriderJockeys() {
         return removeNaturalStriderJockeys;
+    }
+
+    public boolean preventsTempleHostileSpawns() {
+        return preventTempleHostileSpawns;
+    }
+
+    public void setPreventTempleHostileSpawns(boolean enabled) {
+        this.preventTempleHostileSpawns = enabled;
     }
 
     public void setRemoveNaturalStriderJockeys(boolean removeNaturalStriderJockeys) {

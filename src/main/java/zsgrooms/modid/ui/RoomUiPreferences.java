@@ -32,6 +32,8 @@ public final class RoomUiPreferences {
     private static final Path NETHER_WARMUP_CONFIG_PATH = Paths.get("config", "zsg-rooms-nether-warmup.txt");
     private static final Path LOADING_IMAGES_CONFIG_PATH = Paths.get("config", "zsg-rooms-loading-images.txt");
     private static final Path LOADING_POSITION_CONFIG_PATH = Paths.get("config", "zsg-rooms-loading-position.txt");
+    private static final Path LOADING_INDICATOR_CONFIG_PATH = Paths.get("config", "zsg-rooms-loading-indicator.txt");
+    private static LoadingIndicatorStyle loadingIndicatorStyle = loadLoadingIndicatorStyle(LOADING_INDICATOR_CONFIG_PATH);
     private static LoadingProgressPosition loadingProgressPosition = loadLoadingProgressPosition(LOADING_POSITION_CONFIG_PATH);
     private static boolean loadingImagesEnabled = loadLoadingImages();
     private static HudPosition hudPosition = loadHudPosition();
@@ -43,6 +45,28 @@ public final class RoomUiPreferences {
     }
 
     public static boolean areLoadingImagesEnabled() { return loadingImagesEnabled; }
+
+    public static LoadingIndicatorStyle getLoadingIndicatorStyle() { return loadingIndicatorStyle; }
+
+    public static void setLoadingIndicatorStyle(LoadingIndicatorStyle style) {
+        if (style == null) return;
+        loadingIndicatorStyle = style;
+        try {
+            Files.createDirectories(LOADING_INDICATOR_CONFIG_PATH.getParent());
+            Files.write(LOADING_INDICATOR_CONFIG_PATH, style.name().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException ignored) {
+        }
+    }
+
+    static LoadingIndicatorStyle loadLoadingIndicatorStyle(Path path) {
+        try {
+            if (Files.exists(path)) {
+                return LoadingIndicatorStyle.parse(new String(Files.readAllBytes(path), StandardCharsets.UTF_8));
+            }
+        } catch (IOException ignored) {
+        }
+        return LoadingIndicatorStyle.ZSG;
+    }
 
     public static LoadingProgressPosition getLoadingProgressPosition() { return loadingProgressPosition; }
 

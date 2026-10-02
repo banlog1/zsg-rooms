@@ -32,9 +32,15 @@ public final class MatchHud {
             lastWorld.clear();
             return;
         }
+        zsgrooms.modid.RaceSequence race = game.getSequence();
+        Player[] players = room.players;
+        if (game.getTournament() != null && race != null) players = java.util.Arrays.stream(players)
+                .filter(p -> p != null && race.runner(p.getName()) != null).toArray(Player[]::new);
         int roster = 1;
-        for (Player player : room.players) {
+        int count = 0;
+        for (Player player : players) {
             if (player != null) {
+                count++;
                 roster = 31 * roster + Objects.hashCode(player.getName());
             }
         }
@@ -48,7 +54,6 @@ public final class MatchHud {
 
         int screenWidth = client.getWindow().getScaledWidth();
         int screenHeight = client.getWindow().getScaledHeight();
-        int count = room.getPlayerCount();
         if (count == 0) {
             return;
         }
@@ -62,9 +67,17 @@ public final class MatchHud {
                 || position == RoomUiPreferences.HudPosition.BOTTOM_RIGHT;
         float x = right ? screenWidth - PANEL_WIDTH * scale - 8 : 8;
         float y = bottom ? Math.max(8, screenHeight - height * scale - 34) : 8;
-        drawPanel(matrices, client, settings, room.players, game.getPlayerProgress(),
-                game.getPlayerProgressLabels(), client.getSession().getUsername(),
-                x, y, scale, now - rotationStart, game.getActiveFilter());
+        Map<String, String> labels = game.getPlayerProgressLabels();
+        if (race != null) for (zsgrooms.modid.RaceSequence.Runner runner : race.standings()) {
+            String label = runner.wonByForfeit ? "#1 - Win by forfeit" : runner.stopped ? "Unplaced" : runner.dnf ? "DNF" : runner.finished ? "#" + race.place(runner.name)
+                    + (race.complete() ? " " : "* ") + zsgrooms.modid.RaceSequence.time(runner.adjustedNanos())
+                    : (runner.stage + 1) + "/" + race.goal + " - " + labels.getOrDefault(runner.name, "Starting");
+            if (!runner.done() && runner.skipped > 0) label = (runner.stage + 1) + "/" + race.goal + " +"
+                    + (runner.skipped * 30) + "m - " + labels.getOrDefault(runner.name, "Starting");
+            labels.put(runner.name, label);
+        }
+        drawPanel(matrices, client, settings, players, race == null ? game.getPlayerProgress() : java.util.Collections.emptyMap(),
+                labels, client.getSession().getUsername(), x, y, scale, now - rotationStart, game.getActiveFilter(), race);
     }
 
     static int panelHeight(MatchHudPreferences settings, int rows) {
@@ -84,6 +97,13 @@ public final class MatchHud {
     static void drawPanel(MatrixStack matrices, MinecraftClient client, MatchHudPreferences settings,
                           Player[] players, Map<String, Integer> progress, Map<String, String> labels,
                           String localName, float x, float y, float scale, long elapsedMillis, String filter) {
+        drawPanel(matrices, client, settings, players, progress, labels, localName, x, y, scale, elapsedMillis, filter, null);
+    }
+
+    private static void drawPanel(MatrixStack matrices, MinecraftClient client, MatchHudPreferences settings,
+                          Player[] players, Map<String, Integer> progress, Map<String, String> labels,
+                          String localName, float x, float y, float scale, long elapsedMillis, String filter,
+                          zsgrooms.modid.RaceSequence race) {
         int count = 0;
         int localIndex = -1;
         for (Player player : players) {
@@ -108,7 +128,12 @@ public final class MatchHud {
                 }
             }
             if (settings.header) {
-                drawCentered(client, matrices, "Current Match" + (settings.seedType ? " (" + count + ")" : ""), 7, 0xFFFFE36B);
+                String header = "Current Match" + (settings.seedType ? " (" + count + ")" : "");
+                if (race != null) {
+                    long elapsed = zsgrooms.modid.EndExitTimeCapture.elapsed(race.raceId);
+                    if (elapsed >= 0) header = "Race " + zsgrooms.modid.RaceSequence.time(elapsed);
+                }
+                drawCentered(client, matrices, header, 7, 0xFFFFE36B);
                 if (!settings.seedType) drawCentered(client, matrices, "ZSG Room (" + count + ")", 18, 0xFFD2D2D2);
             }
             if (settings.seedType) {

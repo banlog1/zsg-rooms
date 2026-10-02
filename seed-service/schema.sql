@@ -17,3 +17,10 @@ CREATE TABLE IF NOT EXISTS bank_active (
     profile TEXT PRIMARY KEY,
     revision TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS bank_structures (
+    revision TEXT NOT NULL,
+    type TEXT NOT NULL,
+    page INTEGER NOT NULL CHECK(page >= 0),
+    entries TEXT NOT NULL,
+    PRIMARY KEY (revision, type, page)
+);
