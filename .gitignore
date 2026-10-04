@@ -95,6 +95,13 @@ __pycache__/
 Thumbs.db
 Desktop.ini
 
-# generated logo comparisons and unused artwork draft
-/branding/zsg-rooms/font-options/
+# Keep one-off artwork generators and drafts local; version only final assets.
+/branding/**/*.py
+/branding/**/*.ps1
+/branding/**/drafts/
+/branding/**/previews/
+/branding/**/font-options/
+/local-artwork/
+
+# unused artwork draft
 /branding/zsg-rooms/qwdawd.png
