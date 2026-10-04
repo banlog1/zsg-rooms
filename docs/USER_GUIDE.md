@@ -123,10 +123,28 @@ selected seed.
 If a player leaves while everyone is loading, the host re-evaluates the current
 player list so the remaining players are not held forever.
 
+## Personal Settings
+
+The rooms menu gear opens five categories: General, HUD, Loading, Recording,
+and Advanced. These are local preferences, separate from the host's room rules.
+Wide screens have a category sidebar; narrow screens have a category menu.
+Scroll the content or use Page Up/Page Down to reach additional settings.
+
+Advanced contains the seed-bank service URL, replay-library setup, solo replay
+testing, portal-repair testing, and debug logging. A gold `Testing active` button
+remains visible in every category when repair testing, debug logging, or a saved
+solo replay test group is enabled. It opens Advanced without disabling anything.
+
+Switches take effect through their existing settings APIs. Service URLs, library
+folder overrides and solo group IDs require their Save/Apply action. Unsaved
+fields and category scroll positions survive navigation and window resizing
+while Settings remains open. Hover a setting, including a disabled control, for
+its effect and any availability restriction.
+
 ## In-Game HUD
 
 The match HUD shows player skin heads, names, and latest tracked stages. Open
-`Room Settings > Match HUD` from the rooms menu gear, or use the `HUD` button in
+`Settings > HUD` from the rooms menu gear, or use the `HUD` button in
 the in-game pause menu. These preferences only affect your own display.
 
 - Appearance: show/hide the HUD, header, heads, and progress numbers; choose
@@ -135,8 +153,9 @@ the in-game pause menu. These preferences only affect your own display.
   (2-10 seconds). Your row stays visible by default, with one opponent beneath
   it rotating every five seconds. Rooms that fit do not rotate. You can show up
   to four rows, or turn off the pinned row to rotate everyone together.
-- Preview: changes appear immediately in the sample HUD. On narrow screens,
-  use the Preview tab; short screens provide arrows and mouse-wheel paging.
+- Preview: `HUD preview > Preview...` opens the existing live editor. Changes
+  appear immediately in its sample HUD. On narrow screens, use its Preview tab;
+  short screens provide arrows and mouse-wheel paging.
 
 The default corner remains top-right. Heads and stage updates for players not
 currently visible are not removed from the room; they appear when their row

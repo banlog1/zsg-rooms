@@ -1,6 +1,8 @@
 package zsgrooms.modid.mixin;
 
 import net.minecraft.client.gui.WorldGenerationProgressTracker;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import net.minecraft.world.chunk.ChunkStatus;
 import net.minecraft.client.gui.screen.LevelLoadingScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.util.math.MatrixStack;
@@ -22,6 +24,7 @@ import zsgrooms.modid.ui.RoomLoadingIndicator;
 @Mixin(LevelLoadingScreen.class)
 public abstract class RoomLoadingScreenMixin extends Screen implements RoomLoadingArtwork.ScreenState {
     @Shadow @Final private WorldGenerationProgressTracker progressProvider;
+    @Shadow @Final private static Object2IntMap<ChunkStatus> STATUS_TO_COLOR;
     @Unique private RoomLoadingArtwork zsgRooms$artwork;
 
     protected RoomLoadingScreenMixin(Text title) { super(title); }
@@ -49,7 +52,7 @@ public abstract class RoomLoadingScreenMixin extends Screen implements RoomLoadi
         if (zsgRooms$hasLoadingArtwork()) zsgRooms$artwork.render(matrices, client, width, height);
         else renderBackground(matrices);
         if (RoomUiPreferences.getLoadingIndicatorStyle() == LoadingIndicatorStyle.ZSG) {
-            RoomLoadingIndicator.render(matrices, client, width, height, progressProvider);
+            RoomLoadingIndicator.render(matrices, client, width, height, progressProvider, STATUS_TO_COLOR);
             return;
         }
         LoadingProgressPosition position = RoomUiPreferences.getLoadingProgressPosition();

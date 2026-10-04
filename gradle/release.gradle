@@ -75,7 +75,7 @@ tasks.register('stageRelease', Sync) {
 - **${viewerSources.name}**: viewer source, not an installable mod. GPL-3.0-or-later; the core remains CC0-1.0. Full build scripts are in the tagged source archive.
 - **zsg-rooms-filter-gallery.zip**: optional picker and loading artwork. Put it in `resourcepacks` and enable it in Minecraft, not in `mods`. The images are not bundled in either mod.
 
-Enable recording under **Settings > Replays**. If ReplayMod is installed, disable its Record Singleplayer, Record Server, and Automatic Recording options first. SpeedRunIGT is needed during recording for RTA/IGT data. Player switching currently uses manually shared files.
+Enable recording under **Settings > Recording**. If ReplayMod is installed, disable its Record Singleplayer, Record Server, and Automatic Recording options first. SpeedRunIGT is needed during recording for RTA/IGT data. Player switching currently uses manually shared files.
 
 The in-game updater updates ZSG Rooms and an already-installed Replay Viewer. Install the viewer manually the first time; ReplayMod and resource packs remain manual updates. Updaters through ZSG Rooms 1.0.28 update only the core. [Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
 

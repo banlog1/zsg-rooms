@@ -15,6 +15,12 @@ if (project.hasProperty('loadingWorldPreview')) {
         modRuntimeOnly fileTree(dir: 'libs', include: 'speedrunapi-*.jar')
     }
 }
+if (project.hasProperty('roomWorldCreationSmoke')) {
+    dependencies {
+        modRuntimeOnly files('libs/atum-2.7.2+1.16-1.16.1.jar')
+        modRuntimeOnly fileTree(dir: 'libs', include: 'speedrunapi-*.jar')
+    }
+}
 loom {
     mods {
         'zsg-rooms' { sourceSet sourceSets.main }
@@ -35,13 +41,20 @@ loom {
             vmArg "-Dzsgrooms.spawnPreparationSmoke=${project.hasProperty('spawnPreparationSmoke') || project.hasProperty('bankStructureSmoke')}"
             vmArg "-Dzsgrooms.bankStructureSmoke=${project.hasProperty('bankStructureSmoke')}"
             vmArg "-Dzsgrooms.templeSpawnSmoke=${project.hasProperty('templeSpawnSmoke')}"
+            vmArg "-Dzsgrooms.gameRuleAuditSmoke=${project.hasProperty('gameRuleAuditSmoke')}"
+            vmArg "-Dzsgrooms.roomWorldCreationSmoke=${project.hasProperty('roomWorldCreationSmoke')}"
             vmArg "-Dzsgrooms.loadingPositionSmoke=${project.hasProperty('loadingPositionSmoke')}"
+            vmArg "-Dzsgrooms.personalSettingsSmoke=${project.hasProperty('personalSettingsSmoke')}"
         }
     }
 }
 tasks.named('runFilterPickerTest') {
+    if (project.hasProperty('personalSettingsSmoke')) {
+        maxHeapSize = '2g'
+        jvmArgs '-XX:ActiveProcessorCount=4'
+    }
     if (project.hasProperty('testJava')) executable = project.property('testJava')
-    if (project.hasProperty('templeSpawnSmoke') || project.hasProperty('bankStructureSmoke') || project.hasProperty('sequenceSmoke') || project.hasProperty('raceFormatSmoke') || project.hasProperty('tournamentSmoke') || project.hasProperty('tournamentRaceSmoke') || project.hasProperty('loadingPositionSmoke') || project.hasProperty('seedVisualSmoke')) {
+    if (project.hasProperty('roomWorldCreationSmoke') || project.hasProperty('gameRuleAuditSmoke') || project.hasProperty('templeSpawnSmoke') || project.hasProperty('bankStructureSmoke') || project.hasProperty('sequenceSmoke') || project.hasProperty('raceFormatSmoke') || project.hasProperty('tournamentSmoke') || project.hasProperty('tournamentRaceSmoke') || project.hasProperty('loadingPositionSmoke') || project.hasProperty('seedVisualSmoke')) {
         maxHeapSize = '2g'
         jvmArgs "-XX:ActiveProcessorCount=${project.findProperty('smokeProcessors') ?: 4}", '-Xlog:gc:file=sequence-gc.log'
     }
@@ -58,12 +71,17 @@ tasks.named('runFilterPickerTest') {
                 || log.text.contains('[SeedVisualSmoke] FAILED') || log.text.contains('[LobbyRulesSmoke] FAILED')
                 || log.text.contains('[SpawnPreparationSmoke] FAILED') || log.text.contains('[LoadingPositionSmoke] FAILED')
                 || log.text.contains('[TempleSpawnSmoke] FAILED')
+                || log.text.contains('[RoomWorldCreationSmoke] FAILED')
                 || log.text.contains('[RaceSequenceSmoke] FAILED')
                 || log.text.contains('[RaceFormatSmoke] FAILED')
                 || log.text.contains('[TournamentSmoke] FAILED')
+                || log.text.contains('[PersonalSettingsSmoke] FAILED')
                 || log.text.contains('[TournamentRaceSmoke] FAILED')
                 || log.text.contains('[AaModeSmoke] FAILED')) {
             throw new GradleException('Filter picker smoke test failed; see run/filter-picker-test/logs/latest.log')
+        }
+        if (project.hasProperty('gameRuleAuditSmoke') && !log.text.contains('[GameRuleAudit] COMPLETE')) {
+            throw new GradleException('Game-rule audit did not complete')
         }
     }
 }

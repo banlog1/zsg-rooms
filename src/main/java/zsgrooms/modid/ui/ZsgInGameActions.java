@@ -10,6 +10,7 @@ import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
 import net.minecraft.world.World;
 import zsgrooms.modid.Room;
+import zsgrooms.modid.RoomCommandPermissions;
 import zsgrooms.modid.InGame;
 import zsgrooms.modid.RaceSequence;
 import zsgrooms.modid.RaceSequenceClient;
@@ -31,9 +32,8 @@ public class ZsgInGameActions {
     }
 
     public static boolean activeRoomForbidsCheats() {
-        String roomName = ZsgRooms.getActiveRoomName();
-        InGame game = roomName == null ? null : ZsgRooms.getGame(roomName);
-        return game != null && !game.areCheatsAllowed();
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null && RoomCommandPermissions.forbidsCheats(client.getServer());
     }
 
     public static void requestSeedChange(MinecraftClient client) {

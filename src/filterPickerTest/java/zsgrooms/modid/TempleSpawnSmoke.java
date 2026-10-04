@@ -62,7 +62,12 @@ public final class TempleSpawnSmoke {
             } else if (client.player != null && !checking) {
                 checking = true;
                 client.getServer().execute(() -> {
-                    try { check(client.getServer().getOverworld()); }
+                    try {
+                        check(client.getServer().getOverworld());
+                        if (Boolean.getBoolean("zsgrooms.gameRuleAuditSmoke")) {
+                            GameRuleAuditSmoke.check(client.getServer().getOverworld());
+                        }
+                    }
                     catch (Throwable error) { failure = error; }
                     finally { checked = true; }
                 });

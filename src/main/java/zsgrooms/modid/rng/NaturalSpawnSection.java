@@ -7,17 +7,18 @@ public final class NaturalSpawnSection {
     private final int spawnGroup;
     private final int chunkX;
     private final int chunkZ;
+    private final String seedKey;
 
     public NaturalSpawnSection(String dimension, int spawnGroup, int chunkX, int chunkZ) {
         this.dimension = dimension;
         this.spawnGroup = spawnGroup;
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
+        this.seedKey = dimension + "|" + spawnGroup + "|" + chunkX + "|" + chunkZ;
     }
 
     String seedKey() {
-        return this.dimension + "|" + this.spawnGroup + "|"
-                + this.chunkX + "|" + this.chunkZ;
+        return this.seedKey;
     }
 
     public int getChunkX() {

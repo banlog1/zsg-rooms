@@ -18,6 +18,7 @@ public final class TournamentStandingsScreen extends Screen {
     private double zoom = 1, panX, panY;
     private boolean fitted;
     private TournamentBracketLayout layout;
+    private final TournamentViewCache viewCache = new TournamentViewCache();
     private final Map<ButtonWidget, String> help = new LinkedHashMap<>();
 
     public TournamentStandingsScreen(Screen parent, String roomName, Tournament preview) {
@@ -152,6 +153,7 @@ public final class TournamentStandingsScreen extends Screen {
     }
 
     private List<String> bracket(MatrixStack matrices, Tournament tournament, int mx, int my) {
+        viewCache.updateBracket(tournament);
         List<String> tooltip = null;
         double ox = originX(), oy = originY();
         clip(12, 51, viewWidth(), 14);
@@ -167,7 +169,7 @@ public final class TournamentStandingsScreen extends Screen {
         Tournament.Match current = tournament.currentMatch();
         for (int round = 0; round < layout.rounds; round++) for (int index = 0; index < layout.count(round); index++) {
             int x = layout.x(round), cy = layout.centerY(round, index), y = cy - TournamentBracketLayout.MATCH_HEIGHT / 2;
-            Tournament.Match match = match(tournament, round, index);
+            Tournament.Match match = viewCache.match(round, index);
             if (round + 1 < layout.rounds) {
                 int end = layout.x(round + 1), mid = x + TournamentBracketLayout.MATCH_WIDTH + 18;
                 int nextY = layout.centerY(round + 1, index / 2), color = match != null && match.complete && !match.winner.isEmpty() ? 0xFFAD9853 : 0xFF656565;
@@ -214,17 +216,13 @@ public final class TournamentStandingsScreen extends Screen {
         return tooltip;
     }
 
-    private static Tournament.Match match(Tournament tournament, int round, int index) {
-        for (Tournament.Match match : tournament.matches) if (match.round == round + 1 && index-- == 0) return match;
-        return null;
-    }
-    private static String slot(Tournament tournament, int round, int index, int side) {
-        Tournament.Match match = match(tournament, round, index);
+    private String slot(Tournament tournament, int round, int index, int side) {
+        Tournament.Match match = viewCache.match(round, index);
         if (match != null) {
             String name = side == 0 ? match.left : match.right;
             return name.isEmpty() ? round == 0 ? "Bye" : "No player" : name;
         }
-        Tournament.Match source = match(tournament, round - 1, index * 2 + side);
+        Tournament.Match source = viewCache.match(round - 1, index * 2 + side);
         if (source != null && source.complete) return source.winner.isEmpty() ? "No player" : source.winner;
         return "Winner " + (index * 2 + side + 1);
     }
@@ -240,13 +238,13 @@ public final class TournamentStandingsScreen extends Screen {
         textRenderer.drawWithShadow(matrices, "Player", left + 34, 57, 0x999999);
         textRenderer.drawWithShadow(matrices, "Points", right - 104, 57, 0x999999);
         textRenderer.drawWithShadow(matrices, "Status", right - 56, 57, 0x999999);
-        List<String> names = tournament.leaderboard();
+        List<String> names = viewCache.leaderboard(tournament);
         int rows = Math.max(1, (height - 114) / 26);
         scroll = Math.min(scroll, Math.max(0, names.size() - rows));
         List<String> tooltip = null;
         for (int i = scroll; i < Math.min(names.size(), scroll + rows); i++) {
             String name = names.get(i);
-            int y = 74 + (i - scroll) * 26, place = tournament.place(name);
+            int y = 74 + (i - scroll) * 26, place = viewCache.place(i);
             fill(matrices, left, y - 4, right, y + 20, (i & 1) == 0 ? 0xA0202020 : 0xA0121212);
             int color = place == 1 && tournament.scores.get(name) > 0 ? 0xFFE36B : 0xFFFFFF;
             textRenderer.drawWithShadow(matrices, Integer.toString(place), left + 6, y + 3, color);

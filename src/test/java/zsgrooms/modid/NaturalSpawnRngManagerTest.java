@@ -5,6 +5,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.World;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import zsgrooms.modid.rng.NaturalSpawnCycle;
 import zsgrooms.modid.rng.NaturalSpawnRngManager;
@@ -21,6 +22,11 @@ public class NaturalSpawnRngManagerTest {
     private static final long WORLD_SEED = 918273645L;
     private static final String NETHER = "minecraft:the_nether";
     private static final int MONSTER = 0;
+
+    @BeforeAll
+    static void initializeMinecraftRegistries() {
+        net.minecraft.Bootstrap.initialize();
+    }
 
     @AfterEach
     public void disableStandardization() {

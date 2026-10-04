@@ -41,7 +41,7 @@ state, and player movement never pass through the room relay.
 ## Ruined Portal Repair Testing
 
 RP room seeds need no repair setting. For manually entered seeds or other filter
-types, enable `Room Settings > RP Test All Seeds` before generating a new world.
+types, enable `Settings > Advanced > RP repair on all seeds` before generating a new world.
 This testing override defaults to Off and does not inherit the old repair setting.
 It repairs newly generated ruined portals only, not arbitrary chests or existing chunks.
 
@@ -167,14 +167,14 @@ rows. See [optional asset packaging](optional-assets/README.md) to build the ZIP
 
 The match HUD shows the current seed category with a Minecraft item icon and a
 short label, including the actual drawn category in ZSG Rooms Mode. Toggle it
-under **Settings > Match HUD > Appearance > Show seed type**. It works without
+under **Settings > HUD > Show seed type**. It works without
 the image pack and can remain visible with the match header hidden.
 **Seed header size** in the same Appearance tab scales its icon and label from
 50% to 150%, independently of the player rows and overall HUD size.
 
 The optional gallery pack also contains loading backgrounds for temple, village,
 shipwreck, ruined portal and buried treasure seeds. Enable the resource pack and
-leave **Settings > Loading Screen > Loading Images** checked. One matching image stays fixed for
+leave **Settings > Loading > Loading images** checked. One matching image stays fixed for
 each world load. The default **ZSG** indicator overlays the Rooms logo on the real
 chunk-progress square. The logo fills from bottom to top with loading progress.
 The logo is bundled in the mod and works without the optional image pack.
@@ -228,7 +228,7 @@ is needed. The original FSG choices remain available.
 The host needs an Internet connection to prepare seeds; the full bank is not
 shipped with the mod. Newly published seeds become available without updating
 the mod. The Buried Treasure and Ruined Portal choices require this updated mod build.
-If you previously tested with localhost, open **Settings > Seed Bank**,
+If you previously tested with localhost, open **Settings > Advanced > Seed-bank service**,
 clear the URL and save to restore the public default. An explicitly configured
 server URL continues to override that default.
 
@@ -301,17 +301,18 @@ later for viewing.
 1. If ReplayMod is installed, open its settings and turn **Record Singleplayer**,
    **Record Server**, and **Automatic Recording** OFF. ZSG uses its own recorder;
    leave ReplayMod's recorder disabled to avoid duplicate recordings.
-2. Open **ZSG Rooms > Settings** (the gear button) **> Replays > Recording**.
-3. Enable **Record Local Worlds**. First setup downloads the recording libraries
+2. Open **ZSG Rooms > Settings** (the gear button) **> Recording**.
+3. Enable **Record local worlds**. First setup downloads the recording libraries
    automatically into this instance's `.minecraft/zsgrooms/replay-libraries`.
    Internet access is needed for this initial setup. Do not move these libraries
    into `mods`.
-4. If ReplayMod is installed, tick **ReplayMod recorder disabled**. This only
+4. If ReplayMod is installed, open **Advanced > Replay libraries** and tick
+   **ReplayMod recorder off**. This only
    confirms step 1; it does not change ReplayMod's settings for you.
-5. Wait for **Libraries ready** in the Setup tab and **Waiting for next world**
+5. Wait for **Libraries ready** in Replay libraries and **Waiting for next world**
    in Recording, then start a race or enter a local singleplayer world.
 6. Check for the red **REC** badge and elapsed recording time. You can hide the
-   badge with **Show Recording Indicator** without stopping the recording.
+   badge with **Recording indicator** without stopping the recording.
 
 Set this up **before entering the world**. Enabling recording in an already
 loaded world, or entering before setup finishes, does not start capture midway
@@ -334,7 +335,7 @@ fixed reduction is guaranteed. Leave it off to use the original recording path.
   Loading gaps remain on the recording timeline.
 - **New Seed discards the unfinished replay by default** once the replacement
   world connects with a different seed. Recording starts again automatically.
-  Enable **Save on Seed Change** in **Replays > Recording** to save the previous
+  Enable **Save on seed change** in **Settings > Recording** to save the previous
   seed as a separate replay instead. Completed recordings are kept. Votes and
   unsuccessful seed requests do not discard a recording.
 - **Stop Recording** is a manual override, not a required step after a race.
@@ -393,8 +394,8 @@ player, and chat data, so share them only with people you intend to receive it.
 
 ### Troubleshooting
 
-- **Setup failed or an old custom folder is selected:** use **Replays > Setup >
-  Use Minecraft Folder & Set Up**, then wait until ready. The optional folder
+- **Setup failed or an old custom folder is selected:** use **Settings > Advanced >
+  Replay libraries > Automatic setup**, then wait until ready. The optional folder
   override is for libraries, not where replay files are saved.
 - **No replay appears:** check that REC was visible during the run and saving
   has finished. ZSG uses ReplayMod's default `replay_recordings` folder; it does

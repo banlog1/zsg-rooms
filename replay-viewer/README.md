@@ -222,7 +222,7 @@ manifest, capped at 4,096 intervals. It survives long gaps without client ticks 
 is clamped to the written recording duration. Older recordings without this field
 do not show a loading indicator; older viewers can ignore the field.
 
-To hide only the live recording badge, use ZSG **Settings > Replays > Recording >
+To hide only the live recording badge, use ZSG **Settings > Recording >
 Show Recording Indicator**. This does not stop recording or hide playback timers.
 The recording-status badge is never shown during replay playback, even if the
 previous live recording's status still says it was saved.

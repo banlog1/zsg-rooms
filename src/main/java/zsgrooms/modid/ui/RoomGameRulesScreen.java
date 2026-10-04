@@ -284,7 +284,9 @@ public class RoomGameRulesScreen extends Screen {
     private void addRaceRules(int x, int y, int width, int height, int rowGap) {
         addRuleRow(
                 "Allow Cheats",
-                "Allows commands and LAN cheats in each runner's local world. "
+                "Controls cheat commands in each runner's race world, overriding Atum and LAN settings. "
+                        + "Off also blocks /seed; normal commands such as /help remain available. "
+                        + "Worlds always start in Survival. "
                         + "Cheat-enabled completions are not added to recent run history.",
                 x, y, width, height,
                 () -> this.allowCheats,
@@ -320,8 +322,9 @@ public class RoomGameRulesScreen extends Screen {
                 false);
         addRuleRow(
                 "Guarantee 3 Animals Near Structure",
-                "Ensures at least three eligible land animals exist within 70 blocks of the selected "
-                        + "filter structure when suitable natural spawn locations are available.",
+                "Ensures at least three eligible adult land animals exist within 70 blocks of the selected "
+                        + "filter structure when suitable natural spawn locations are available. "
+                        + "Babies do not count and are left untouched.",
                 x, y + rowGap * 4, width, height,
                 () -> this.minimumNearbyAnimals,
                 () -> this.minimumNearbyAnimals = !this.minimumNearbyAnimals,

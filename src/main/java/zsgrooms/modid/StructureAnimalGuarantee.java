@@ -70,6 +70,7 @@ public final class StructureAnimalGuarantee {
                 continue;
             }
             animal.initialize(world, world.getLocalDifficulty(pos), SpawnReason.CHUNK_GENERATION, null, null);
+            animal.setBreedingAge(0);
             animal.setPersistent();
             if (world.spawnEntity(animal)) {
                 spawned++;
@@ -79,22 +80,23 @@ public final class StructureAnimalGuarantee {
         int total = existing + spawned;
         long elapsedMillis = (System.nanoTime() - started) / 1_000_000L;
         if (total >= MINIMUM_ANIMALS) {
-            SeedDebugLog.info("Guaranteed {} eligible animals within {} blocks of {} "
+            SeedDebugLog.info("Guaranteed {} eligible adult animals within {} blocks of {} "
                             + "({} existing, {} added, {} terrain chunks, {} ms)",
                     total, RADIUS, selectedFilter, existing, spawned, search.chunksLoaded, elapsedMillis);
         } else {
-            ZsgRooms.LOGGER.warn("Only {} eligible animals could be placed within {} blocks of {} "
+            ZsgRooms.LOGGER.warn("Only {} eligible adult animals could be placed within {} blocks of {} "
                             + "after checking {} terrain chunks in {} ms",
                     total, RADIUS, selectedFilter, search.chunksLoaded, elapsedMillis);
         }
     }
 
     static boolean isEligible(Entity entity) {
-        return entity instanceof PigEntity
+        return entity instanceof AnimalEntity && !((AnimalEntity) entity).isBaby()
+                && (entity instanceof PigEntity
                 || entity instanceof CowEntity
                 || entity instanceof SheepEntity
                 || entity instanceof ChickenEntity
-                || entity instanceof RabbitEntity;
+                || entity instanceof RabbitEntity);
     }
 
     static int missingAnimals(int existing) {

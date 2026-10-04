@@ -54,6 +54,9 @@
 		"WoodLightingWorldMixin"
 	],
 	"client": [
+		"RoomCommandPermissionsMixin",
+		"RoomSeedCommandMixin",
+		"RoomWorldCreationMixin",
 		"RoomTimerCategoryMixin",
 		"RoomLoadingScreenMixin",
 		"RoomLoadingInputMixin",

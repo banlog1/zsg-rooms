@@ -5,7 +5,7 @@ Date: 2026-09-09
 Status: foundation selected and opt-in local capture implemented. A development
 client capture and streaming file inspection passed; visual ReplayMod playback,
 full modpack compatibility, race integration, and performance remain unverified.
-Local recording/setup controls are available in Room Settings > Replays; no
+Local controls are available in Settings > Recording and Advanced > Replay libraries; no
 recording JVM arguments are required. Libraries remain separately prepared.
 
 ## Decision
@@ -282,7 +282,7 @@ warning on JDK 25; it did not fail these tests.
   recording after its original world has been removed.
 
 The first local capture smoke check now passes without ReplayMod installed.
-Local controls are under **Room Settings > Replays**. Enabling recording now
+Local recording controls are under **Settings > Recording**. Enabling recording now
 automatically prepares pinned libraries in the Minecraft instance's
 `zsgrooms/replay-libraries`; no Java arguments or folder selection are needed.
 Setup retains an optional library override. The mod packages our writer adapter

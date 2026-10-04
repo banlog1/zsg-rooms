@@ -4,6 +4,12 @@ Room game rules are selected by the host before room creation and copied to all
 players in every room snapshot. Each rule is applied when the local integrated
 server starts for the race world.
 
+Worlds created by Atum while controlled by Rooms always start in Survival,
+including resets and later seeds in a sequence. This also applies when Allow
+Cheats is on; commands can still change the mode afterward. The creation override
+does not rewrite Atum's saved settings, alter existing worlds, or change ordinary
+singleplayer creation or Atum runs outside a room.
+
 The room setup offers four starting presets:
 
 - **Standard ZSG Rooms:** every room rule is enabled except Allow Cheats,
@@ -39,9 +45,17 @@ setting retain vanilla spawning until the host enables it or reapplies Standard.
 
 ## Allow Cheats
 
-Calls Minecraft's player-manager cheat setting for the local race server. This
-does not grant remote control to the room host; every player's world remains a
-separate local world.
+The host's rule controls command permissions in each newly created Rooms race
+world, including resets and later sequence seeds. Off overrides a cheats-enabled
+Atum template, operator entries and the permission setter used by Open to LAN.
+It also blocks player `/seed`; ordinary commands such as `/help` remain available.
+On enables cheat commands, but worlds still start in Survival.
+
+The policy is bound to that server's lifetime, including the result screen, not
+just whether the race is currently active. It does not modify Atum's saved
+configuration, restrict unrelated singleplayer worlds while a lobby is open, or
+permanently lock a save against later reopening. This is local permission
+enforcement, not tamper-proof anti-cheat or remote control by the room host.
 
 Default: Off.
 
@@ -306,10 +320,10 @@ Raw game-state default: Off.
 ## Guarantee 3 Animals Near Structure
 
 When enabled, the selected filter structure is checked during world loading and
-the mod guarantees at least three eligible land animals within a 70-block
-horizontal radius. Pigs, cows, sheep, chickens, and rabbits count; fish and all
-other creatures do not. Existing eligible animals are counted first, and only
-the missing amount is added.
+the mod guarantees at least three eligible adult land animals within a 70-block
+horizontal radius. Adult pigs, cows, sheep, chickens, and rabbits count; babies,
+fish and all other creatures do not. Existing eligible adults are counted first,
+and only the missing amount is added as adults. Existing babies are left untouched.
 
 Candidate locations must pass Minecraft's natural spawn rules and are spread
 across safe surface positions. The search generates at most six terrain chunks

@@ -155,7 +155,7 @@ still need in-game inspection before the profile is published.
 
 ## Gameplay Repair Testing
 
-For these manually entered samples, turn on `Room Settings > RP Test All Seeds`
+For these manually entered samples, turn on `Settings > Advanced > RP repair on all seeds`
 before generating a fresh world. The prototype profile is not yet a room-picker
 choice. Existing RP room seeds (including random-mode RP selections) repair
 automatically without that testing override. The override defaults off, uses a

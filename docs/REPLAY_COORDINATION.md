@@ -149,8 +149,8 @@ this is not a sandbox or an authenticity check for external recordings.
 
 ## Testing Alone
 
-1. Enable ZSG recording normally. In **Room Settings > Replays > Recording >
-   Solo Replay Testing**, select **New Group**, then **Apply**. No Java argument
+1. Enable ZSG recording normally. In **Settings > Advanced >
+   Solo replay testing**, select **New group**, then **Apply**. No Java argument
    is needed. The group persists until **Disable Testing** or another Apply.
 2. Start a room with only yourself and choose a manual seed. Play an attempt,
    then return to the room so the file finalizes. Start another attempt with the

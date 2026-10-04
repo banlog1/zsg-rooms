@@ -25,7 +25,15 @@ public final class FilterPickerSmoke implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        if (Boolean.getBoolean("zsgrooms.templeSpawnSmoke")) {
+        if (Boolean.getBoolean("zsgrooms.personalSettingsSmoke")) {
+            new PersonalSettingsSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.roomWorldCreationSmoke")) {
+            new zsgrooms.modid.RoomWorldCreationSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.templeSpawnSmoke") || Boolean.getBoolean("zsgrooms.gameRuleAuditSmoke")) {
             new zsgrooms.modid.TempleSpawnSmoke().initialize();
             return;
         }

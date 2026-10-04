@@ -288,9 +288,9 @@ public class GameLogicTest {
     }
 
     @Test
-    public void activeRoomCheatRuleControlsLanCheatAvailability() {
+    public void lobbyAloneDoesNotRestrictLanCheatAvailability() {
         ZsgRooms.createRoom("lan-cheat-rule-room", 2, 1, "manual:54321", "Host", false);
-        assertTrue(ZsgInGameActions.activeRoomForbidsCheats());
+        assertFalse(ZsgInGameActions.activeRoomForbidsCheats());
 
         ZsgRooms.getGame("lan-cheat-rule-room").setCheatsAllowed(true);
         assertFalse(ZsgInGameActions.activeRoomForbidsCheats());

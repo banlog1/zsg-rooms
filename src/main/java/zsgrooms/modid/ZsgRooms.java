@@ -33,6 +33,8 @@ public class ZsgRooms implements ModInitializer {
 		LOGGER.info("Registering ZSG room lifecycle hooks");
 
 		ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
+		ServerLifecycleEvents.SERVER_STARTING.register(RoomCommandPermissions::bind);
+		ServerLifecycleEvents.SERVER_STOPPED.register(RoomCommandPermissions::stop);
 		ServerLifecycleEvents.SERVER_STOPPING.register(NetherPortalPreloader::stop);
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> PauseWorldSaveControl.configure(false));
 		ServerLifecycleEvents.SERVER_STOPPED.register(WoodLightingStandardization::stop);
@@ -808,7 +810,6 @@ public class ZsgRooms implements ModInitializer {
 		Room room = getActiveRoom();
 		InGame game = room == null ? null : ACTIVE_GAMES.get(room.roomName);
 		boolean cheatsAllowed = game != null && game.areCheatsAllowed();
-		server.getPlayerManager().setCheatsAllowed(cheatsAllowed);
 		boolean rngStandardized = game != null && game.isRngStandardized();
 		boolean boostedBarters = game != null && game.areBartersBoosted();
 		boolean minimumBastionIron = game != null && game.hasMinimumBastionIron();
