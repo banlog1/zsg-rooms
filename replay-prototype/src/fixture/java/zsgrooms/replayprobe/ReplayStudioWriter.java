@@ -30,6 +30,7 @@ public final class ReplayStudioWriter implements AutoCloseable {
     private final ZipReplayFile file;
     private final ReplayOutputStream output;
     private long lastTimestamp;
+    private long duration;
     private boolean closed;
 
     public ReplayStudioWriter(Path path, long epochMillis) throws IOException {
@@ -73,11 +74,68 @@ public final class ReplayStudioWriter implements AutoCloseable {
         }
     }
 
+    /** Optional, independent track; absent in older writer libraries. */
+    public void writeBarters(String json) throws IOException {
+        if (closed) throw new IllegalStateException("Writer closed");
+        if (json.length() > 4 * 1024 * 1024) throw new IllegalArgumentException("Barter history too large");
+        byte[] bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (bytes.length > 4 * 1024 * 1024) throw new IllegalArgumentException("Barter history too large");
+        try (java.io.OutputStream entry = file.write("zsg-rooms/barters.json")) {
+            entry.write(bytes);
+        } catch (IOException | RuntimeException error) {
+            try { file.remove("zsg-rooms/barters.json"); }
+            catch (IOException | RuntimeException cleanup) { error.addSuppressed(cleanup); }
+            throw error;
+        }
+    }
+
+    /** Optional API: extends metadata coverage without inventing a network packet. */
+    public void setDuration(long millis) {
+        if (closed) throw new IllegalStateException("Writer closed");
+        if (millis < lastTimestamp || millis < 0 || millis > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Invalid recording duration");
+        duration = millis;
+    }
+
+    /** Copies the optional disk spool using fixed memory; copy failure only disables this track. */
+    public void writeDetailedCapture(Path spool, String coverageJson) throws IOException {
+        if (closed) throw new IllegalStateException("Writer closed");
+        if (coverageJson.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 16384)
+            throw new IllegalArgumentException("Detail coverage too large");
+        com.google.gson.JsonObject coverage = new com.google.gson.JsonParser().parse(coverageJson).getAsJsonObject();
+        if (spool != null) {
+            try {
+                long size = Files.size(spool);
+                if (size < 8 || size > Integer.MAX_VALUE || !Files.isRegularFile(spool))
+                    throw new IllegalArgumentException("Invalid detail spool");
+                try (java.io.InputStream input = Files.newInputStream(spool);
+                     java.io.OutputStream entry = file.write("zsg-rooms/detail.bin")) {
+                    byte[] buffer = new byte[65536];
+                    long copied = 0;
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        if (copied + count > size) throw new IOException("Detail spool changed while copying");
+                        entry.write(buffer, 0, count);
+                        copied += count;
+                    }
+                    if (copied != size) throw new IOException("Detail spool truncated while copying");
+                }
+            } catch (IOException | RuntimeException error) {
+                file.remove("zsg-rooms/detail.bin");
+                coverage.addProperty("status", "failed");
+                coverage.addProperty("failure", error.getClass().getSimpleName());
+            }
+        }
+        try (java.io.OutputStream entry = file.write("zsg-rooms/detail.json")) {
+            entry.write(coverage.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+    }
+
     public void finish(int selfId, boolean complete) throws IOException {
         if (closed) throw new IllegalStateException("Recording already closed");
         output.close();
         metadata.setSelfId(selfId);
-        metadata.setDuration((int) lastTimestamp);
+        metadata.setDuration((int) Math.max(lastTimestamp, duration));
         file.writeMetaData(login, metadata);
         file.save();
         file.close();

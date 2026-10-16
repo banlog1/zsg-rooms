@@ -82,6 +82,10 @@ final class CompletedIndexCache<T> {
                     + ":" + entry(zip, "metaData.json");
         }
 
+        void verifyOpened(ZipFile zip) throws IOException {
+            if (zip == null || !signature.equals(signature(zip))) throw new IOException("Recording changed before opening");
+        }
+
         static String entry(ZipFile zip, String name) throws IOException {
             ZipEntry entry = zip.getEntry(name);
             if (entry == null || entry.getCrc() < 0 || entry.getSize() < 0) throw new IOException("Missing replay index input");

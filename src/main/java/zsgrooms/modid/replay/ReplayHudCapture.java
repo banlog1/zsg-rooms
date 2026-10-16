@@ -17,11 +17,20 @@ final class ReplayHudCapture {
     void capture(ReplayHudTrack track, long time, int world, ClientPlayerEntity player) {
         int entity = player == null ? -1 : player.getEntityId();
         if (!track.due(time, world, entity)) return;
+        if (player == null) { track.add(time, world, entity, UNAVAILABLE); return; }
+        try {
+            track.add(time, world, entity, snapshot(player));
+        } catch (RuntimeException ignored) {
+            // Oversized/modded item state must not abort an otherwise playable replay.
+            track.add(time, world, entity, UNAVAILABLE);
+        }
+    }
+
+    byte[] snapshot(ClientPlayerEntity player) {
         if (player != previousPlayer) {
             previousPlayer = player;
-            items = optimized && player != null ? new ReplayItemSnapshot() : null;
+            items = optimized ? new ReplayItemSnapshot() : null;
         }
-        if (player == null) { track.add(time, world, entity, UNAVAILABLE); return; }
         PacketByteBuf data = optimized ? ReplayEncodingBuffers.acquireHud()
                 : new PacketByteBuf(Unpooled.buffer(512, ReplayHudTrack.MAX_FRAME));
         try {
@@ -49,10 +58,7 @@ final class ReplayHudCapture {
             }
             byte[] bytes = new byte[data.readableBytes()];
             data.getBytes(0, bytes);
-            track.add(time, world, entity, bytes);
-        } catch (RuntimeException ignored) {
-            // Oversized/modded item state must not abort an otherwise playable replay.
-            track.add(time, world, entity, UNAVAILABLE);
+            return bytes;
         } finally {
             if (optimized) ReplayEncodingBuffers.recycleHud(data); else data.release();
         }

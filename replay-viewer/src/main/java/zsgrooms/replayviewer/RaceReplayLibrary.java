@@ -28,15 +28,19 @@ final class RaceReplayLibrary {
         List<Entry> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         add(result, seen, current, race.group());
-        sourceDirectories.add(current.path.getParent());
-        if (sourceDirectories.size() > 16) sourceDirectories.remove(sourceDirectories.iterator().next());
-        Set<Path> directories = new HashSet<>(sourceDirectories);
+        Set<Path> directories;
+        synchronized (sourceDirectories) {
+            sourceDirectories.add(current.path.getParent());
+            if (sourceDirectories.size() > 16) sourceDirectories.remove(sourceDirectories.iterator().next());
+            directories = new HashSet<>(sourceDirectories);
+        }
         directories.add(recordings); directories.add(imported); directories.add(current.path.getParent());
         int count = 0;
         for (Path directory : directories) {
             if (!Files.isDirectory(directory)) continue;
             try (DirectoryStream<Path> files = Files.newDirectoryStream(directory, "*.mcpr")) {
                 for (Path path : files) {
+                    if (Thread.currentThread().isInterrupted()) throw new IOException("Library scan cancelled");
                     if (++count > 2048) throw new IOException("Library scan limit reached (2048 files)");
                     try { add(result, seen, RaceRecording.read(path), race.group()); }
                     catch (IOException ignored) { /* Unrelated/legacy/incomplete files remain individually playable. */ }

@@ -12,6 +12,22 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReplayPreferencesTest {
     @TempDir Path temp;
 
+    @Test void detailedCaptureIsOptInAndPersistsWithoutChangingNormalMode() throws Exception {
+        Path file = temp.resolve("detail.properties");
+        assertFalse(ReplayPreferences.load(file).detailedCapture);
+        Files.write(file, "enabled=true\nperformanceMode=true\n".getBytes(StandardCharsets.UTF_8));
+        assertFalse(ReplayPreferences.load(file).detailedCapture);
+        new ReplayPreferences(true, "", true, "", false, true, true, true).save(file);
+        ReplayPreferences loaded = ReplayPreferences.load(file);
+        assertTrue(loaded.detailedCapture);
+        assertTrue(loaded.enabled);
+        assertTrue(loaded.performanceMode);
+        assertTrue(loaded.keepSeedChanges);
+        assertFalse(loaded.showRecordingHud);
+        new ReplayPreferences(true, "", true, "", true, true, true, false).save(file);
+        assertFalse(ReplayPreferences.load(file).detailedCapture);
+    }
+
     @Test void seedRetentionDefaultsOffForNewAndExistingSettingsAndPersists() throws Exception {
         Path file = temp.resolve("retention.properties");
         assertFalse(ReplayPreferences.load(file).keepSeedChanges);

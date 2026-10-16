@@ -66,6 +66,7 @@
 		"ReplayChestInteractionMixin",
 		"ReplayChestLootPacketMixin",
 		"ReplayLootableAccessor",
+		"ReplayPiglinBarterMixin",
 		"ReplayWorldChangeMixin"
 	],
 	"injectors": {

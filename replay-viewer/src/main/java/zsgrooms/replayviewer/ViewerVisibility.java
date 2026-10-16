@@ -6,6 +6,7 @@ final class ViewerVisibility {
     private boolean previousMouseVisible;
     private double x = Double.NaN;
     private double y = Double.NaN;
+    private boolean manuallyHidden;
 
     ViewerVisibility(long now) {
         lastActivity = now;
@@ -15,6 +16,15 @@ final class ViewerVisibility {
         lastActivity = now;
     }
 
+    boolean manuallyHidden() { return manuallyHidden; }
+
+    void setManuallyHidden(boolean hidden, long now) {
+        manuallyHidden = hidden;
+        touch(now);
+    }
+
+    void toggle(long now) { setManuallyHidden(!manuallyHidden, now); }
+
     boolean update(long now, boolean autoHide, boolean mouseVisible, double mouseX, double mouseY,
                    boolean interacting, boolean paused) {
         if (mouseVisible && (!previousMouseVisible || mouseX != x || mouseY != y) || interacting || paused) {
@@ -23,6 +33,6 @@ final class ViewerVisibility {
         previousMouseVisible = mouseVisible;
         x = mouseX;
         y = mouseY;
-        return !autoHide || now - lastActivity < 3000000000L;
+        return !manuallyHidden && (!autoHide || now - lastActivity < 3000000000L);
     }
 }

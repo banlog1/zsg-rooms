@@ -2,5 +2,9 @@
   "key.replaymod.zsg_skip_back": "ZSG: Back 5 seconds",
   "key.replaymod.zsg_skip_forward": "ZSG: Forward 5 seconds",
   "replaymod.input.zsg_skip_back": "ZSG: Back 5 seconds",
-  "replaymod.input.zsg_skip_forward": "ZSG: Forward 5 seconds"
+  "replaymod.input.zsg_skip_forward": "ZSG: Forward 5 seconds",
+  "key.replaymod.zsg_go_to_time": "ZSG: Go to time",
+  "key.replaymod.zsg_hide_controls": "ZSG: Hide/show replay controls",
+  "replaymod.input.zsg_go_to_time": "ZSG: Go to time",
+  "replaymod.input.zsg_hide_controls": "ZSG: Hide/show replay controls"
 }

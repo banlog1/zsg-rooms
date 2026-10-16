@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MilestonesTest {
-    @Test void selectsOnlyTheFiveMainAdvancements() {
+    @Test void selectsOnlyTheMainStageAdvancements() {
         for (Milestones.Kind kind : Milestones.Kind.values()) assertEquals(kind, Milestones.Kind.fromId(kind.id));
         assertNull(Milestones.Kind.fromId("minecraft:nether/root"));
         assertNull(Milestones.Kind.fromId("minecraft:adventure/shoot_arrow"));

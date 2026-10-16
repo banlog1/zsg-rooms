@@ -135,6 +135,83 @@ class ReplayLibraryProbeTest {
     }
 
     @Test
+    void detailSpoolAndPausedTailRoundTripWithoutSyntheticPackets() throws Exception {
+        try (URLClassLoader loader = isolated(libraries())) {
+            Path path = temp.resolve("detailed.mcpr"), spool = temp.resolve("detail.bin");
+            byte[] detail = ByteBuffer.allocate(8).putInt(0x5A444554).putInt(1).array();
+            Files.write(spool, detail);
+            Class<?> type = loader.loadClass(WRITER);
+            int id = (Integer) loader.loadClass(FIXTURE).getMethod("timePacketId").invoke(null);
+            try (AutoCloseable writer = (AutoCloseable) type.getConstructor(Path.class, long.class).newInstance(path, 0L)) {
+                type.getMethod("write", int.class, int.class, long.class, byte[].class)
+                        .invoke(writer, 0, id, 100L, new byte[16]);
+                type.getMethod("setDuration", long.class).invoke(writer, 1500L);
+                type.getMethod("writeDetailedCapture", Path.class, String.class)
+                        .invoke(writer, spool, "{\"schemaVersion\":1,\"requested\":true,\"supported\":true,\"status\":\"complete\"}");
+                type.getMethod("finish", int.class, boolean.class).invoke(writer, 7, true);
+            }
+            Map<String, Object> replay = read(loader, path);
+            assertEquals(1500, replay.get("duration"));
+            assertEquals(Arrays.asList(0L, 100L), replay.get("timestamps"));
+            try (JarFile file = new JarFile(path.toFile())) {
+                try (InputStream input = file.getInputStream(file.getEntry("zsg-rooms/detail.bin"))) {
+                    byte[] copied = new byte[detail.length];
+                    new DataInputStream(input).readFully(copied);
+                    assertArrayEquals(detail, copied);
+                    assertEquals(-1, input.read());
+                }
+                assertNotNull(file.getEntry("zsg-rooms/detail.json"));
+            }
+            assertArrayEquals(detail, Files.readAllBytes(spool));
+        }
+    }
+
+    @Test
+    void missingDetailSpoolRecordsFailureButStillSavesTheMainRecording() throws Exception {
+        try (URLClassLoader loader = isolated(libraries())) {
+            Path path = temp.resolve("detail-failure.mcpr");
+            Class<?> type = loader.loadClass(WRITER);
+            int id = (Integer) loader.loadClass(FIXTURE).getMethod("timePacketId").invoke(null);
+            try (AutoCloseable writer = (AutoCloseable) type.getConstructor(Path.class, long.class).newInstance(path, 0L)) {
+                type.getMethod("write", int.class, int.class, long.class, byte[].class)
+                        .invoke(writer, 0, id, 100L, new byte[16]);
+                type.getMethod("writeDetailedCapture", Path.class, String.class).invoke(writer,
+                        temp.resolve("missing-detail.bin"), "{\"schemaVersion\":1,\"status\":\"complete\"}");
+                type.getMethod("finish", int.class, boolean.class).invoke(writer, 7, true);
+            }
+            assertEquals(Arrays.asList(0L, 100L), read(loader, path).get("timestamps"));
+            try (JarFile file = new JarFile(path.toFile())) {
+                assertNull(file.getEntry("zsg-rooms/detail.bin"));
+                try (InputStream input = file.getInputStream(file.getEntry("zsg-rooms/detail.json"))) {
+                    byte[] bytes = new byte[(int) file.getEntry("zsg-rooms/detail.json").getSize()];
+                    new DataInputStream(input).readFully(bytes);
+                    String coverage = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                    assertTrue(coverage.contains("\"status\":\"failed\""));
+                }
+            }
+        }
+    }
+
+    @Test
+    void explicitDurationCannotClipPacketsOrOverflowReplayMetadata() throws Exception {
+        try (URLClassLoader loader = isolated(libraries())) {
+            Class<?> type = loader.loadClass(WRITER);
+            int id = (Integer) loader.loadClass(FIXTURE).getMethod("timePacketId").invoke(null);
+            try (AutoCloseable writer = (AutoCloseable) type.getConstructor(Path.class, long.class)
+                    .newInstance(temp.resolve("duration.mcpr"), 0L)) {
+                type.getMethod("write", int.class, int.class, long.class, byte[].class)
+                        .invoke(writer, 0, id, 100L, new byte[16]);
+                for (long duration : new long[]{-1, 99, (long) Integer.MAX_VALUE + 1}) {
+                    assertInstanceOf(IllegalArgumentException.class, assertThrows(InvocationTargetException.class,
+                            () -> type.getMethod("setDuration", long.class).invoke(writer, duration)).getCause());
+                }
+                type.getMethod("setDuration", long.class).invoke(writer, 1000L);
+                type.getMethod("finish", int.class, boolean.class).invoke(writer, 7, true);
+            }
+        }
+    }
+
+    @Test
     void liveWriterRejectsInvalidEventsAndMarksAnIncompletePrefix() throws Exception {
         try (URLClassLoader loader = isolated(libraries())) {
             Path path = temp.resolve("partial.mcpr");

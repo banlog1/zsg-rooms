@@ -121,11 +121,14 @@ public class RoomSettingsScreen extends Screen {
                         }).available = RoomSettingsScreen::recordingConfigReason;
                 toggle("Performance mode", "Skips unchanged player metadata. Keeps full-rate movement, terrain, entities, sounds and timers. Choose before recording.",
                         () -> ReplayPrototype.getPreferences().performanceMode, ReplayPrototype::configurePerformance).available = RoomSettingsScreen::recordingConfigReason;
+                toggle("Detailed capture", "Opt-in player view settings and inventory/container slot changes for faithful follow. Uses additional disk space and recorder work. Applies to the next recording; an active session is unchanged.",
+                        () -> ReplayPrototype.getPreferences().detailedCapture, ReplayPrototype::configureDetailedCapture);
                 toggle("Recording indicator", "Shows the REC/status badge during live play. Does not affect what is recorded.",
                         () -> ReplayPrototype.getPreferences().showRecordingHud, ReplayPrototype::configureHud);
                 toggle("Save on seed change", "OFF discards unfinished recordings when a different seed loads. ON saves them separately. Returning to the room still saves; same-seed resets stay in one replay; completed recordings are kept.",
                         () -> ReplayPrototype.getPreferences().keepSeedChanges, ReplayPrototype::configureSeedRetention);
-                command("Recorded files", "Opens the recordings folder. Playback settings are in the replay viewer.", "Open folder", ReplayPrototype::openRecordings);
+                command("Replay library", "Opens the ZSG recording browser. Playback requires ZSG Replay Viewer and ReplayMod.", "Browse...", () -> ReplayBrowserLauncher.open(this));
+                command("Recording folder", "Selects where new ZSG recordings are saved. Existing recordings are not moved, and active recordings keep their current folder.", "Configure...", () -> client.openScreen(new ReplayStorageScreen(this)));
                 command("Current recording", "Stops and saves the current recording.", "Stop recording", ReplayPrototype::stopRecording)
                         .available = () -> ReplayPrototype.isRecording() ? "" : "No recording is currently running.";
                 break;

@@ -65,19 +65,30 @@ public final class ReplayViewer implements ClientModInitializer {
 
     static void switchRecording(ReplayHandler original, RaceRecording source, int originalTime,
                                 RaceRecording target, int time, ViewerControls.State state) {
+        switchRecording(original, source, originalTime, target, time, state, false, null);
+    }
+
+    static void switchToSplit(ReplayHandler original, RaceRecording source, int originalTime,
+                              RaceRecording target, int time, ViewerControls.State state, CompletedIndexCache.Key expected) {
+        switchRecording(original, source, originalTime, target, time, state, true, expected);
+    }
+
+    private static void switchRecording(ReplayHandler original, RaceRecording source, int originalTime,
+                                        RaceRecording target, int time, ViewerControls.State state,
+                                        boolean follow, CompletedIndexCache.Key expected) {
         if (switching || instance == null || ReplayModReplay.instance.getReplayHandler() != original) return;
         switching = true;
         net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
         try {
             instance.attach(null);
             original.endReplay();
-            open(target, time, state);
+            open(target, time, state, follow, expected);
         } catch (Exception error) {
             LogManager.getLogger("ZSG Replay Viewer").warn("Replay switch failed", error);
             boolean restored = false;
             try {
                 stopFailedReplay();
-                open(source, originalTime, state);
+                open(source, originalTime, state, false, null);
                 restored = true;
             } catch (Exception recovery) {
                 LogManager.getLogger("ZSG Replay Viewer").warn("Could not restore previous replay", recovery);
@@ -105,10 +116,14 @@ public final class ReplayViewer implements ClientModInitializer {
         } finally { ReplayModReplay.instance.forcefullyStopReplay(); }
     }
 
-    private static void open(RaceRecording recording, int time, ViewerControls.State state) throws java.io.IOException {
+    private static void open(RaceRecording recording, int time, ViewerControls.State state,
+                             boolean follow, CompletedIndexCache.Key expected) throws java.io.IOException {
         com.replaymod.replaystudio.replay.ReplayFile archive = com.replaymod.core.ReplayMod.instance.files.open(recording.path);
         ReplayHandler handler;
         try {
+            if (expected != null) {
+                RecordingIndex.verifyIdentity(archive, expected);
+            }
             // Start synchronously so the initial async sender cannot race the destination seek.
             handler = ReplayModReplay.instance.startReplay(archive, true, false);
             if (handler == null) throw new java.io.IOException("Open this replay individually to check mod compatibility first");
@@ -125,9 +140,10 @@ public final class ReplayViewer implements ClientModInitializer {
         net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
         client.openScreen(null);
         instance.controls.restore(state);
+        if (follow) instance.controls.followRecordedPlayer();
         net.minecraft.entity.player.PlayerEntity player = client.world == null ? null : client.world.getPlayerByUuid(recorder);
         if (player == null || handler.getCameraEntity() == null) throw new java.io.IOException("Recorded player unavailable after seeking");
-        if (state.mode <= 1) {
+        if (!follow && state.mode <= 1) {
             handler.spectateCamera();
             handler.getCameraEntity().setCameraPosition(player.getX(), player.getY() + 2, player.getZ());
             handler.getCameraEntity().setCameraRotation(player.yaw, player.pitch, 0);
@@ -145,6 +161,12 @@ public final class ReplayViewer implements ClientModInitializer {
         keys.registerKeyBinding("replaymod.input.zsg_skip_forward", GLFW.GLFW_KEY_4, () -> {
             if (instance != null) instance.seek(5000);
         }, true);
+        keys.registerKeyBinding("replaymod.input.zsg_go_to_time", GLFW.GLFW_KEY_UNKNOWN, () -> {
+            if (instance != null && instance.controls != null) instance.controls.openTimeJump();
+        }, true);
+        keys.registerKeyBinding("replaymod.input.zsg_hide_controls", GLFW.GLFW_KEY_UNKNOWN, () -> {
+            if (instance != null && instance.controls != null) instance.controls.toggleControls();
+        }, true);
     }
 
     private void seek(int delta) {
@@ -158,6 +180,28 @@ public final class ReplayViewer implements ClientModInitializer {
                 && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.hideChat();
     }
 
+    public static int compactWidget(Object widget) {
+        return switching || instance == null || instance.controls == null || instance.current == null
+                || ReplayModReplay.instance == null || ReplayModReplay.instance.getReplayHandler() != instance.current
+                ? 0 : instance.controls.chromeWidget(widget);
+    }
+
+    static boolean playbackPaused() { return instance.controls.paused(); }
+    static double playbackSliderSpeed() { return instance.controls.sliderSpeed(); }
+
+    public static boolean faithfulActive() {
+        return instance != null && instance.controls != null && ReplayModReplay.instance != null
+                && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.faithfulActive();
+    }
+
+    public static boolean faithfulHudHidden() {
+        return faithfulActive() && instance.controls.faithfulHudHidden();
+    }
+
+    public static void releaseFaithfulOptions() {
+        if (instance != null && instance.controls != null) instance.controls.releaseFaithfulOptions();
+    }
+
     public static net.minecraft.item.ItemStack quickHeldItem(net.minecraft.entity.player.PlayerEntity player,
                                                             net.minecraft.entity.EquipmentSlot slot) {
         if (switching || instance == null || instance.controls == null || instance.current == null
@@ -169,6 +213,15 @@ public final class ReplayViewer implements ClientModInitializer {
         if (switching || instance == null || instance.current == null || instance.controls == null
                 || ReplayModReplay.instance == null || ReplayModReplay.instance.getReplayHandler() != instance.current) return -1;
         return instance.controls.highlightColor(entity);
+    }
+
+    public static void renderPiglinActivity(net.minecraft.entity.mob.PiglinEntity piglin,
+                                            net.minecraft.client.util.math.MatrixStack matrices,
+                                            net.minecraft.client.render.VertexConsumerProvider consumers, int light) {
+        if (!switching && instance != null && instance.controls != null && ReplayModReplay.instance != null
+                && ReplayModReplay.instance.getReplayHandler() == instance.current) {
+            instance.controls.renderPiglinActivity(piglin, matrices, consumers, light);
+        }
     }
 
     public static boolean droneActive() {

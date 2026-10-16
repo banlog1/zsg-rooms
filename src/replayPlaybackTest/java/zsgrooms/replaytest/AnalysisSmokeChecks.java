@@ -65,8 +65,15 @@ final class AnalysisSmokeChecks {
             ViewerSmokeChecks.click(ViewerSmokeChecks.find(handler.getOverlay(), "Analysis"));
             require(client.currentScreen.getClass().getSimpleName().equals("AnalysisScreen"), "Analysis menu did not open");
             for (Element element : client.currentScreen.children()) {
-                if (element instanceof CheckboxWidget && !((CheckboxWidget) element).getMessage().getString().equals("Always show inventory")) {
-                    ((CheckboxWidget) element).onPress();
+                if (element instanceof ButtonWidget && ((ButtonWidget) element).getMessage().getString().equals("Analysis")) {
+                    ((ButtonWidget) element).onPress(); break;
+                }
+            }
+            for (Element element : client.currentScreen.children()) {
+                if (element instanceof CheckboxWidget && ((CheckboxWidget) element).visible && ((CheckboxWidget) element).active) {
+                    CheckboxWidget checkbox = (CheckboxWidget) element;
+                    String label = checkbox.getMessage().getString();
+                    if (label.equals("Piglin cluster counter") || label.equals("Dragon trail") || label.equals("Piglin trails")) checkbox.onPress();
                 }
             }
             require((Boolean) get(analysis, "piglinCounter") && (Boolean) get(analysis, "dragonTrail")
@@ -110,8 +117,8 @@ final class AnalysisSmokeChecks {
             client.currentScreen.onClose();
             client.currentScreen.onClose();
             GLFW.glfwSetWindowSize(client.getWindow().getHandle(), 1280, 720);
-            ViewerSmokeChecks.dropdown(handler.getOverlay()).getClass().getMethod("setSelected", int.class)
-                    .invoke(ViewerSmokeChecks.dropdown(handler.getOverlay()), 0);
+            Object cameraMenu = get(controls, "camera");
+            cameraMenu.getClass().getMethod("setSelected", int.class).invoke(cameraMenu, 0);
             java.lang.reflect.Method updateCamera = controls.getClass().getDeclaredMethod("updateCamera");
             updateCamera.setAccessible(true);
             updateCamera.invoke(controls);

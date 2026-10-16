@@ -29,9 +29,13 @@ public final class PlaybackTest implements ClientModInitializer {
     private final ViewerSmokeChecks viewerChecks = new ViewerSmokeChecks();
     private final RaceSwitchSmoke raceChecks = new RaceSwitchSmoke();
     private final DetailsSmokeChecks detailsChecks = new DetailsSmokeChecks();
+    private final FaithfulSmokeChecks faithfulChecks = new FaithfulSmokeChecks();
     private final ChestSmokeChecks chestChecks = new ChestSmokeChecks();
     private final TempleSmokeChecks templeChecks = new TempleSmokeChecks();
     private final MobHighlightSmokeChecks highlightChecks = new MobHighlightSmokeChecks();
+    private final HistoricalTrailSmokeChecks historicalTrailChecks = new HistoricalTrailSmokeChecks();
+    private final BrowserDeleteSmokeChecks browserDeleteChecks = new BrowserDeleteSmokeChecks();
+    private final BarterSmokeChecks barterChecks = new BarterSmokeChecks();
 
     @Override
     public void onInitializeClient() {
@@ -59,11 +63,20 @@ public final class PlaybackTest implements ClientModInitializer {
                 if (client.getOverlay() != null || ++menuTicks < 40) return;
                 client.options.pauseOnLostFocus = false;
                 client.options.maxFps = 60;
+                if (Boolean.getBoolean("zsgrooms.replayBrowserDeleteSmoke")) {
+                    if (browserDeleteChecks.tick(client, new File(System.getProperty("zsgrooms.replayPlaybackFile")))) {
+                        done = true;
+                        client.scheduleStop();
+                    }
+                    return;
+                }
                 if (Boolean.getBoolean("zsgrooms.replayViewerSmoke")) ShortcutSmokeChecks.outsideReplay(client);
                 Class<?> api = Class.forName("com.replaymod.replay.ReplayModReplay");
                 viewer = api.getField("instance").get(null);
                 File replay = new File(System.getProperty("zsgrooms.replayPlaybackFile"));
                 if (Boolean.getBoolean("zsgrooms.replayRaceSmoke")) replay = raceChecks.prepare(client, replay);
+                if (Boolean.getBoolean("zsgrooms.replayFaithfulSmoke")) replay = faithfulChecks.prepare(client, replay);
+                if (Boolean.getBoolean("zsgrooms.replayBarterSmoke")) replay = barterChecks.prepare(client, replay);
                 api.getMethod("startReplay", File.class).invoke(viewer, replay);
                 handler = api.getMethod("getReplayHandler").invoke(viewer);
                 sender = handler.getClass().getMethod("getReplaySender").invoke(handler);
@@ -80,7 +93,33 @@ public final class PlaybackTest implements ClientModInitializer {
                 }
                 return;
             }
+            if (Boolean.getBoolean("zsgrooms.replayFaithfulSmoke")) {
+                if (System.nanoTime() - started > 180000000000L) throw new IllegalStateException("Faithful follow test timed out");
+                if (faithfulChecks.tick(client)) {
+                    done = true;
+                    client.scheduleStop();
+                }
+                return;
+            }
             int timestamp = (Integer) time.invoke(sender);
+            if (Boolean.getBoolean("zsgrooms.replayBarterSmoke")) {
+                if (System.nanoTime() - started > 180000000000L) throw new IllegalStateException("Barter smoke test timed out");
+                if (barterChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {
+                    done = true;
+                    handler.getClass().getMethod("endReplay").invoke(handler);
+                    client.scheduleStop();
+                }
+                return;
+            }
+            if (Boolean.getBoolean("zsgrooms.replayHistoricalTrailSmoke")) {
+                if (System.nanoTime() - started > 180000000000L) throw new IllegalStateException("Historical trail test timed out");
+                if (historicalTrailChecks.tick((com.replaymod.replay.ReplayHandler) handler, client)) {
+                    done = true;
+                    handler.getClass().getMethod("endReplay").invoke(handler);
+                    client.scheduleStop();
+                }
+                return;
+            }
             if (Boolean.getBoolean("zsgrooms.replayHighlightSmoke")) {
                 if (System.nanoTime() - started > 120000000000L) throw new IllegalStateException("Mob highlight test timed out");
                 highlightChecks.tick(handler, client);

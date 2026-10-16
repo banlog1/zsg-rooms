@@ -33,6 +33,8 @@ final class RaceSwitchSmoke {
     private long next;
     private ReplayHandler before;
     private int expected;
+    private boolean running;
+    private final SplitsSmokeChecks splitsChecks = new SplitsSmokeChecks();
 
     File prepare(MinecraftClient client, File original) throws Exception {
         // Reproduce opening playback after saving a recording, with the live badge enabled.
@@ -41,7 +43,7 @@ final class RaceSwitchSmoke {
         preferences.set(null, new zsgrooms.modid.replay.ReplayPreferences(true, "", true));
         Field status = zsgrooms.modid.replay.ReplayPrototype.class.getDeclaredField("recordingStatus");
         status.setAccessible(true);
-        status.set(null, "Saved to replay_recordings");
+        status.set(null, "Saved recording");
         String group = UUID.randomUUID().toString();
         first = UUID.randomUUID().toString(); second = UUID.randomUUID().toString();
         Path root = client.runDirectory.toPath();
@@ -60,6 +62,7 @@ final class RaceSwitchSmoke {
                 metadata = new JsonParser().parse(input).getAsJsonObject();
             }
             metadata.addProperty("recordingId", id);
+            metadata.addProperty("displayName", start == 4000 ? "Runner One" : "Runner Two");
             JsonObject race = new JsonObject();
             race.addProperty("raceId", UUID.randomUUID().toString()); race.addProperty("testGroupId", group);
             race.addProperty("startOffsetNanos", start * 1000000L);
@@ -88,6 +91,13 @@ final class RaceSwitchSmoke {
     }
 
     boolean tick(MinecraftClient client) throws Exception {
+        if (running) return false;
+        running = true;
+        try { return advance(client); }
+        finally { running = false; }
+    }
+
+    private boolean advance(MinecraftClient client) throws Exception {
         if (System.nanoTime() < next || (Boolean) field(Class.forName("zsgrooms.replayviewer.ReplayViewer"), null, "switching")) return false;
         ReplayHandler handler = ReplayModReplay.instance.getReplayHandler();
         Object overlay = handler.getOverlay();
@@ -159,10 +169,20 @@ final class RaceSwitchSmoke {
                 require(handler.getOverlay().isVisible(), "Back did not restore the playback bar");
                 require(handler.getReplaySender().getReplaySpeed() == 2.0, "Back did not restore playback speed");
                 handler.getReplaySender().setReplaySpeed(0);
-                ViewerSmokeChecks.dropdown(overlay).getClass().getMethod("setSelected", int.class).invoke(ViewerSmokeChecks.dropdown(overlay), 2);
+                Class<?> viewerType = Class.forName("zsgrooms.replayviewer.ReplayViewer");
+                Object viewer = field(viewerType, null, "instance");
+                Object controls = field(viewerType, viewer, "controls");
+                Object menu = field(controls.getClass(), controls, "camera");
+                menu.getClass().getMethod("setSelected", int.class).invoke(menu, 2);
                 break;
             case 10:
                 screenshot(client, "race-timers-follow.png");
+                break;
+            case 11:
+                if (!splitsChecks.tick(client)) {
+                    next = System.nanoTime() + 500000000L;
+                    return false;
+                }
                 ZsgRooms.LOGGER.info("[ReplayRaceSmoke] PASS: import, same-account test takes, elapsed-time alignment, two-way switch, pause/speed, Far follow, cross-dimension, responsive selector, Back restores playback");
                 return true;
             default: throw new IllegalStateException("Invalid test step");

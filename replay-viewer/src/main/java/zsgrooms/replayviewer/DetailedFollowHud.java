@@ -20,6 +20,7 @@ final class DetailedFollowHud extends DrawableHelper {
     private static final Identifier WIDGETS = new Identifier("minecraft", "textures/gui/widgets.png");
     private static final Identifier INVENTORY = new Identifier("minecraft", "textures/gui/container/inventory.png");
     private final MinecraftClient client = MinecraftClient.getInstance();
+    private final FollowDetailOptions capturedOptions = new FollowDetailOptions();
     private PlayerHudTrack.Frame last;
     private PlayerHudState state;
 
@@ -28,7 +29,25 @@ final class DetailedFollowHud extends DrawableHelper {
     }
 
     void render(MatrixStack matrices, PlayerHudTrack.Frame frame, FollowDetailOptions options, PlayerEntity player) {
+        render(matrices, frame, options, player, 36);
+    }
+
+    void render(MatrixStack matrices, PlayerHudTrack.Frame frame, FollowDetailOptions options, PlayerEntity player, int effectsTop) {
         if (last != frame) { last = frame; state = frame == null ? null : PlayerHudState.decode(frame.payload); }
+        renderState(matrices, options, player, effectsTop);
+    }
+
+    void renderCaptured(MatrixStack matrices, PlayerHudState captured, PlayerEntity player) {
+        renderCaptured(matrices, captured, player, 36);
+    }
+
+    void renderCaptured(MatrixStack matrices, PlayerHudState captured, PlayerEntity player, int effectsTop) {
+        last = null;
+        state = captured;
+        renderState(matrices, capturedOptions, player, effectsTop);
+    }
+
+    private void renderState(MatrixStack matrices, FollowDetailOptions options, PlayerEntity player, int effectsTop) {
         int width = client.getWindow().getScaledWidth(), height = client.getWindow().getScaledHeight();
         if (state == null) {
             drawCenteredString(matrices, client.textRenderer, "Player details unavailable", width / 2, height - 49, 0xCCCCCC);
@@ -39,7 +58,7 @@ final class DetailedFollowHud extends DrawableHelper {
         RenderSystem.color4f(1, 1, 1, 1);
         if (options.inventoryVisible()) inventory(matrices, width, height, player);
         bars(matrices, width, height, player);
-        if (!options.inventoryVisible()) effects(matrices, width);
+        if (!options.inventoryVisible()) effects(matrices, width, effectsTop);
         RenderSystem.color4f(1, 1, 1, 1);
         RenderSystem.disableDepthTest();
     }
@@ -118,14 +137,14 @@ final class DetailedFollowHud extends DrawableHelper {
         } finally { RenderSystem.popMatrix(); }
     }
 
-    private void effects(MatrixStack matrices, int width) {
+    private void effects(MatrixStack matrices, int width, int top) {
         int positive = 0, negative = 0;
         int columns = Math.max(1, width / 25);
         for (PlayerHudState.Effect effect : state.effects) {
             StatusEffect type = Registry.STATUS_EFFECT.get(effect.id);
             if (type == null) continue;
             int index = type.isBeneficial() ? positive++ : negative++;
-            int x = width - 25 * (index % columns + 1), y = 36 + (index / columns * 2 + (type.isBeneficial() ? 0 : 1)) * 26;
+            int x = width - 25 * (index % columns + 1), y = top + (index / columns * 2 + (type.isBeneficial() ? 0 : 1)) * 26;
             bind(INVENTORY);
             drawTexture(matrices, x, y, 141, 166, 24, 24);
             net.minecraft.client.texture.Sprite sprite = client.getStatusEffectSpriteManager().getSprite(type);

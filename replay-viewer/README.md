@@ -5,9 +5,80 @@ Optional, separately built playback UI for Minecraft 1.16.1 and **ReplayMod
 record worlds, connect to the room relay, or change live race logic. The original
 ZSG recording mod remains independently usable without this companion.
 
+## Overhaul Preview
+
+The ReplayMod menu entry now opens the ZSG **Replay Library**. It scans metadata
+in the default recording folder, the selected output folder, and shared imports.
+Search, folder browsing and playback do not move recordings. The trash icon deletes
+the selected archive only after a permanent-deletion confirmation showing its name
+and path. Cancel leaves it untouched. Changed/replaced files are rejected until a
+refresh; deleting is disabled during gameplay or replay playback. Neighboring files
+and cache folders are not removed. The pencil icon renames the selected `.mcpr`
+file in the same folder after confirmation, without overwriting a destination or
+rewriting archive contents. Custom filenames become the library title; generated
+UUID filenames retain their metadata title. Rename shares the playback and changed-file
+guards used for deletion and leaves sibling cache folders alone. In Rooms
+settings, **Recording Folder** sets the destination of new recordings; it is
+separate from the supporting writer-library folder. ReplayMod is still required
+as the playback engine, but its file chooser is no longer the normal entry point.
+
+**Detailed Capture** is opt-in and applies to the next recording. **Faithful Follow**
+uses that track for recorded render distance, F5 perspective, F1 visibility,
+attack cooldown/indicator, HUD, and automatic inventory, crafting-table and chest
+screens. The inventory key opens a separate read-only inspection view without
+pausing playback. Closing it returns to the current recorded presentation. Releasing
+the cursor during automatic recorded screens can reveal and scrub the normal replay
+toolbar; those screens fit above the visible toolbar and survival HUD. Auto-hide
+and explicit hide/reveal work as elsewhere. Manual inspection remains a separate
+modal view. **Settings > Display > Run timers** toggles RTA/IGT in all camera modes;
+**Analysis > Piglin cluster counter** also applies to Faithful Follow. These replay
+overlays are independent of recorded F1, but explicitly hiding replay UI hides them.
+**Display > Render distance** adds a top-left chunk-grid indicator for the recorded
+player's distance, updated on playback and seeks. It defaults off, works in every
+camera mode, and shows `RD --` when Detailed Capture coverage is unavailable. It
+never substitutes the viewer's own setting or changes it.
+Cursor stacks are shown in a fixed inset; mouse movement is not recorded. Unsupported
+screens and missing coverage are marked unavailable, never guessed. Recorded pause
+is shown with a gray overlay and centered label, distinct from playback pause.
+The existing Follow: Details mode and old replays remain supported.
+Recorded render distance does not recreate chunks absent from the replay. Screen
+state is sampled, not a video: intermediate changes within a 50 ms sample may not
+be retained, and equip-animation progress is not part of this first capture format.
+
+The optional detail track streams through a bounded 4 MiB / 128-frame queue to
+disk, rather than retaining a whole session in memory. It records changed states
+at up to 20 Hz with a one-second heartbeat. Overload inserts explicit gaps; the
+2 GiB detail budget stops only extra capture, not the ordinary packet recording.
+The viewer builds a temporary disk index and retains only a small index page and
+current frame, deleting its temporary files on normal close. This is not a claim
+of zero recording overhead: comparison profiling and real multi-hour AA testing
+are still required. Existing race/timer metadata limits are unchanged.
+
+The transparent control bar includes hand-pixelled icons, a camera mode selector,
+a go-to-time dialog and explicit hide/reveal. Explicit hiding also works while paused. The
+clock accepts seconds, `m:ss`, or `h:mm:ss`, with optional fractional seconds.
+Go-to-time and hide/show have rebindable, initially unassigned Replay Mod controls.
+Split icons replace permanent milestone labels, with hover details and a paged
+chooser for overlapping events. The progress arrow and stem share the native
+timeline's center coordinate. Replay settings have Playback, Analysis and Display
+tabs. The Splits table compares the recorded Nether, Bastion, Fortress, Stronghold,
+End and Dragon milestones across matching race recordings. Times are elapsed from
+each recording's race start, including loading; tooltips also show the replay time
+and available recorded IGT. Click a time to seek and follow that runner. Existing
+follow modes are retained; freecam switches to Follow Player. The Players action
+still imports recordings and switches at the same elapsed race time.
+Reset worlds are separate per-column selections, not merged or assumed to share
+a seed. Missing milestones remain unavailable, never estimated. Recorded splits
+inside coverage/loading gaps remain visible but cannot be jumped to. Only visible
+columns are indexed on a cancellable background worker, with a bounded completed
+index cache. The current recording reuses its existing milestone index.
+Historical player/mob trails and **Piglin Barters** are available under Analysis.
+The guided tutorial and longer-session comparison profiling remain subsequent
+overhaul work.
+
 ## Controls
 
-- **Analysis > Mob Highlights** selects mob types for colored glowing outlines,
+- **Settings > Analysis > Mob Highlights** selects mob types for colored glowing outlines,
   visible through terrain. Search by mob name or registry ID, select multiple
   types, and choose a color swatch. The master switch retains the selection;
   Clear removes it. No types are selected when a replay is first opened.
@@ -17,7 +88,7 @@ ZSG recording mod remains independently usable without this companion.
   works with existing recordings, and never changes recorded glow flags or teams.
 - Compact bottom playback bar, with an extra control row at smaller GUI sizes.
 - ReplayMod's play/pause, speed slider, and marker timeline.
-- **Analysis > Quick Mode (experimental)** switches to ReplayMod's indexed
+- **Settings > Playback > Quick Mode (experimental)** switches to ReplayMod's indexed
   playback for faster seeking. Off when opening a replay, including another
   player's recording. The first enable prepares an index; progress appears in
   Analysis. Switching retains playback speed and pause state. Turn it off for
@@ -35,7 +106,7 @@ ZSG recording mod remains independently usable without this companion.
   paused, but not in menus, text entry, open dropdowns, or the camera-path editor.
   Modified key combinations are ignored. Normal hotbar keys remain unchanged
   outside playback. No new bindings use 1, 2, or the arrow keys.
-- Elapsed and total recording time (not IGT); after grouping, elapsed race time too.
+- Elapsed and total recording time (not IGT); hover it for the grouped race clock.
 - A top-right overlay shows the recorded player's RTA and IGT. An amber pause
   icon appears above the recorded player's name while they were paused, facing
   the camera and hidden by intervening terrain. First-person Follow instead
@@ -104,7 +175,7 @@ ZSG recording mod remains independently usable without this companion.
   sits above the HUD when visible. Press your Minecraft inventory key (normally E)
   for the centered vanilla inventory layout; playback controls hide until E or
   Escape closes it. Small GUI sizes fit the inventory above the survival HUD.
-  **Analysis > Always show inventory** enables the optional always-visible mode.
+  **Settings > Display > Always show inventory** enables the optional always-visible mode.
   E/Escape can dismiss it without changing that preference. Inventory display is
   read-only and does not open a live inventory screen. Crafting slots are marked
   unavailable because their contents are not part of the recorded inventory track.
@@ -117,8 +188,9 @@ ZSG recording mod remains independently usable without this companion.
   Orbit angles and distance survive camera replacement and recording switches.
   ReplayMod's click-to-spectate is suppressed only in Drone mode. Use T to
   release the cursor for the playback controls.
-- **Analysis** has three optional overlays, all off initially:
-  **Piglin cluster counter**, **Dragon trail**, and **Piglin trails**. Settings survive
+- **Analysis** has optional overlays, all off initially:
+  **Piglin cluster counter**, **Dragon trail**, **Piglin trails**, **Player trails**,
+  and a searchable **Mob Trails** type picker. Settings survive
   switches between grouped recordings; opening an unrelated replay resets them.
   The counter follows [Llama's Bastion Practice 3.15.0](https://github.com/LlamaPag/bastion/releases/tag/3.15.0):
   count piglins within one block of each piglin and display the largest count.
@@ -126,30 +198,67 @@ ZSG recording mod remains independently usable without this companion.
   player, without the practice map's `bastion_mob` tag. It includes babies and
   does not detect walls, identify a particular hole, or infer unrecorded mobs.
   `--` means the recorded player is unavailable; zero means no eligible piglins.
-  **Customize** beside either trail opens independent color swatches, length
+  The compact counter uses a hand-pixelled piglin face and a number; hover it for
+  the grouping rule. Its counting behavior is unchanged.
+  **Customize** beside each trail opens independent color swatches, length
   (2-30 seconds), thickness (1-4 pixels), opacity (10-100%), and optional fading
   of older segments. Reset restores that trail's defaults: ten seconds, one pixel,
-  85% opacity, no fading, cyan for dragons and gold for piglins. Increasing length
-  accumulates more history going forward; it cannot recover discarded samples.
+  85% opacity, no fading, cyan for dragons, gold for piglins, green for players and
+  violet for other mobs. Mob Trails selections and styling are independent from
+  Mob Highlights. Enabled dragon/piglin shortcuts take precedence over the generic
+  picker for the same entity, so it is never drawn twice.
   Line thickness is subject to the graphics driver's supported OpenGL line widths.
   Dragon trails show observed body positions; piglin trails sit just above the
   feet. Piglin trails cover up to 128 living recorded piglins within 64 blocks
   of the recorded player and work independently of the cluster counter.
-  Trails are sampled at most ten times per replay second. They build during
-  playback, stay still when paused, and clear on seeking, world changes,
-  disappearance, leaving the piglin tracking radius, or large teleports. They do
-  not reconstruct history preceding a seek and are depth-tested against
-  terrain. F1 and the editor hide all analysis overlays; no replay files are modified.
-- Chat is hidden by default during playback. The Chat checkbox reveals it
+  Player trails cover up to 32 loaded recorded players, excluding the viewer camera.
+  Generic mob trails cover the nearest 128 loaded matching mobs to the camera.
+  On first use, an independent background scan indexes packet positions into a
+  temporary disk file. Once prepared, enabling trails, increasing their length or
+  seeking restores the preceding configured seconds, even while paused. Settings
+  show indexing/preparation status; live sampling remains available while preparing
+  or when historical data is unsupported. Historical display refreshes up to ten
+  times per replay second and never includes future positions. World/respawn
+  boundaries, entity removal/reuse and known teleports break paths. Unmarked short
+  local-player teleports cannot always be distinguished from ordinary movement.
+  History uses a bounded 1 GiB scratch file, sparse anchors and a bounded window/page
+  cache, deleted on normal close or failure. If a limit is reached, historical
+  indexing stops and live trails remain available; the replay is unaffected.
+  Trails are depth-tested against terrain. F1 and the editor hide all analysis
+  overlays; no replay files or recorder behavior are modified.
+- **Settings > Analysis > Barters** opens a paused snapshot of completed trades in
+  the current recorded world, through the current replay time. History can be
+  searched by item name/ID, sorted newest/oldest first, and paged. Click a trade
+  to jump to it. **Items** totals received quantities, preserving item/NBT variants;
+  click an item to filter history. Gold counts completed trades, not dropped
+  ingots or interrupted inspections. Piglins counts distinct contributors, not
+  the current cluster. World resets and future trades are excluded. Done returns
+  to settings and restores the prior playback speed/pause state.
+  **Bartering labels** marks living adult piglins visibly inspecting a gold ingot,
+  not babies or other admired gold items. The amber labels are depth-tested,
+  limited to 64 blocks, and hidden with the UI/F1/editor. Labels can work with old
+  recordings; Quick Mode can omit equipment/state changes. An inspection label
+  does not promise that a trade will complete.
+  Accurate outcomes require a new Rooms recording and updated supporting writer.
+  The recorder observes the existing completed-loot call, including standardized
+  and boosted barters, without rerolling, modifying stacks or sending packets.
+  Only piglins tracked in the matching local world/session are retained. Capture
+  is event-driven in every recorder mode, independent of Detailed Capture. The
+  optional `zsg-rooms/barters.json` track is capped at 4 MiB / 8,192 events / 32,768
+  output stacks, with at most 64 pending callbacks. Limits mark history partial;
+  optional-track failures do not stop normal packet recording. Old/unsupported
+  recordings report history unavailable rather than inferred or known-empty
+  totals. This is bounded extra work per barter, not a zero-overhead claim.
+- Chat is hidden by default during playback. **Settings > Display > Show chat** reveals it
   without changing live-game chat settings or removing recorded messages.
   ReplayMod's own Show Chat filter must also be enabled to see those messages.
-- Colored Nether, Bastion, Fortress, Stronghold, and End milestone notches above
-  the timeline. Hover a notch for its event, recording time, and world attempt;
+- Pixel-art Nether, Bastion, Fortress, Stronghold, and End icons above
+  the timeline. Hover an icon for its event, recording time, and world attempt;
   click it to seek while retaining the current playback speed or paused state.
 - Auto-hide after three seconds idle. Hovering/dragging controls, an open camera
   menu, and paused playback keep controls visible. Press ReplayMod's cursor key
   (normally T) to release the mouse; cursor movement reveals hidden controls.
-- Editor restores ReplayMod's original camera-path UI; Compact returns to the
+- **Settings > Display > Path editor** restores ReplayMod's original camera-path UI; Compact returns to the
   bottom bar. Playback settings do not silently rewrite ReplayMod's config.
 
 For grouped recordings, Follow Player uses the recorder UUID from the manifest.
@@ -165,8 +274,9 @@ world attempt. Ordinary dimension swaps do not duplicate it, but a new-world
 reset allows it again. Advancements already complete when recording begins are
 not given invented completion times. Old files work when they contain the
 relevant advancement packets. These are recording timestamps, not race IGT.
-Closely spaced markers retain their notches and hover details even when their
-labels cannot fit. The index is limited to 2,048 milestones per file.
+Closely spaced markers form one icon with grouping dots and bounded hover details.
+Click it to choose any event from the paged list. The index is limited to 2,048
+milestones per file.
 
 The companion orders ReplayMod 2.6.27's terrain-screen dismissal with Minecraft's
 packet tasks. ReplayMod otherwise queues that dismissal separately, which can
@@ -335,7 +445,7 @@ legacy files are not provided. Manual sharing needs no relay deployment.
 
 ## Experimental Player Sounds
 
-**Analysis > Player sounds (experimental)** reconstructs the recorded player's
+**Settings > Playback > Player sounds (experimental)** reconstructs the recorded player's
 footsteps, mining hits, nearby held-block placements, water/lava bucket filling
 and emptying, eating/drinking, hurt/death, shield/thorns and damaging fall impacts.
 It is on for each newly opened replay and can be disabled in Analysis. This is entirely viewer-side: existing

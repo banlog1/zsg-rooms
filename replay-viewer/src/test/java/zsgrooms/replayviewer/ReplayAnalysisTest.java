@@ -55,6 +55,51 @@ class ReplayAnalysisTest {
         assertEquals(2000, trail.points.peekLast().time - trail.points.peekFirst().time);
     }
 
+    @Test void indexedHistoryClipsTheWindowAndNeverIncludesFuturePoints() {
+        TrailHistory trail = new TrailHistory();
+        trail.replace(Arrays.asList(new TrailPoint(0, 0, 60, 0, true),
+                new TrailPoint(2000, 2, 60, 0, false), new TrailPoint(4000, 4, 60, 0, false),
+                new TrailPoint(6000, 100, 60, 0, false)), 5000, 2000);
+        assertEquals(2, trail.points.size());
+        assertEquals(3000, trail.points.peekFirst().time);
+        assertEquals(3, trail.points.peekFirst().x);
+        assertEquals(60, trail.points.peekFirst().y);
+        assertEquals(4000, trail.points.peekLast().time);
+    }
+
+    @Test void indexedHistoryPreservesDiscontinuitiesAndStationaryGaps() {
+        TrailHistory trail = new TrailHistory();
+        trail.replace(Arrays.asList(new TrailPoint(0, 0, 60, 0, true),
+                new TrailPoint(5000, 1, 60, 0, false), new TrailPoint(6000, 50, 60, 0, true)), 6000, 10000);
+        assertEquals(3, trail.points.size());
+        assertFalse(trail.points.stream().skip(1).findFirst().get().breakBefore);
+        assertTrue(trail.points.peekLast().breakBefore);
+        trail.replace(Arrays.asList(new TrailPoint(0, 0, 60, 0, true),
+                new TrailPoint(5000, 50, 60, 0, true)), 6000, 2000);
+        assertEquals(1, trail.points.size());
+        assertEquals(5000, trail.points.peekFirst().time);
+    }
+
+    @Test void indexedEmptyHistoryReplacesLiveSamples() {
+        TrailHistory trail = new TrailHistory();
+        trail.add(100, 1, 2, 3);
+        trail.replace(Collections.emptyList(), 100, 10000);
+        assertTrue(trail.points.isEmpty());
+    }
+
+    @Test void indexedPointsAreReusedAndLiveFallbackPreservesTheirDensity() {
+        java.util.List<TrailPoint> samples = new java.util.ArrayList<>();
+        for (int time = 0; time <= 10000; time += 50) samples.add(new TrailPoint(time, time / 1000.0, 60, 0, false));
+        TrailHistory trail = new TrailHistory();
+        trail.replace(samples, 10000, 10000);
+        assertSame(samples.get(0), trail.points.peekFirst());
+        assertSame(samples.get(200), trail.points.peekLast());
+        trail.add(10100, 10.1, 60, 0, 10000);
+        assertEquals(200, trail.points.size());
+        assertEquals(100, trail.points.peekFirst().time);
+        assertEquals(10000, trail.points.peekLast().time - trail.points.peekFirst().time);
+    }
+
     @Test void stylesCopyIndependentlyAndResetToTheirOwnDefaults() {
         TrailStyle dragon = new TrailStyle(TrailStyle.Color.CYAN);
         TrailStyle piglin = new TrailStyle(TrailStyle.Color.GOLD);

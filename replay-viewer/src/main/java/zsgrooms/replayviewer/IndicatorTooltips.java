@@ -90,6 +90,33 @@ final class IndicatorTooltips extends Screen {
         TOOLTIP.renderTooltip(matrices, client.textRenderer.wrapLines(new LiteralText(text), Math.min(240, width - 24)), mx, my);
     }
 
+    static void piglinCounter(MatrixStack matrices, int count, boolean available) {
+        if (!enabled) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        int width = client.getWindow().getScaledWidth(), height = client.getWindow().getScaledHeight();
+        int mx = (int) (client.mouse.getX() * width / client.getWindow().getWidth());
+        int my = (int) (client.mouse.getY() * height / client.getWindow().getHeight());
+        int right = width - 12, left = right - PiglinVisuals.counterWidth(count, available);
+        if (mx < left || mx >= right || my < 36 || my >= 48) return;
+        if (TOOLTIP.client != client || TOOLTIP.width != width || TOOLTIP.height != height) TOOLTIP.init(client, width, height);
+        String label = available ? "Largest piglin cluster within 64 blocks of the recorded player. One-block-radius grouping, not all loaded piglins."
+                : "Piglin cluster unavailable: the recorded player is not loaded.";
+        TOOLTIP.renderTooltip(matrices, client.textRenderer.wrapLines(new LiteralText(label), Math.min(220, width - 24)), mx, my);
+    }
+
+    static void renderDistance(MatrixStack matrices, int distance, int right) {
+        if (!enabled) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        int width = client.getWindow().getScaledWidth(), height = client.getWindow().getScaledHeight();
+        int mx = (int) (client.mouse.getX() * width / client.getWindow().getWidth());
+        int my = (int) (client.mouse.getY() * height / client.getWindow().getHeight());
+        if (mx < 12 || mx >= right || my < 10 || my >= 22) return;
+        if (TOOLTIP.client != client || TOOLTIP.width != width || TOOLTIP.height != height) TOOLTIP.init(client, width, height);
+        String label = distance < 0 ? "Recorded render distance unavailable at this time. Requires Detailed Capture."
+                : "Recorded render distance: " + distance + " chunks. This is the player's setting at this replay time, not the viewer's setting.";
+        TOOLTIP.renderTooltip(matrices, client.textRenderer.wrapLines(new LiteralText(label), Math.min(220, width - 24)), mx, my);
+    }
+
     private static final class Region {
         float left, top, right, bottom;
         int kind;

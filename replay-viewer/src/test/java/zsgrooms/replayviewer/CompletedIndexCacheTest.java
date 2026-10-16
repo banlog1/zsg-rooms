@@ -52,6 +52,23 @@ class CompletedIndexCacheTest {
         assertThrows(java.io.IOException.class, () -> CompletedIndexCache.Key.read(path));
     }
 
+    @Test void verifiesTheOpenedArchiveNotAnEarlierPathCheck() throws Exception {
+        Path path = replay("selected.mcpr", "old packets", "race");
+        CompletedIndexCache.Key expected = CompletedIndexCache.Key.read(path);
+        try (java.util.zip.ZipFile opened = new java.util.zip.ZipFile(path.toFile())) {
+            assertDoesNotThrow(() -> expected.verifyOpened(opened));
+        }
+        replay("selected.mcpr", "new packets", "race");
+        try (java.util.zip.ZipFile replaced = new java.util.zip.ZipFile(path.toFile())) {
+            assertThrows(java.io.IOException.class, () -> expected.verifyOpened(replaced));
+        }
+        replay("selected.mcpr", "old packets", "different race");
+        try (java.util.zip.ZipFile replaced = new java.util.zip.ZipFile(path.toFile())) {
+            assertThrows(java.io.IOException.class, () -> expected.verifyOpened(replaced));
+        }
+        assertThrows(java.io.IOException.class, () -> expected.verifyOpened(null));
+    }
+
     @Test void evictsLeastRecentlyUsedByCountAndWeight() throws Exception {
         CompletedIndexCache.Key a = CompletedIndexCache.Key.read(replay("a", "a", "m"));
         CompletedIndexCache.Key b = CompletedIndexCache.Key.read(replay("b", "b", "m"));

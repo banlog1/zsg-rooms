@@ -202,7 +202,7 @@ final class ViewerProfile {
         Object analysis=get(controls,"analysis");
         for(String field:Arrays.asList("piglinTrail","dragonTrail","piglinCounter")) set(analysis,field,enabled);
         Object highlights=get(analysis,"highlights");
-        Method select=highlights.getClass().getDeclaredMethod("set",Identifier.class,boolean.class);select.setAccessible(true);
+        Method select=Class.forName("zsgrooms.replayviewer.MobSelection").getDeclaredMethod("set",Identifier.class,boolean.class);select.setAccessible(true);
         select.invoke(highlights,new Identifier("minecraft:piglin"),enabled);
         select.invoke(highlights,new Identifier("minecraft:ender_dragon"),enabled);
         client.openScreen(null); handler.getOverlay().setMouseVisible(false);

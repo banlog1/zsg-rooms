@@ -48,6 +48,7 @@ final class ReplaySmokeTest {
     private static volatile long raceStart;
     private static net.minecraft.network.ClientConnection oldConnection;
     private static ReplayChestSmoke chestSmoke;
+    private static ReplayBarterSmoke barterSmoke, completedBarterSmoke;
 
     private ReplaySmokeTest() {
     }
@@ -67,6 +68,11 @@ final class ReplaySmokeTest {
             return;
         }
         try {
+            if (barterSmoke != null) {
+                if (!barterSmoke.tick(client)) return;
+                completedBarterSmoke = barterSmoke;
+                barterSmoke = null;
+            }
             if (chestSmoke != null) {
                 if (!chestSmoke.tick(client)) return;
                 chestSmoke = null;
@@ -104,6 +110,9 @@ final class ReplaySmokeTest {
                 if (!ReplayPrototype.configurePerformance(Boolean.getBoolean("zsgrooms.replayPrototype.smokePerformance"))) {
                     throw new IllegalStateException("Cannot configure replay performance mode");
                 }
+                if (!ReplayPrototype.configureDetailedCapture(Boolean.getBoolean("zsgrooms.replayPrototype.smokeDetailed"))) {
+                    throw new IllegalStateException("Cannot configure detailed capture");
+                }
                 if (!ReplayPrototype.configureSeedRetention(Boolean.getBoolean("zsgrooms.replayPrototype.smokeKeepSeedChanges"))) {
                     throw new IllegalStateException("Cannot configure replay retention");
                 }
@@ -116,11 +125,12 @@ final class ReplaySmokeTest {
             }
             if (stage == 4) {
                 if (ReplayPrototype.canConfigure()) {
-                    if (!"Saved to replay_recordings".equals(ReplayPrototype.getRecordingStatus())) {
+                    if (!ReplayPrototype.getRecordingStatus().startsWith("Saved")) {
                         fail(client, "recording did not save automatically");
                         return;
                     }
                     stage = 5;
+                    if (completedBarterSmoke != null) completedBarterSmoke.verify();
                     if (resets >= 2 && java.nio.file.Files.exists(firstRecording) != ReplayPrototype.getPreferences().keepSeedChanges) {
                         throw new IllegalStateException("Previous seed replay retention mismatch");
                     }
@@ -234,6 +244,7 @@ final class ReplaySmokeTest {
                     screenUntil = System.nanoTime() + 2000000000L;
                 }
                 if (ticks == 90) chestSmoke = new ReplayChestSmoke();
+                if (ticks == 95) barterSmoke = new ReplayBarterSmoke();
                 if (ticks >= 100) {
                     stage = 2;
                     ticks = 0;

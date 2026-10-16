@@ -14,7 +14,8 @@ final class Milestones {
         BASTION("minecraft:nether/find_bastion", "Bastion", "Entered Bastion", 0xFFCCAADD),
         FORTRESS("minecraft:nether/find_fortress", "Fortress", "Entered Fortress", 0xFFFFBB77),
         STRONGHOLD("minecraft:story/follow_ender_eye", "Stronghold", "Found Stronghold", 0xFF99DDCC),
-        END("minecraft:story/enter_the_end", "End", "Entered End", 0xFFEEEE99);
+        END("minecraft:story/enter_the_end", "End", "Entered End", 0xFFEEEE99),
+        DRAGON("minecraft:end/kill_dragon", "Dragon", "Defeated Dragon", 0xFFD6A5EF);
 
         final String id;
         final String label;

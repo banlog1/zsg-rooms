@@ -17,6 +17,7 @@ public final class ReplayPreferences {
     public final boolean showRecordingHud;
     public final boolean performanceMode;
     public final boolean keepSeedChanges;
+    public final boolean detailedCapture;
 
     public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled) {
         this(enabled, libraryDirectory, replayModRecordingDisabled, "");
@@ -35,6 +36,10 @@ public final class ReplayPreferences {
     }
 
     public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode, boolean keepSeedChanges) {
+        this(enabled, libraryDirectory, replayModRecordingDisabled, soloTestGroup, showRecordingHud, performanceMode, keepSeedChanges, false);
+    }
+
+    public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode, boolean keepSeedChanges, boolean detailedCapture) {
         this.enabled = enabled;
         this.libraryDirectory = libraryDirectory == null ? "" : libraryDirectory.trim();
         this.replayModRecordingDisabled = replayModRecordingDisabled;
@@ -42,6 +47,7 @@ public final class ReplayPreferences {
         this.showRecordingHud = showRecordingHud;
         this.performanceMode = performanceMode;
         this.keepSeedChanges = keepSeedChanges;
+        this.detailedCapture = detailedCapture;
     }
 
     public static String normalizeTestGroup(String value) {
@@ -71,7 +77,8 @@ public final class ReplayPreferences {
                 Boolean.parseBoolean(values.getProperty("replayModRecordingDisabled", "false")), testGroup,
                 Boolean.parseBoolean(values.getProperty("showRecordingHud", "true")),
                 Boolean.parseBoolean(values.getProperty("performanceMode", "false")),
-                Boolean.parseBoolean(values.getProperty("keepSeedChanges", "false")));
+                Boolean.parseBoolean(values.getProperty("keepSeedChanges", "false")),
+                Boolean.parseBoolean(values.getProperty("detailedCapture", "false")));
     }
 
     void save(Path path) throws IOException {
@@ -83,6 +90,7 @@ public final class ReplayPreferences {
         values.setProperty("showRecordingHud", Boolean.toString(showRecordingHud));
         values.setProperty("performanceMode", Boolean.toString(performanceMode));
         values.setProperty("keepSeedChanges", Boolean.toString(keepSeedChanges));
+        values.setProperty("detailedCapture", Boolean.toString(detailedCapture));
         Files.createDirectories(path.toAbsolutePath().getParent());
         try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             values.store(writer, "Local ZSG replay settings");

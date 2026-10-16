@@ -13,6 +13,7 @@ loom {
 			vmArg "-Dzsgrooms.replayPrototype.smokeEnd=${project.findProperty('replayEnd') ?: 'quit'}"
 			vmArg "-Dzsgrooms.replayPrototype.smokeResets=${project.findProperty('replayResets') ?: 0}"
 			vmArg "-Dzsgrooms.replayPrototype.smokePerformance=${project.findProperty('replayPerformance') ?: false}"
+			vmArg "-Dzsgrooms.replayPrototype.smokeDetailed=${project.findProperty('replayDetailed') ?: false}"
 			vmArg "-Dzsgrooms.replayPrototype.benchmark=${project.findProperty('replayCaptureBenchmark') ?: false}"
 			vmArg "-Dzsgrooms.replayPrototype.smokeKeepSeedChanges=${project.findProperty('replayKeepSeedChanges') ?: false}"
 			vmArg "-Dzsgrooms.replayTempleSmoke=${project.findProperty('replayTempleSmoke') ?: false}"
@@ -146,9 +147,13 @@ if (project.hasProperty('replayPlaybackFile')) {
 				vmArg "-Dzsgrooms.replayPlaybackEnd=${project.findProperty('replayPlaybackEnd') ?: 118000}"
 				vmArg "-Dzsgrooms.replayViewerSmoke=${project.findProperty('replayViewerSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayHighlightSmoke=${project.findProperty('replayHighlightSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayHistoricalTrailSmoke=${project.findProperty('replayHistoricalTrailSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayBrowserDeleteSmoke=${project.findProperty('replayBrowserDeleteSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayBarterSmoke=${project.findProperty('replayBarterSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayRaceSmoke=${project.findProperty('replayRaceSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayStartupSmoke=${project.findProperty('replayStartupSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayDetailsSmoke=${project.findProperty('replayDetailsSmoke') ?: false}"
+				vmArg "-Dzsgrooms.replayFaithfulSmoke=${project.findProperty('replayFaithfulSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayChestSmoke=${project.findProperty('replayChestSmoke') ?: false}"
 				vmArg "-Dzsgrooms.replayTempleSmoke=${project.findProperty('replayTempleSmoke') ?: false}"
 			}
@@ -310,6 +315,7 @@ tasks.named('runNetherPreloadBenchmark') {
 }
 
 tasks.named('runReplayPrototype') {
+	if (project.hasProperty('viewerProfileJava')) executable = project.property('viewerProfileJava')
 	doFirst {
 		ext.testStartedAt = System.currentTimeMillis()
 	}
@@ -342,8 +348,14 @@ tasks.matching { it.name == 'runReplayPlaybackTest' }.configureEach {
 		if (project.findProperty('replayViewerSmoke') == 'true' || project.findProperty('replayRaceSmoke') == 'true'
 				|| project.findProperty('replayStartupSmoke') == 'true' || project.findProperty('replayDetailsSmoke') == 'true'
 				|| project.findProperty('replayChestSmoke') == 'true' || project.findProperty('replayTempleSmoke') == 'true'
-				|| project.findProperty('replayHighlightSmoke') == 'true') {
-			def marker = project.findProperty('replayHighlightSmoke') == 'true' ? '[MobHighlightSmoke] PASS:'
+				|| project.findProperty('replayHighlightSmoke') == 'true' || project.findProperty('replayFaithfulSmoke') == 'true'
+				|| project.findProperty('replayHistoricalTrailSmoke') == 'true' || project.findProperty('replayBrowserDeleteSmoke') == 'true'
+				|| project.findProperty('replayBarterSmoke') == 'true') {
+			def marker = project.findProperty('replayBrowserDeleteSmoke') == 'true' ? '[BrowserDeleteSmoke] PASS:'
+					: project.findProperty('replayBarterSmoke') == 'true' ? '[ReplayBarterSmoke] PASS:'
+					: project.findProperty('replayHistoricalTrailSmoke') == 'true' ? '[HistoricalTrailSmoke] PASS:'
+					: project.findProperty('replayFaithfulSmoke') == 'true' ? '[ReplayFaithfulSmoke] PASS:'
+					: project.findProperty('replayHighlightSmoke') == 'true' ? '[MobHighlightSmoke] PASS:'
 					: project.findProperty('replayTempleSmoke') == 'true' ? '[ReplayTempleSmoke] PASS:'
 					: project.findProperty('replayChestSmoke') == 'true' ? '[ReplayChestSmoke] PASS:'
 					: project.findProperty('replayDetailsSmoke') == 'true' ? '[ReplayDetailsSmoke] PASS:'

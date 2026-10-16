@@ -19,6 +19,7 @@ public final class ReplaySettingsScreen extends Screen {
     private CheckboxWidget recording;
     private CheckboxWidget coexistence;
     private CheckboxWidget performance;
+    private CheckboxWidget detailed;
     private CheckboxWidget keepSeedChanges;
     private ButtonWidget browse;
     private ButtonWidget check;
@@ -42,6 +43,7 @@ public final class ReplaySettingsScreen extends Screen {
         recording = null;
         coexistence = null;
         performance = null;
+        detailed = null;
         keepSeedChanges = null;
         browse = null;
         check = null;
@@ -99,16 +101,25 @@ public final class ReplaySettingsScreen extends Screen {
                     refresh();
                 }
             });
-            this.addButton(new ButtonWidget(left, 118, half, 20, new LiteralText("Open Recordings"),
-                    b -> ReplayPrototype.openRecordings()));
+            this.addButton(new ButtonWidget(left, 118, half, 20, new LiteralText("Replay Library"),
+                    b -> ReplayBrowserLauncher.open(this)));
             stop = this.addButton(new ButtonWidget(left + half + 6, 118, half, 20, new LiteralText("Stop Recording"),
                     b -> ReplayPrototype.stopRecording()));
-            this.addButton(new ReplayMenuButton(left, 140, contentWidth, 20,
+            this.addButton(new ReplayMenuButton(left, 140, half, 20,
+                    new LiteralText("Recording Folder"), b -> this.client.openScreen(new ReplayStorageScreen(this))));
+            this.addButton(new ReplayMenuButton(left + half + 6, 140, half, 20,
                     new LiteralText("Solo Replay Testing"), b -> this.client.openScreen(new ReplayTestSettingsScreen(this))));
-            this.addButton(new CheckboxWidget(left, 162, contentWidth, 20,
-                    new LiteralText("Show Recording Indicator"), preferences.showRecordingHud) {
+            this.addButton(new CheckboxWidget(left, 162, half, 20,
+                    new LiteralText("REC Indicator"), preferences.showRecordingHud) {
                 @Override public void onPress() {
                     ReplayPrototype.configureHud(!ReplayPrototype.getPreferences().showRecordingHud);
+                    refresh();
+                }
+            });
+            detailed = this.addButton(new CheckboxWidget(left + half + 6, 162, half, 20,
+                    new LiteralText("Detailed Capture"), preferences.detailedCapture) {
+                @Override public void onPress() {
+                    ReplayPrototype.configureDetailedCapture(!ReplayPrototype.getPreferences().detailedCapture);
                     refresh();
                 }
             });
@@ -175,11 +186,15 @@ public final class ReplaySettingsScreen extends Screen {
         if (help.isHovered()) {
             String text = setup
                     ? "Default: this Minecraft instance's zsgrooms/replay-libraries. First setup downloads verified libraries from JitPack and Maven Central. Blank override uses automatic setup. Custom folders must contain the writer and all dependencies."
-                    : "Record Local Worlds starts automatic library setup on first use (internet required). Wait until ready, then enter a local world. The REC badge confirms recording. Room results, returning to the room, and quitting to title save automatically to replay_recordings. Playback: ReplayMod Replay Viewer. Client HUD overlays are not recorded.";
+                    : "Record Local Worlds starts automatic library setup on first use (internet required). Wait until ready, then enter a local world. The REC badge confirms recording. Room results, returning to the room, and quitting to title save automatically. Recording Folder selects where new files go. Replay Library opens the ZSG browser; playback requires ZSG Replay Viewer and ReplayMod.";
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(text), Math.min(280, this.width - 32)), mouseX, mouseY);
         } else if (keepSeedChanges != null && keepSeedChanges.isHovered()) {
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
                     "OFF discards unfinished replays when a different seed loads. ON saves them as separate files. Returning to the room still saves normally. Same-seed resets stay in one replay; completed recordings are kept."),
+                    Math.min(280, this.width - 32)), mouseX, mouseY);
+        } else if (detailed != null && detailed.isHovered()) {
+            this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
+                    "Opt-in capture of player view settings and inventory/container slot changes for faithful follow. Uses additional disk space and recorder work. Applies to the next recording, even when changed during an active session. Current detail status: " + ReplayPrototype.getDetailedCaptureStatus()),
                     Math.min(280, this.width - 32)), mouseX, mouseY);
         } else if (performance != null && performance.isHovered()) {
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(

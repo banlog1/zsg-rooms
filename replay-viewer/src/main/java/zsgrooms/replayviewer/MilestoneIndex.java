@@ -5,22 +5,15 @@ import com.replaymod.replaystudio.PacketData;
 import com.replaymod.replaystudio.io.ReplayInputStream;
 import com.replaymod.replaystudio.lib.viaversion.api.protocol.packet.State;
 import com.replaymod.replaystudio.lib.viaversion.api.protocol.version.ProtocolVersion;
-import com.replaymod.replaystudio.protocol.PacketType;
 import com.replaymod.replaystudio.protocol.PacketTypeRegistry;
 import com.replaymod.replaystudio.replay.ReplayFile;
-import net.minecraft.advancement.Advancement;
-import net.minecraft.advancement.AdvancementProgress;
 import net.minecraft.network.NetworkSide;
 import net.minecraft.network.NetworkState;
-import net.minecraft.network.PacketByteBuf;
 import net.minecraft.network.packet.s2c.play.AdvancementUpdateS2CPacket;
-import net.minecraft.util.Identifier;
 import org.apache.logging.log4j.LogManager;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /** One streaming scan on a cache miss; never seeks the active player. */
 final class MilestoneIndex implements AutoCloseable {
@@ -30,13 +23,18 @@ final class MilestoneIndex implements AutoCloseable {
     volatile ChestHistory<net.minecraft.item.ItemStack> chests;
     volatile String chestStatus = "Indexing recorded chests...";
     volatile ChestLootHistory chestLoot;
+    volatile boolean complete;
+    volatile boolean available;
     private volatile boolean cancelled;
     private final Thread worker;
     private volatile boolean cacheHit;
 
     MilestoneIndex(ReplayFile file) {
         int packetId = NetworkState.PLAY.getPacketId(NetworkSide.CLIENTBOUND, new AdvancementUpdateS2CPacket());
-        worker = new Thread(() -> scan(file, packetId), "ZSG replay milestones");
+        worker = new Thread(() -> {
+            try { scan(file, packetId); }
+            finally { complete = true; }
+        }, "ZSG replay milestones");
         worker.setDaemon(true);
         worker.start();
     }
@@ -50,7 +48,7 @@ final class MilestoneIndex implements AutoCloseable {
             }
             return;
         }
-        Milestones tracker = new Milestones();
+        MilestonePacketTracker tracker = new MilestonePacketTracker(packetId);
         ChestPacketIndex chestIndex = null;
         boolean cacheable = true;
         try {
@@ -59,7 +57,6 @@ final class MilestoneIndex implements AutoCloseable {
             if (recording != null && (!recording.chests.isEmpty() || recording.predictionSeed != null)) chestIndex = new ChestPacketIndex(recording.chests, recording.chestLoot);
             else chestStatus = "No recorded chest positions";
         } catch (Exception ignored) { chestStatus = "No recorded chest positions"; cacheable = false; }
-        Map<Identifier, Advancement> definitions = new HashMap<>();
         try {
             if (file.getMetaData().getRawProtocolVersion() != 736) {
                 status = "Milestones require a Minecraft 1.16.1 recording";
@@ -78,29 +75,7 @@ final class MilestoneIndex implements AutoCloseable {
                                 LogManager.getLogger("ZSG Replay Viewer").warn("Chest indexing failed", error);
                             }
                         }
-                        if (data.getPacket().getType() == PacketType.JoinGame) {
-                            tracker.newWorld();
-                            definitions.clear();
-                        } else if (data.getPacket().getRegistry().getState() == State.PLAY && data.getPacket().getId() == packetId) {
-                            AdvancementUpdateS2CPacket packet = new AdvancementUpdateS2CPacket();
-                            packet.read(new PacketByteBuf(data.getPacket().getBuf().duplicate()));
-                            if (packet.shouldClearCurrent()) definitions.clear();
-                            for (Identifier id : packet.getAdvancementIdsToRemove()) definitions.remove(id);
-                            for (Map.Entry<Identifier, Advancement.Task> entry : packet.getAdvancementsToEarn().entrySet()) {
-                                if (Milestones.Kind.fromId(entry.getKey().toString()) != null) {
-                                    // Only criteria/requirements matter here; no client advancement tree is changed.
-                                    definitions.put(entry.getKey(), entry.getValue().parent((Identifier) null).build(entry.getKey()));
-                                }
-                            }
-                            for (Map.Entry<Identifier, AdvancementProgress> entry : packet.getAdvancementsToProgress().entrySet()) {
-                                Advancement definition = definitions.get(entry.getKey());
-                                if (definition == null) continue;
-                                AdvancementProgress progress = entry.getValue();
-                                progress.init(definition.getCriteria(), definition.getRequirements());
-                                tracker.observe(Milestones.Kind.fromId(entry.getKey().toString()), progress.isDone(),
-                                        packet.shouldClearCurrent(), (int) data.getTime());
-                            }
-                        }
+                        tracker.packet(data);
                     } finally {
                         data.release();
                     }
@@ -113,6 +88,7 @@ final class MilestoneIndex implements AutoCloseable {
                 }
                 entries = tracker.snapshot();
                 status = entries.isEmpty() ? "No recorded milestones" : "Milestones";
+                available = true;
                 CompletedIndexCache.Key after = cacheable && key != null ? cacheKey(file) : null;
                 synchronized (this) {
                     if (!cancelled && key != null && key.equals(after)) {
@@ -151,6 +127,7 @@ final class MilestoneIndex implements AutoCloseable {
     private void publish(Result result) {
         chests = result.chests; chestLoot = result.chestLoot; chestStatus = result.chestStatus;
         entries = result.entries; status = result.status;
+        available = true;
     }
 
     private static final class Result {

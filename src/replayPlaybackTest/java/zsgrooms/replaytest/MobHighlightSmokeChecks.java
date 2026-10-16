@@ -106,7 +106,7 @@ final class MobHighlightSmokeChecks {
             require(!client.method_27022(pig), "F1 did not hide viewer highlights");
             client.options.hudHidden = false;
             require(client.method_27022(pig), "F1 did not restore highlights");
-            Field enabled = options.getClass().getDeclaredField("enabled");
+            Field enabled = field(options.getClass(), "enabled");
             enabled.setAccessible(true);
             enabled.setBoolean(options, false);
             require(!client.method_27022(pig) && pig.getTeamColorValue() == 0xFFFFFF, "Disabled highlights changed vanilla rendering");
@@ -131,7 +131,7 @@ final class MobHighlightSmokeChecks {
     }
 
     private static Object get(Object target, Class<?> type, String name) throws Exception {
-        Field field = type.getDeclaredField(name);
+        Field field = field(type, name);
         field.setAccessible(true);
         return field.get(target);
     }
@@ -155,9 +155,21 @@ final class MobHighlightSmokeChecks {
         return count;
     }
     private static Object invoke(Object target, String name) throws Exception {
-        Method method = target.getClass().getDeclaredMethod(name);
-        method.setAccessible(true);
-        return method.invoke(target);
+        for (Class<?> type = target.getClass(); type != null; type = type.getSuperclass()) {
+            try {
+                Method method = type.getDeclaredMethod(name);
+                method.setAccessible(true);
+                return method.invoke(target);
+            } catch (NoSuchMethodException ignored) { }
+        }
+        throw new NoSuchMethodException(target.getClass().getName() + "." + name);
+    }
+    private static Field field(Class<?> type, String name) throws NoSuchFieldException {
+        for (; type != null; type = type.getSuperclass()) {
+            try { return type.getDeclaredField(name); }
+            catch (NoSuchFieldException ignored) { }
+        }
+        throw new NoSuchFieldException(name);
     }
     private static void click(MinecraftClient client, String label) {
         for (Element child : client.currentScreen.children()) if (child instanceof ButtonWidget
