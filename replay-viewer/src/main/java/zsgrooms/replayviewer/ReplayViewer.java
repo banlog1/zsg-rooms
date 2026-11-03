@@ -6,6 +6,7 @@ import com.replaymod.core.KeyBindingRegistry;
 import com.replaymod.lib.de.johni0702.minecraft.gui.utils.EventRegistrations;
 import com.replaymod.replay.ReplayHandler;
 import com.replaymod.replay.ReplayModReplay;
+import com.replaymod.replay.events.ReplayClosedCallback;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
 import org.lwjgl.glfw.GLFW;
@@ -34,6 +35,11 @@ public final class ReplayViewer implements ClientModInitializer {
                 attach(handler);
             }
             if (controls != null) controls.update();
+        }).on(ReplayClosedCallback.EVENT, handler -> {
+            if (handler != current) return;
+            attach(null);
+            recorder = null;
+            recording = null;
         }).register();
     }
 
@@ -192,6 +198,18 @@ public final class ReplayViewer implements ClientModInitializer {
     public static boolean faithfulActive() {
         return instance != null && instance.controls != null && ReplayModReplay.instance != null
                 && ReplayModReplay.instance.getReplayHandler() == instance.current && instance.controls.faithfulActive();
+    }
+
+    public static boolean recordedCameraRotation(net.minecraft.entity.Entity focused, float[] rotation) {
+        return !switching && instance != null && instance.controls != null && instance.current != null
+                && ReplayModReplay.instance != null && ReplayModReplay.instance.getReplayHandler() == instance.current
+                && instance.controls.recordedCameraRotation(focused, rotation);
+    }
+
+    public static void cameraDiscontinuity(ReplayHandler handler, boolean begin) {
+        if (instance != null && instance.current == handler && instance.controls != null) {
+            instance.controls.cameraDiscontinuity(begin);
+        }
     }
 
     public static boolean faithfulHudHidden() {

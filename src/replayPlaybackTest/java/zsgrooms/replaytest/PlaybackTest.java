@@ -36,6 +36,8 @@ public final class PlaybackTest implements ClientModInitializer {
     private final HistoricalTrailSmokeChecks historicalTrailChecks = new HistoricalTrailSmokeChecks();
     private final BrowserDeleteSmokeChecks browserDeleteChecks = new BrowserDeleteSmokeChecks();
     private final BarterSmokeChecks barterChecks = new BarterSmokeChecks();
+    private final CameraSmokeChecks cameraChecks = new CameraSmokeChecks();
+    private final SuperDetailedSmokeChecks superDetailedChecks = new SuperDetailedSmokeChecks();
 
     @Override
     public void onInitializeClient() {
@@ -74,14 +76,34 @@ public final class PlaybackTest implements ClientModInitializer {
                 Class<?> api = Class.forName("com.replaymod.replay.ReplayModReplay");
                 viewer = api.getField("instance").get(null);
                 File replay = new File(System.getProperty("zsgrooms.replayPlaybackFile"));
-                if (Boolean.getBoolean("zsgrooms.replayRaceSmoke")) replay = raceChecks.prepare(client, replay);
-                if (Boolean.getBoolean("zsgrooms.replayFaithfulSmoke")) replay = faithfulChecks.prepare(client, replay);
-                if (Boolean.getBoolean("zsgrooms.replayBarterSmoke")) replay = barterChecks.prepare(client, replay);
+                if (Boolean.getBoolean("zsgrooms.replaySuperDetailedSmoke")) replay = superDetailedChecks.prepare(client, replay);
+                else if (Boolean.getBoolean("zsgrooms.replayCameraSmoke")) replay = cameraChecks.prepare(client, replay);
+                else {
+                    if (Boolean.getBoolean("zsgrooms.replayRaceSmoke")) replay = raceChecks.prepare(client, replay);
+                    if (Boolean.getBoolean("zsgrooms.replayFaithfulSmoke")) replay = faithfulChecks.prepare(client, replay);
+                    if (Boolean.getBoolean("zsgrooms.replayBarterSmoke")) replay = barterChecks.prepare(client, replay);
+                }
                 api.getMethod("startReplay", File.class).invoke(viewer, replay);
                 handler = api.getMethod("getReplayHandler").invoke(viewer);
                 sender = handler.getClass().getMethod("getReplaySender").invoke(handler);
                 time = sender.getClass().getMethod("currentTimeStamp");
                 started = System.nanoTime();
+                return;
+            }
+            if (Boolean.getBoolean("zsgrooms.replaySuperDetailedSmoke")) {
+                if (System.nanoTime() - started > 180000000000L) throw new IllegalStateException("Super Detailed smoke timed out");
+                if (superDetailedChecks.tick(client)) {
+                    done = true;
+                    client.scheduleStop();
+                }
+                return;
+            }
+            if (Boolean.getBoolean("zsgrooms.replayCameraSmoke")) {
+                if (System.nanoTime() - started > 180000000000L) cameraChecks.timeout(client);
+                if (cameraChecks.tick(client)) {
+                    done = true;
+                    client.scheduleStop();
+                }
                 return;
             }
             if (Boolean.getBoolean("zsgrooms.replayRaceSmoke")) {
@@ -207,6 +229,7 @@ public final class PlaybackTest implements ClientModInitializer {
             }
         } catch (Exception e) {
             done = true;
+            if (Boolean.getBoolean("zsgrooms.replayCameraSmoke")) ZsgRooms.LOGGER.error("[ReplayCameraSmoke] FAIL", e);
             ZsgRooms.LOGGER.error("[ReplayPlaybackTest] Failed", e);
             client.scheduleStop();
         } finally {

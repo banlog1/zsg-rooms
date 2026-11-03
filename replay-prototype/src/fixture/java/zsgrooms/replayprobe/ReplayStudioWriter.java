@@ -131,6 +131,139 @@ public final class ReplayStudioWriter implements AutoCloseable {
         }
     }
 
+    /** Optional camera-only API; malformed or missing spools never modify packet data or duration. */
+    public void writeCameraCapture(Path spool, String coverageJson) throws IOException {
+        if (closed) throw new IllegalStateException("Writer closed");
+        com.google.gson.JsonObject coverage;
+        try {
+            if (coverageJson == null || coverageJson.length() > 16384
+                    || coverageJson.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 16384)
+                throw new IllegalArgumentException("Camera coverage too large or missing");
+            coverage = new com.google.gson.JsonParser().parse(coverageJson).getAsJsonObject();
+        } catch (RuntimeException error) {
+            coverage = new com.google.gson.JsonObject();
+            coverage.addProperty("schemaVersion", 1);
+            coverage.addProperty("status", "failed");
+            coverage.addProperty("failure", error.getClass().getSimpleName());
+            spool = null;
+        }
+        if (spool != null) {
+            try { copyCameraSpool(spool); }
+            catch (IOException | RuntimeException error) {
+                try { file.remove("zsg-rooms/camera.bin"); }
+                catch (IOException | RuntimeException cleanup) { error.addSuppressed(cleanup); }
+                coverage.addProperty("status", "failed");
+                coverage.addProperty("failure", error.getClass().getSimpleName());
+            }
+        }
+        try (java.io.OutputStream entry = file.write("zsg-rooms/camera.json")) {
+            entry.write(coverage.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (IOException | RuntimeException error) {
+            for (String name : new String[] { "zsg-rooms/camera.bin", "zsg-rooms/camera.json" }) {
+                try { file.remove(name); }
+                catch (IOException | RuntimeException cleanup) { error.addSuppressed(cleanup); }
+            }
+            throw error;
+        }
+    }
+
+    private void copyCameraSpool(Path spool) throws IOException {
+        long size = Files.size(spool);
+        if (size < 12 || size > Integer.MAX_VALUE || (size - 12) % 24 != 0 || !Files.isRegularFile(spool))
+            throw new IllegalArgumentException("Invalid camera spool size");
+        try (java.io.DataInputStream input = new java.io.DataInputStream(
+                new java.io.BufferedInputStream(Files.newInputStream(spool), 65536))) {
+            int magic = input.readInt(), version = input.readInt(), hz = input.readInt();
+            if (magic != 0x5A43414D || version != 1 || hz != 60 && hz != 120 && hz != 240)
+                throw new IllegalArgumentException("Invalid camera spool header");
+            try (java.io.DataOutputStream entry = new java.io.DataOutputStream(
+                    new java.io.BufferedOutputStream(file.write("zsg-rooms/camera.bin"), 65536))) {
+                entry.writeInt(magic);
+                entry.writeInt(version);
+                entry.writeInt(hz);
+                int lastTime = -1;
+                for (long copied = 12; copied < size; copied += 24) {
+                    int time = input.readInt(), world = input.readInt(), entity = input.readInt(), flags = input.readInt();
+                    int yaw = input.readInt(), pitch = input.readInt();
+                    float yawAngle = Float.intBitsToFloat(yaw), pitchAngle = Float.intBitsToFloat(pitch);
+                    if (time < 0 || time <= lastTime || world < -1 || entity < -1
+                            || flags != 0 && flags != 1 && flags != 2
+                            || !Float.isFinite(yawAngle) || !Float.isFinite(pitchAngle)
+                            || flags == 1 && (world < 0 || entity < 0 || pitchAngle < -90 || pitchAngle > 90))
+                        throw new IllegalArgumentException("Invalid camera spool record");
+                    entry.writeInt(time);
+                    entry.writeInt(world);
+                    entry.writeInt(entity);
+                    entry.writeInt(flags);
+                    entry.writeInt(yaw);
+                    entry.writeInt(pitch);
+                    lastTime = time;
+                }
+                if (input.read() != -1) throw new IOException("Camera spool changed while copying");
+            }
+        }
+    }
+
+    public void writePresentationCapture(Path spool, String coverageJson) throws IOException {
+        writeSupplementalCapture("presentation", 0x5A505253, Integer.MAX_VALUE, spool, coverageJson);
+    }
+
+    public void writeLocalSoundCapture(Path spool, String coverageJson) throws IOException {
+        writeSupplementalCapture("local-sounds", 0x5A534E44, 512L * 1024 * 1024, spool, coverageJson);
+    }
+
+    /** Private fixed-name sidecars: optional failures never alter the packet stream. */
+    private void writeSupplementalCapture(String name, int magic, long maxBytes, Path spool, String coverageJson) throws IOException {
+        if (closed) throw new IllegalStateException("Writer closed");
+        String binary = "zsg-rooms/" + name + ".bin", metadata = "zsg-rooms/" + name + ".json";
+        com.google.gson.JsonObject coverage;
+        try {
+            if (coverageJson == null || coverageJson.length() > 16384
+                    || coverageJson.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 16384)
+                throw new IllegalArgumentException("Supplemental coverage too large or missing");
+            coverage = new com.google.gson.JsonParser().parse(coverageJson).getAsJsonObject();
+        } catch (RuntimeException error) {
+            coverage = new com.google.gson.JsonObject();
+            coverage.addProperty("schemaVersion", 1);
+            coverage.addProperty("status", "failed");
+            coverage.addProperty("failure", error.getClass().getSimpleName());
+            spool = null;
+        }
+        if (spool != null) {
+            try {
+                long size = Files.size(spool);
+                if (size < 8 || size > maxBytes || !Files.isRegularFile(spool))
+                    throw new IOException("Invalid supplemental spool size");
+                try (java.io.DataInputStream input = new java.io.DataInputStream(new java.io.BufferedInputStream(Files.newInputStream(spool), 65536))) {
+                    if (input.readInt() != magic || input.readInt() != 1) throw new IOException("Invalid supplemental spool header");
+                    try (java.io.DataOutputStream entry = new java.io.DataOutputStream(file.write(binary))) {
+                        entry.writeInt(magic); entry.writeInt(1);
+                        byte[] buffer = new byte[65536];
+                        long copied = 8;
+                        int count;
+                        while ((count = input.read(buffer)) != -1) {
+                            if (copied + count > size) throw new IOException("Supplemental spool changed while copying");
+                            entry.write(buffer, 0, count); copied += count;
+                        }
+                        if (copied != size) throw new IOException("Supplemental spool truncated while copying");
+                    }
+                }
+            } catch (IOException | RuntimeException error) {
+                try { file.remove(binary); } catch (IOException | RuntimeException cleanup) { error.addSuppressed(cleanup); }
+                coverage.addProperty("status", "failed");
+                coverage.addProperty("failure", error.getClass().getSimpleName());
+            }
+        }
+        try (java.io.OutputStream entry = file.write(metadata)) {
+            entry.write(coverage.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (IOException | RuntimeException error) {
+            for (String entry : new String[]{binary, metadata}) {
+                try { file.remove(entry); } catch (IOException | RuntimeException cleanup) { error.addSuppressed(cleanup); }
+            }
+            throw error;
+        }
+    }
+
     public void finish(int selfId, boolean complete) throws IOException {
         if (closed) throw new IllegalStateException("Recording already closed");
         output.close();

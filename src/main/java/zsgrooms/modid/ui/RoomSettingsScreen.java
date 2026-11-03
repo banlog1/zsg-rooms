@@ -121,10 +121,16 @@ public class RoomSettingsScreen extends Screen {
                         }).available = RoomSettingsScreen::recordingConfigReason;
                 toggle("Performance mode", "Skips unchanged player metadata. Keeps full-rate movement, terrain, entities, sounds and timers. Choose before recording.",
                         () -> ReplayPrototype.getPreferences().performanceMode, ReplayPrototype::configurePerformance).available = RoomSettingsScreen::recordingConfigReason;
-                toggle("Detailed capture", "Opt-in player view settings and inventory/container slot changes for faithful follow. Uses additional disk space and recorder work. Applies to the next recording; an active session is unchanged.",
-                        () -> ReplayPrototype.getPreferences().detailedCapture, ReplayPrototype::configureDetailedCapture);
+                choice("Recording detail", "Standard keeps normal recording. Detailed adds player view settings and inventory/container changes for Faithful Follow. Super Detailed also captures first-person presentation and original local-player sounds. Higher detail is more demanding during recording and uses more disk space. Camera sampling and Performance mode remain independent. Applies to the next recording; an active session is unchanged. Requires an updated ZSG viewer.",
+                        ReplayPreferences.RecordingDetail.values(), () -> ReplayPrototype.getPreferences().recordingDetail,
+                        detail -> detail.label, ReplayPrototype::configureRecordingDetail);
+                choice("Camera sampling", "Standard keeps existing camera capture. 60/120/240 Hz adds full-precision first-person look angles, limited by rendered FPS. Higher rates are more demanding during recording and use more disk space; 240 Hz is an advanced high-FPS option. Works with every preset; world, inventory and entity sampling are unchanged. Next recording only; requires an updated ZSG viewer.",
+                        ReplayPreferences.CameraRate.values(), () -> ReplayPrototype.getPreferences().cameraRate,
+                        rate -> rate.label, ReplayPrototype::configureCameraRate);
                 toggle("Recording indicator", "Shows the REC/status badge during live play. Does not affect what is recorded.",
                         () -> ReplayPrototype.getPreferences().showRecordingHud, ReplayPrototype::configureHud);
+                toggle("Capture health", "Shows measured camera sampling, dropped camera samples and recorder queue pressure. Available in every recording mode, independently of the REC badge. Sampling is limited by rendered FPS; a lower rate is not necessarily a dropped sample. Does not change recording quality.",
+                        () -> ReplayPrototype.getPreferences().showCaptureHealth, ReplayPrototype::configureCaptureHealth);
                 toggle("Save on seed change", "OFF discards unfinished recordings when a different seed loads. ON saves them separately. Returning to the room still saves; same-seed resets stay in one replay; completed recordings are kept.",
                         () -> ReplayPrototype.getPreferences().keepSeedChanges, ReplayPrototype::configureSeedRetention);
                 command("Replay library", "Opens the ZSG recording browser. Playback requires ZSG Replay Viewer and ReplayMod.", "Browse...", () -> ReplayBrowserLauncher.open(this));

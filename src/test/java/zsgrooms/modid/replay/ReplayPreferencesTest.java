@@ -12,6 +12,67 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReplayPreferencesTest {
     @TempDir Path temp;
 
+    @Test void detailLevelsPersistIndependentlyOfCameraPerformanceAndHealth() throws Exception {
+        Path file = temp.resolve("levels.properties");
+        for (ReplayPreferences.RecordingDetail detail : ReplayPreferences.RecordingDetail.values()) {
+            for (ReplayPreferences.CameraRate rate : ReplayPreferences.CameraRate.values()) {
+                for (boolean performance : new boolean[]{false, true}) {
+                    for (boolean health : new boolean[]{false, true}) {
+                        new ReplayPreferences(true, "", true, "", false, performance, true, detail, rate, health).save(file);
+                        ReplayPreferences loaded = ReplayPreferences.load(file);
+                        assertEquals(detail, loaded.recordingDetail);
+                        assertEquals(detail != ReplayPreferences.RecordingDetail.STANDARD, loaded.detailedCapture);
+                        assertEquals(rate, loaded.cameraRate);
+                        assertEquals(performance, loaded.performanceMode);
+                        assertEquals(health, loaded.showCaptureHealth);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test void legacyDetailedSettingsMigrateWithoutEnablingSuperDetailed() throws Exception {
+        Path file = temp.resolve("legacy.properties");
+        assertEquals(ReplayPreferences.RecordingDetail.STANDARD, ReplayPreferences.load(file).recordingDetail);
+        assertFalse(ReplayPreferences.load(file).showCaptureHealth);
+        for (boolean legacy : new boolean[]{false, true}) {
+            for (String value : new String[]{"", "recordingDetail=unknown\n"}) {
+                Files.write(file, ("detailedCapture=" + legacy + "\n" + value).getBytes(StandardCharsets.UTF_8));
+                assertEquals(legacy ? ReplayPreferences.RecordingDetail.DETAILED : ReplayPreferences.RecordingDetail.STANDARD,
+                        ReplayPreferences.load(file).recordingDetail);
+            }
+        }
+        Files.write(file, "detailedCapture=true\nrecordingDetail=STANDARD\n".getBytes(StandardCharsets.UTF_8));
+        assertFalse(ReplayPreferences.load(file).detailedCapture);
+        Files.write(file, "detailedCapture=false\nrecordingDetail=SUPER_DETAILED\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals(ReplayPreferences.RecordingDetail.SUPER_DETAILED, ReplayPreferences.load(file).recordingDetail);
+        assertTrue(ReplayPreferences.load(file).detailedCapture);
+    }
+
+    @Test void cameraRateDefaultsToStandardAndPersistsIndependentlyOfPresets() throws Exception {
+        Path file = temp.resolve("camera.properties");
+        assertEquals(ReplayPreferences.CameraRate.STANDARD, ReplayPreferences.load(file).cameraRate);
+        for (ReplayPreferences.CameraRate rate : ReplayPreferences.CameraRate.values()) {
+            for (boolean detail : new boolean[]{false, true}) {
+                for (boolean performance : new boolean[]{false, true}) {
+                    new ReplayPreferences(true, "", true, "", false, performance, true, detail, rate).save(file);
+                    ReplayPreferences loaded = ReplayPreferences.load(file);
+                    assertEquals(rate, loaded.cameraRate);
+                    assertEquals(detail, loaded.detailedCapture);
+                    assertEquals(performance, loaded.performanceMode);
+                    assertTrue(loaded.enabled);
+                    assertTrue(loaded.keepSeedChanges);
+                    assertFalse(loaded.showRecordingHud);
+                }
+            }
+        }
+        for (String setting : new String[]{"", "cameraRate=bogus\n", "cameraRate=HZ_480\n"}) {
+            Files.write(file, ("enabled=true\n" + setting).getBytes(StandardCharsets.UTF_8));
+            assertEquals(ReplayPreferences.CameraRate.STANDARD, ReplayPreferences.load(file).cameraRate);
+            assertTrue(ReplayPreferences.load(file).enabled);
+        }
+    }
+
     @Test void detailedCaptureIsOptInAndPersistsWithoutChangingNormalMode() throws Exception {
         Path file = temp.resolve("detail.properties");
         assertFalse(ReplayPreferences.load(file).detailedCapture);

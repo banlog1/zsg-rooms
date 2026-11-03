@@ -119,6 +119,35 @@ class TrailIndexTest {
         }
     }
 
+    @Test void identicalPendingRequestsReuseTheDefensiveSelectionCopy() throws Exception {
+        try (TrailIndex index = index(replay(packets(), 736))) {
+            java.lang.reflect.Field field = TrailIndex.class.getDeclaredField("pending");
+            field.setAccessible(true);
+            Set<UUID> selected = new HashSet<>(Collections.singleton(player));
+            Set<UUID> both = new HashSet<>(selected); both.add(other);
+            synchronized (index) {
+                // Hold publication/dequeue while checking coalescing, regardless of scan speed.
+                index.request(1000, selected, Integer.MAX_VALUE);
+                Object pending = field.get(index);
+                assertNotNull(pending);
+                selected.clear();
+                index.request(1000, Collections.singleton(player), 30_000);
+                assertSame(pending, field.get(index));
+                index.request(1001, Collections.singleton(player), 30_000);
+                assertNotSame(pending, field.get(index));
+                pending = field.get(index);
+                index.request(1001, both, 30_000);
+                assertNotSame(pending, field.get(index));
+                pending = field.get(index);
+                index.request(1001, both, 2000);
+                assertNotSame(pending, field.get(index));
+            }
+            TrailIndex.Snapshot result = await(index, 1001, both, 2000);
+            assertTrue(result.paths.containsKey(player));
+            assertFalse(result.paths.containsKey(other));
+        }
+    }
+
     @Test void unsupportedProtocolAndCorruptStreamDiscardScratchAndNeverPublishPartialData() throws Exception {
         for (boolean protocol : new boolean[]{true, false}) {
             byte[] packets = packets();

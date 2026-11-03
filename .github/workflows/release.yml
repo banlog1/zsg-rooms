@@ -24,6 +24,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Set up Node for easy-install packaging
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify pinned third-party downloads
+        run: node scripts/Build-EasyInstallPack.mjs --verify-downloads
+
       - name: Build and stage release artifacts
         shell: bash
         run: |
@@ -53,5 +61,5 @@ jobs:
           fi
           printf '\n\n' >> "$NOTES"
           cat build/release/release-details.md >> "$NOTES"
-          gh release create "$GITHUB_REF_NAME" build/release/*.jar build/release/*.sha256 build/release/*.zip \
+          gh release create "$GITHUB_REF_NAME" build/release/*.jar build/release/*.sha256 build/release/*.zip build/release/*.mrpack \
             --title "ZSG Rooms $VERSION" --notes-file "$NOTES" "${RELEASE_FLAGS[@]}"

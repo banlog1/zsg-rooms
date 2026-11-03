@@ -70,6 +70,33 @@ and SpeedrunAPI versions. The versions used by this project are recorded in
 
 ## Install
 
+### Easy Install With MultiMC
+
+1. Open **Add Instance > Import from ZIP** in a current MultiMC version.
+2. Paste this link and select **OK**:
+
+```text
+https://github.com/banlog1/zsg-rooms/releases/latest/download/zsg-rooms-multimc.zip
+```
+
+3. Wait for the mods to download, select **Java 17** in the instance's Java
+   settings, and launch. Open **ZSG Rooms** from the title screen.
+
+The pack pins Minecraft 1.16.1, Fabric 0.19.3 and the full 26-mod racing/replay
+suite, including ReplayMod. Downloads are hash-checked. No diagnostic probe,
+worlds, recordings, private settings or launch commands are included. Internet
+access and your own Minecraft account are required. The `.mrpack` release asset
+contains the same pack for other compatible launchers. The optional gallery
+resource pack remains a separate download.
+
+Recording stays off until enabled under **Settings > Recording**. ReplayMod's
+automatic recording is already disabled to avoid two recorders running together.
+This is a Rooms/practice setup, not a certified leaderboard-legal pack.
+Importing creates a fresh instance; it does not update an existing instance.
+The in-game updater updates the ZSG mods, not the complete third-party suite.
+
+### Manual Install
+
 1. Create or select a Fabric 1.16.1 instance.
 2. Install Fabric API, Atum, FSG Mod, and SpeedrunAPI in that instance.
 3. Download the latest `zsg-rooms-<version>.jar` from
@@ -281,7 +308,7 @@ Add these to the same Minecraft instance's `mods` folder, then restart Minecraft
 | --- | --- |
 | `zsg-rooms-<version>.jar` | Records and automatically saves replays. Use 1.0.26 or newer. |
 | ReplayMod **1.16.1-2.6.27** | Plays the saved files through its Replay Viewer. |
-| `zsg-replay-viewer-0.4.0.jar` | Optional companion: speedrunning playback controls, timers, milestones, mob highlights, and switching between racers. Requires the ReplayMod version above. |
+| `zsg-replay-viewer-<viewer_version>.jar` | Optional companion: speedrunning playback controls, timers, milestones, mob highlights, and switching between racers. Requires the ReplayMod version above. |
 | SpeedRunIGT | Optional; install when recording to capture RTA and IGT for playback. |
 
 Get ZSG Rooms and the companion from

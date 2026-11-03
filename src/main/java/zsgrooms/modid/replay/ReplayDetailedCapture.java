@@ -1,6 +1,5 @@
 package zsgrooms.modid.replay;
 
-import io.netty.buffer.Unpooled;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.CraftingScreen;
@@ -69,7 +68,7 @@ final class ReplayDetailedCapture {
         boolean available = !loading && player != null && client.world != null;
         if (!available) handler = null;
         byte[] hudBytes = available ? hud.snapshot(player) : new byte[0];
-        PacketByteBuf data = new PacketByteBuf(Unpooled.buffer(1024, ReplayDetailedTrack.MAX_FRAME));
+        PacketByteBuf data = ReplayEncodingBuffers.acquireDetail();
         try {
             data.writeByte((available ? ReplayDetailedTrack.AVAILABLE : 0) | (loading ? ReplayDetailedTrack.LOADING : 0));
             data.writeInt(client.options.viewDistance);
@@ -110,7 +109,7 @@ final class ReplayDetailedCapture {
             byte[] bytes = new byte[data.readableBytes()];
             data.getBytes(0, bytes);
             return bytes;
-        } finally { data.release(); }
+        } finally { ReplayEncodingBuffers.recycleDetail(data); }
     }
 
     static int kind(Screen screen) {

@@ -149,9 +149,30 @@ public final class ReplayPrototype {
         return recordingStatus;
     }
 
+    public static String getCaptureHealthStatus() {
+        if (!preferences.showCaptureHealth) return null;
+        Session session = CURRENT.get();
+        if (session == null || !session.writerReady || !session.buffer.isOpen()) return null;
+        long now = System.nanoTime();
+        if (session.health.due(now)) {
+            ReplayCameraTrack camera = session.camera;
+            ReplayDetailedTrack detail = session.detail;
+            session.healthStatus = session.health.update(now, session.recordingDetail.label, session.cameraHz,
+                    camera == null ? session.cameraStatus : camera.status(), camera == null ? null : camera.health(),
+                    session.buffer.snapshot(), detail == null ? session.detailStatus : detail.status());
+            if (session.superDetailed) {
+                ReplayPresentationTrack presentation = session.presentation;
+                ReplayLocalSoundTrack sounds = session.localSounds;
+                session.healthStatus += " | View: " + (presentation == null ? session.presentationStatus : presentation.status())
+                        + " | Audio: " + (sounds == null ? session.localSoundStatus : sounds.status());
+            }
+        }
+        return session.healthStatus;
+    }
+
     public static boolean configure(boolean enabled, String directory, boolean replayModRecordingDisabled) {
         if (!canConfigure()) return false;
-        ReplayPreferences next = new ReplayPreferences(enabled, directory, replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, preferences.performanceMode, preferences.keepSeedChanges, preferences.detailedCapture);
+        ReplayPreferences next = new ReplayPreferences(enabled, directory, replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, preferences.performanceMode, preferences.keepSeedChanges, preferences.recordingDetail, preferences.cameraRate, preferences.showCaptureHealth);
         try {
             next.resolveLibraries(gameDirectory);
             next.save(preferencesFile);
@@ -191,7 +212,7 @@ public final class ReplayPrototype {
         if (!canConfigure()) return false;
         try {
             ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                    preferences.replayModRecordingDisabled, group, preferences.showRecordingHud, preferences.performanceMode, preferences.keepSeedChanges, preferences.detailedCapture);
+                    preferences.replayModRecordingDisabled, group, preferences.showRecordingHud, preferences.performanceMode, preferences.keepSeedChanges, preferences.recordingDetail, preferences.cameraRate, preferences.showCaptureHealth);
             next.save(preferencesFile);
             preferences = next;
             return true;
@@ -214,7 +235,7 @@ public final class ReplayPrototype {
 
     public static boolean configureHud(boolean visible) {
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                preferences.replayModRecordingDisabled, preferences.soloTestGroup, visible, preferences.performanceMode, preferences.keepSeedChanges, preferences.detailedCapture);
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, visible, preferences.performanceMode, preferences.keepSeedChanges, preferences.recordingDetail, preferences.cameraRate, preferences.showCaptureHealth);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
@@ -222,7 +243,7 @@ public final class ReplayPrototype {
     public static boolean configurePerformance(boolean enabled) {
         if (!canConfigure()) return false;
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
-                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, enabled, preferences.keepSeedChanges, preferences.detailedCapture);
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud, enabled, preferences.keepSeedChanges, preferences.recordingDetail, preferences.cameraRate, preferences.showCaptureHealth);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
@@ -230,16 +251,29 @@ public final class ReplayPrototype {
     public static boolean configureSeedRetention(boolean keep) {
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
                 preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud,
-                preferences.performanceMode, keep, preferences.detailedCapture);
+                preferences.performanceMode, keep, preferences.recordingDetail, preferences.cameraRate, preferences.showCaptureHealth);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
 
     /** Applies to the next session, without changing a recording already in progress. */
     public static boolean configureDetailedCapture(boolean enabled) {
+        return configureRecordingDetail(enabled ? ReplayPreferences.RecordingDetail.DETAILED : ReplayPreferences.RecordingDetail.STANDARD);
+    }
+
+    /** Detail level is fixed at session creation; HUD preferences may change while recording. */
+    public static boolean configureRecordingDetail(ReplayPreferences.RecordingDetail detail) {
         ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
                 preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud,
-                preferences.performanceMode, preferences.keepSeedChanges, enabled);
+                preferences.performanceMode, preferences.keepSeedChanges, detail, preferences.cameraRate, preferences.showCaptureHealth);
+        try { next.save(preferencesFile); preferences = next; return true; }
+        catch (java.io.IOException error) { return false; }
+    }
+
+    public static boolean configureCaptureHealth(boolean visible) {
+        ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud,
+                preferences.performanceMode, preferences.keepSeedChanges, preferences.recordingDetail, preferences.cameraRate, visible);
         try { next.save(preferencesFile); preferences = next; return true; }
         catch (java.io.IOException error) { return false; }
     }
@@ -252,7 +286,27 @@ public final class ReplayPrototype {
         }
         if (!preferences.detailedCapture) return "off";
         Library access = library;
-        return libraryReady && access != null && (access.writeDetailed == null || access.setDuration == null)
+        return libraryReady && access != null && (access.writeDetailed == null || access.setDuration == null
+                || preferences.recordingDetail == ReplayPreferences.RecordingDetail.SUPER_DETAILED
+                && (access.writePresentation == null || access.writeLocalSounds == null))
+                ? "unsupported" : "next recording";
+    }
+
+    /** Camera sampling is independent of the recording preset and fixed for each session. */
+    public static boolean configureCameraRate(ReplayPreferences.CameraRate rate) {
+        ReplayPreferences next = new ReplayPreferences(preferences.enabled, preferences.libraryDirectory,
+                preferences.replayModRecordingDisabled, preferences.soloTestGroup, preferences.showRecordingHud,
+                preferences.performanceMode, preferences.keepSeedChanges, preferences.recordingDetail, rate, preferences.showCaptureHealth);
+        try { next.save(preferencesFile); preferences = next; return true; }
+        catch (java.io.IOException error) { return false; }
+    }
+
+    public static String getCameraCaptureStatus() {
+        Session session = CURRENT.get();
+        if (session != null) return session.camera == null ? session.cameraStatus : session.camera.status();
+        if (preferences.cameraRate.hz == 0) return "off";
+        Library access = library;
+        return libraryReady && access != null && (access.writeCamera == null || access.setDuration == null)
                 ? "unsupported" : "next recording";
     }
 
@@ -378,6 +432,7 @@ public final class ReplayPrototype {
             session.buffer.cancelPending();
             session.player = null;
             session.worldChanging = true;
+            session.invalidateSupplemental();
             if (!finished) session.manifest.recordLoading(session.timestamp(), true);
             if (finished) session.stop();
         }
@@ -405,6 +460,7 @@ public final class ReplayPrototype {
                         previous.manifest.allowTemplePrediction(previous.prediction.releasedSeed());
                         previous.connections.attach(connection);
                         previous.worldChanging = true;
+                        previous.invalidateSupplemental();
                         previous.player = null;
                         previous.equipment = null;
                         previous.swingTicks = 0;
@@ -558,6 +614,8 @@ public final class ReplayPrototype {
         ReplayConnectionState.Attachment<ClientConnection> attachment = session == null ? null : session.connections.current();
         if (attachment != null && attachment.connection == connection) {
             session.player = null;
+            if (session.cameraSampler != null) session.cameraSampler.invalidate();
+            session.invalidateSupplemental();
             session.worldChanging = false;
             bindBarters(session, MinecraftClient.getInstance());
             ZsgRooms.LOGGER.info("[ReplayPrototype] Buffer world-applied recording={} {}",
@@ -635,6 +693,7 @@ public final class ReplayPrototype {
                             session.manifest.closeInterval(timestamp);
                             session.manifest.recordLoading(timestamp, true);
                             session.worldChanging = true;
+                            session.invalidateSupplemental();
                         }
                         if (login) session.loggedIn = true;
                         if (packet instanceof net.minecraft.network.packet.s2c.play.OpenScreenS2CPacket) {
@@ -686,6 +745,7 @@ public final class ReplayPrototype {
             session.hudCapture.capture(session.hud, timestamp, session.worldIndex, state == 2 ? null : client.player);
             ReplayDetailedTrack detail = session.detail;
             if (detail != null) session.detailCapture.capture(detail, timestamp, session.worldIndex, client, loading);
+            if (session.superDetailed && session.writerReady) session.bindSupplemental(client);
             if (session.manifest.needsTiming(timestamp, session.worldIndex, state)) {
                 long[] clocks = state == 2 ? ReplayTimerCapture.UNAVAILABLE : ReplayTimerCapture.read();
                 session.manifest.recordTiming(timestamp, session.worldIndex, state, clocks[0], clocks[1]);
@@ -731,6 +791,30 @@ public final class ReplayPrototype {
             session.swingTicks = player.handSwingTicks;
         } catch (Exception e) {
             session.fail("player capture " + e.getClass().getSimpleName());
+        }
+    }
+
+    /** Render-only observation: never changes the player, camera, timer or outgoing packets. */
+    public static void captureCamera() {
+        Session session = CURRENT.get();
+        if (session == null || session.cameraSampler == null || !session.buffer.isOpen()) return;
+        ReplayCameraTrack track = session.camera;
+        if (track == null || !track.accepting()) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientPlayerEntity player = client.player;
+        boolean available = !session.worldChanging && player != null && session.player == player
+                && client.world != null && player.world == client.world && client.getCameraEntity() == player
+                && !(client.currentScreen instanceof net.minecraft.client.gui.screen.DownloadingTerrainScreen)
+                && !(client.currentScreen instanceof net.minecraft.client.gui.screen.LevelLoadingScreen);
+        try {
+            session.cameraSampler.capture(track, System.nanoTime() - session.originNanos, session.worldIndex,
+                    player == null ? -1 : player.getEntityId(), available,
+                    player == null ? 0 : player.yaw, player == null ? 0 : player.pitch);
+        } catch (RuntimeException | LinkageError error) {
+            session.camera = null;
+            session.cameraStatus = "failed";
+            track.close();
+            ZsgRooms.LOGGER.warn("[ReplayPrototype] Camera capture unavailable; normal recording continues", error);
         }
     }
 
@@ -788,6 +872,9 @@ public final class ReplayPrototype {
         private final Method writeManifest;
         private final Method writeHud;
         private final Method writeDetailed;
+        private final Method writeCamera;
+        private final Method writePresentation;
+        private final Method writeLocalSounds;
         private final Method writeBarters;
         private final Method setDuration;
         private final Method close;
@@ -814,6 +901,17 @@ public final class ReplayPrototype {
                 catch (NoSuchMethodException ignored) { optionalDuration = null; }
                 writeDetailed = optionalDetailed;
                 setDuration = optionalDuration;
+                Method optionalCamera;
+                try { optionalCamera = writer.getMethod("writeCameraCapture", Path.class, String.class); }
+                catch (NoSuchMethodException ignored) { optionalCamera = null; }
+                writeCamera = optionalCamera;
+                Method optionalPresentation, optionalSounds;
+                try { optionalPresentation = writer.getMethod("writePresentationCapture", Path.class, String.class); }
+                catch (NoSuchMethodException ignored) { optionalPresentation = null; }
+                try { optionalSounds = writer.getMethod("writeLocalSoundCapture", Path.class, String.class); }
+                catch (NoSuchMethodException ignored) { optionalSounds = null; }
+                writePresentation = optionalPresentation;
+                writeLocalSounds = optionalSounds;
                 Method optionalBarters;
                 try { optionalBarters = writer.getMethod("writeBarters", String.class); }
                 catch (NoSuchMethodException ignored) { optionalBarters = null; }
@@ -849,10 +947,23 @@ public final class ReplayPrototype {
         private final ReplayHudTrack hud = new ReplayHudTrack();
         private final boolean performance = preferences.performanceMode;
         private final ReplayHudCapture hudCapture = new ReplayHudCapture(performance);
-        private final boolean detailed = preferences.detailedCapture;
+        private final ReplayPreferences.RecordingDetail recordingDetail = preferences.recordingDetail;
+        private final boolean detailed = recordingDetail != ReplayPreferences.RecordingDetail.STANDARD;
+        private final boolean superDetailed = recordingDetail == ReplayPreferences.RecordingDetail.SUPER_DETAILED;
+        private volatile ReplayPresentationTrack presentation;
+        private volatile ReplayLocalSoundTrack localSounds;
+        private volatile String presentationStatus = superDetailed ? "starting" : "off";
+        private volatile String localSoundStatus = superDetailed ? "starting" : "off";
+        private boolean presentationBound, localSoundsBound;
+        private final ReplayCaptureHealth health = new ReplayCaptureHealth();
+        private String healthStatus;
         private final ReplayDetailedCapture detailCapture = detailed ? new ReplayDetailedCapture() : null;
         private volatile ReplayDetailedTrack detail;
         private volatile String detailStatus = detailed ? "starting" : "off";
+        private final int cameraHz = preferences.cameraRate.hz;
+        private final ReplayCameraSampler cameraSampler = cameraHz == 0 ? null : new ReplayCameraSampler(cameraHz);
+        private volatile ReplayCameraTrack camera;
+        private volatile String cameraStatus = cameraHz == 0 ? "off" : "starting";
         private final java.util.concurrent.atomic.AtomicLong stoppedAt = new java.util.concurrent.atomic.AtomicLong(-1);
         private int worldIndex = -1;
         private int chestChunks;
@@ -911,6 +1022,43 @@ public final class ReplayPrototype {
             barters.invalidate();
             stoppedAt.compareAndSet(-1, timestamp());
             buffer.close();
+            ReplayPresentationCapture.stop(presentation);
+            ReplayLocalSoundCapture.detach(localSounds);
+        }
+
+        private boolean supplementalAvailable(MinecraftClient client) {
+            return CURRENT.get() == this && buffer.isOpen() && !worldChanging && player != null
+                    && player == client.player && client.world != null && player.world == client.world
+                    && !(client.currentScreen instanceof net.minecraft.client.gui.screen.DownloadingTerrainScreen)
+                    && !(client.currentScreen instanceof net.minecraft.client.gui.screen.LevelLoadingScreen);
+        }
+
+        private void bindSupplemental(MinecraftClient client) {
+            // Bind on the client thread, not from a potentially delayed previous writer.
+            if (presentation != null && !presentationBound) {
+                presentationBound = true;
+                ReplayPresentationCapture.start(presentation, new ReplayPresentationCapture.Context() {
+                    public long replayNanos() { return System.nanoTime() - originNanos; }
+                    public int worldIndex() { return worldIndex; }
+                    public int entityId() { return client.player == null ? -1 : client.player.getEntityId(); }
+                    public boolean available() { return supplementalAvailable(client); }
+                });
+            }
+            ReplayLocalSoundTrack sounds = localSounds;
+            if (sounds != null) {
+                if (!localSoundsBound) {
+                    localSoundsBound = true;
+                    ReplayLocalSoundCapture.attach(sounds, originNanos, () -> worldIndex, () -> supplementalAvailable(client));
+                }
+                sounds.context(timestamp(), worldIndex, client.player == null ? -1 : client.player.getEntityId(), supplementalAvailable(client));
+            }
+        }
+
+        private void invalidateSupplemental() {
+            if (!superDetailed) return;
+            ReplayPresentationCapture.invalidate();
+            ReplayLocalSoundTrack sounds = localSounds;
+            if (sounds != null) sounds.context(timestamp(), worldIndex, -1, false);
         }
 
         private void writeReplay() {
@@ -942,6 +1090,34 @@ public final class ReplayPrototype {
                         }
                     }
                 }
+                if (cameraHz != 0) {
+                    if (access.writeCamera == null || access.setDuration == null) {
+                        cameraStatus = "unsupported";
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] High-rate camera unavailable: writer needs updating");
+                    } else {
+                        try { camera = ReplayCameraTrack.create(directory, cameraHz); }
+                        catch (java.io.IOException | RuntimeException error) {
+                            cameraStatus = "failed";
+                            ZsgRooms.LOGGER.warn("[ReplayPrototype] Camera spool unavailable; normal recording continues", error);
+                        }
+                    }
+                }
+                if (superDetailed) {
+                    if (access.writePresentation == null || access.writeLocalSounds == null || access.setDuration == null)
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] Super Detailed features unavailable: writer needs updating");
+                    if (access.writePresentation == null || access.setDuration == null) presentationStatus = "unsupported";
+                    else try { presentation = ReplayPresentationTrack.create(directory); }
+                    catch (java.io.IOException | RuntimeException error) {
+                        presentationStatus = "failed";
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] Presentation capture unavailable; normal recording continues", error);
+                    }
+                    if (access.writeLocalSounds == null || access.setDuration == null) localSoundStatus = "unsupported";
+                    else try { localSounds = ReplayLocalSoundTrack.create(directory); }
+                    catch (java.io.IOException | RuntimeException error) {
+                        localSoundStatus = "failed";
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] Local sound capture unavailable; normal recording continues", error);
+                    }
+                }
                 writerReady = true;
                 stage = "writing replay packets";
                 ReplayBuffer.Record record;
@@ -964,6 +1140,8 @@ public final class ReplayPrototype {
                     return;
                 }
                 stage = "finalizing replay file";
+                ReplayPresentationCapture.stop(presentation);
+                ReplayLocalSoundCapture.detach(localSounds);
                 if (access.setDuration != null) {
                     durationMillis = Math.max(durationMillis, Math.min(Integer.MAX_VALUE, stoppedAt.get()));
                     access.setDuration.invoke(writer, durationMillis);
@@ -980,6 +1158,57 @@ public final class ReplayPrototype {
                             access.writeDetailed.invoke(writer, null, ReplayDetailedTrack.unavailableStatus("failed", true));
                         } catch (Exception | LinkageError ignored) { }
                         ZsgRooms.LOGGER.warn("[ReplayPrototype] Could not save Detailed Capture; normal recording continues", error);
+                    }
+                }
+                if (cameraHz != 0 && access.writeCamera != null) {
+                    try {
+                        ReplayCameraTrack track = camera;
+                        if (track != null) track.finish();
+                        if (track != null && access.setDuration != null && track.lastTimestamp() > durationMillis) {
+                            durationMillis = track.lastTimestamp();
+                            access.setDuration.invoke(writer, durationMillis);
+                        }
+                        access.writeCamera.invoke(writer, track == null ? null : track.completedFile(),
+                                track == null ? ReplayCameraTrack.unavailableStatus(cameraStatus, !"unsupported".equals(cameraStatus), cameraHz) : track.statusJson());
+                    } catch (Exception | LinkageError error) {
+                        cameraStatus = "failed";
+                        try { access.writeCamera.invoke(writer, null, ReplayCameraTrack.unavailableStatus("failed", true, cameraHz)); }
+                        catch (Exception | LinkageError ignored) { }
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] Could not save high-rate camera; normal recording continues", error);
+                    }
+                }
+                if (superDetailed && access.writePresentation != null) {
+                    try {
+                        ReplayPresentationTrack track = presentation;
+                        if (track != null) track.finish();
+                        if (track != null && access.setDuration != null && track.lastTimestamp() > durationMillis) {
+                            durationMillis = track.lastTimestamp();
+                            access.setDuration.invoke(writer, durationMillis);
+                        }
+                        access.writePresentation.invoke(writer, track == null ? null : track.completedFile(),
+                                track == null ? ReplayPresentationTrack.unavailableStatus(presentationStatus, !"unsupported".equals(presentationStatus)) : track.statusJson());
+                    } catch (Exception | LinkageError error) {
+                        presentationStatus = "failed";
+                        try { access.writePresentation.invoke(writer, null, ReplayPresentationTrack.unavailableStatus("failed", true)); }
+                        catch (Exception | LinkageError ignored) { }
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] Could not save presentation capture; normal recording continues", error);
+                    }
+                }
+                if (superDetailed && access.writeLocalSounds != null) {
+                    try {
+                        ReplayLocalSoundTrack track = localSounds;
+                        if (track != null) track.finish(Math.max(durationMillis, track.lastTimestamp()));
+                        if (track != null && access.setDuration != null && track.lastTimestamp() > durationMillis) {
+                            durationMillis = track.lastTimestamp();
+                            access.setDuration.invoke(writer, durationMillis);
+                        }
+                        access.writeLocalSounds.invoke(writer, track == null ? null : track.completedFile(),
+                                track == null ? ReplayPresentationTrack.unavailableStatus(localSoundStatus, !"unsupported".equals(localSoundStatus)) : track.statusJson());
+                    } catch (Exception | LinkageError error) {
+                        localSoundStatus = "failed";
+                        try { access.writeLocalSounds.invoke(writer, null, ReplayPresentationTrack.unavailableStatus("failed", true)); }
+                        catch (Exception | LinkageError ignored) { }
+                        ZsgRooms.LOGGER.warn("[ReplayPrototype] Could not save local sounds; normal recording continues", error);
                     }
                 }
                 if (bartersSupported && access.writeBarters != null) {
@@ -1006,6 +1235,12 @@ public final class ReplayPrototype {
             } finally {
                 ReplayDetailedTrack track = detail;
                 if (track != null) track.close();
+                ReplayCameraTrack cameraTrack = camera;
+                if (cameraTrack != null) cameraTrack.close();
+                ReplayPresentationCapture.stop(presentation);
+                if (presentation != null) presentation.close();
+                ReplayLocalSoundCapture.detach(localSounds);
+                if (localSounds != null) localSounds.close();
                 ZsgRooms.LOGGER.info("[ReplayPrototype] Buffer final recording={} {}", recordingId, buffer.snapshot());
                 buffer.discardQueued();
                 if (access != null && writer != null) {

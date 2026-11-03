@@ -23,6 +23,7 @@ final class DetailedTrack implements Closeable {
     private final int[] pageTimes = new int[PAGE];
     private final long[] pageOffsets = new long[PAGE];
     private final byte[] pageBytes = new byte[PAGE * 12];
+    private final byte[] header = new byte[16];
     private int count, pageStart = -1, pageLength;
     private Frame cached;
     private int cachedEnd;
@@ -100,6 +101,12 @@ final class DetailedTrack implements Closeable {
         try {
             if (cached == null || time < cached.time || time >= cachedEnd) {
                 int low = 0, high = count;
+                // Normal playback stays on the loaded index page; random seeks retain the full search.
+                if (pageLength > 0 && time >= pageTimes[0]
+                        && (pageStart + pageLength == count || time < pageTimes[pageLength - 1])) {
+                    low = pageStart;
+                    high = pageStart + pageLength;
+                }
                 while (low < high) {
                     int mid = (low + high) >>> 1;
                     if (timeAt(mid) <= time) low = mid + 1; else high = mid;
@@ -109,7 +116,6 @@ final class DetailedTrack implements Closeable {
                 cachedEnd = low == count ? Integer.MAX_VALUE : timeAt(low);
                 page(slot);
                 data.seek(pageOffsets[slot - pageStart]);
-                byte[] header = new byte[16];
                 data.readFully(header);
                 java.nio.ByteBuffer fields = java.nio.ByteBuffer.wrap(header);
                 int frameTime = fields.getInt(), frameWorld = fields.getInt(), frameEntity = fields.getInt();

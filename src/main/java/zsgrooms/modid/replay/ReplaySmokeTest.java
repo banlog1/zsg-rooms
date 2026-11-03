@@ -40,6 +40,7 @@ final class ReplaySmokeTest {
     private static long started;
     private static long pauseUntil;
     private static long screenUntil;
+    private static long writerWaitStarted;
     private static int menuTicks;
     private static int resets;
     private static Object recording;
@@ -48,6 +49,7 @@ final class ReplaySmokeTest {
     private static volatile long raceStart;
     private static net.minecraft.network.ClientConnection oldConnection;
     private static ReplayChestSmoke chestSmoke;
+    private static ReplayMiningSoundSmoke miningSmoke;
     private static ReplayBarterSmoke barterSmoke, completedBarterSmoke;
 
     private ReplaySmokeTest() {
@@ -68,6 +70,10 @@ final class ReplaySmokeTest {
             return;
         }
         try {
+            if (miningSmoke != null) {
+                if (!miningSmoke.tick(client)) return;
+                miningSmoke = null;
+            }
             if (barterSmoke != null) {
                 if (!barterSmoke.tick(client)) return;
                 completedBarterSmoke = barterSmoke;
@@ -92,6 +98,21 @@ final class ReplaySmokeTest {
                 if (client.getOverlay() != null || client.currentScreen == null) return;
                 menuTicks++;
                 if (menuTicks == 1) client.openScreen(new RoomSettingsScreen(new TitleScreen()));
+                if (menuTicks == 2 && (Integer.getInteger("zsgrooms.replayPrototype.smokeCameraHz", 0) != 0
+                        || Boolean.getBoolean("zsgrooms.replayPrototype.smokeSuperDetailed"))) {
+                    Class<?> page = Class.forName("zsgrooms.modid.ui.RoomSettingsScreen$Page");
+                    java.lang.reflect.Method select = RoomSettingsScreen.class.getDeclaredMethod("select", page);
+                    select.setAccessible(true);
+                    select.invoke(client.currentScreen, java.lang.Enum.valueOf(page.asSubclass(Enum.class), "RECORDING"));
+                    ReplayPrototype.configureCameraRate(ReplayPreferences.CameraRate.HZ_240);
+                    if (Boolean.getBoolean("zsgrooms.replayPrototype.smokeSuperDetailed")) {
+                        ReplayPrototype.configureRecordingDetail(ReplayPreferences.RecordingDetail.SUPER_DETAILED);
+                        ReplayPrototype.configureCaptureHealth(true);
+                    }
+                    java.lang.reflect.Method scroll = RoomSettingsScreen.class.getDeclaredMethod("scroll", int.class);
+                    scroll.setAccessible(true);
+                    scroll.invoke(client.currentScreen, 2);
+                }
                 if (menuTicks == 8) screenshot(client, "room-settings");
                 if (menuTicks == 9) client.openScreen(new ReplaySettingsScreen(new TitleScreen()));
                 if (menuTicks == 10) client.currentScreen.mouseClicked(client.getWindow().getScaledWidth() / 2 + 50, 58, 0);
@@ -110,16 +131,25 @@ final class ReplaySmokeTest {
                 if (!ReplayPrototype.configurePerformance(Boolean.getBoolean("zsgrooms.replayPrototype.smokePerformance"))) {
                     throw new IllegalStateException("Cannot configure replay performance mode");
                 }
-                if (!ReplayPrototype.configureDetailedCapture(Boolean.getBoolean("zsgrooms.replayPrototype.smokeDetailed"))) {
+                ReplayPreferences.RecordingDetail detail = Boolean.getBoolean("zsgrooms.replayPrototype.smokeSuperDetailed")
+                        ? ReplayPreferences.RecordingDetail.SUPER_DETAILED
+                        : Boolean.getBoolean("zsgrooms.replayPrototype.smokeDetailed") ? ReplayPreferences.RecordingDetail.DETAILED
+                        : ReplayPreferences.RecordingDetail.STANDARD;
+                if (!ReplayPrototype.configureRecordingDetail(detail)) {
                     throw new IllegalStateException("Cannot configure detailed capture");
                 }
+                int cameraHz = Integer.getInteger("zsgrooms.replayPrototype.smokeCameraHz", 0);
+                ReplayPreferences.CameraRate cameraRate = cameraHz == 60 ? ReplayPreferences.CameraRate.HZ_60
+                        : cameraHz == 120 ? ReplayPreferences.CameraRate.HZ_120
+                        : cameraHz == 240 ? ReplayPreferences.CameraRate.HZ_240 : ReplayPreferences.CameraRate.STANDARD;
+                if (!ReplayPrototype.configureCameraRate(cameraRate)) throw new IllegalStateException("Cannot configure camera sampling");
                 if (!ReplayPrototype.configureSeedRetention(Boolean.getBoolean("zsgrooms.replayPrototype.smokeKeepSeedChanges"))) {
                     throw new IllegalStateException("Cannot configure replay retention");
                 }
                 stage = 1;
                 client.options.pauseOnLostFocus = false;
                 client.options.viewDistance = 4;
-                client.options.maxFps = 60;
+                client.options.maxFps = Math.max(60, cameraHz);
                 createWorld(client);
                 return;
             }
@@ -131,6 +161,9 @@ final class ReplaySmokeTest {
                     }
                     stage = 5;
                     if (completedBarterSmoke != null) completedBarterSmoke.verify();
+                    if (ReplayPrototype.getPreferences().cameraRate.hz != 0 && resets < 2) verifyCameraTrack();
+                    if (ReplayPrototype.getPreferences().recordingDetail == ReplayPreferences.RecordingDetail.SUPER_DETAILED && resets < 2)
+                        verifySuperDetailedTracks();
                     if (resets >= 2 && java.nio.file.Files.exists(firstRecording) != ReplayPrototype.getPreferences().keepSeedChanges) {
                         throw new IllegalStateException("Previous seed replay retention mismatch");
                     }
@@ -180,7 +213,15 @@ final class ReplaySmokeTest {
                     if (oldConnection != null) ReplayPrototype.disconnected(oldConnection);
                 }
                 if (ticks == 20) {
-                    if (!ReplayPrototype.isRecording()) throw new IllegalStateException("Replacement writer did not start");
+                    // Writer startup is asynchronous; slow cold disks must not race the test's tick counter.
+                    if (!ReplayPrototype.isRecording()) {
+                        if (writerWaitStarted == 0L) writerWaitStarted = System.nanoTime();
+                        if (System.nanoTime() - writerWaitStarted > 15000000000L)
+                            throw new IllegalStateException("Writer did not start: " + ReplayPrototype.getRecordingStatus());
+                        ticks--;
+                        return;
+                    }
+                    writerWaitStarted = 0L;
                     boolean dirty = client.player.getDataTracker().isDirty();
                     ReplayPrototype.copyTrackedState(client.player.getEntityId(), client.player.getDataTracker());
                     ReplayTrackedState cache = new ReplayTrackedState();
@@ -213,11 +254,21 @@ final class ReplaySmokeTest {
                                 net.minecraft.entity.effect.StatusEffects.FIRE_RESISTANCE, 3600));
                     });
                     client.options.keyForward.setPressed(true);
+                    if (Boolean.getBoolean("zsgrooms.replayPrototype.smokeSuperDetailed")) {
+                        client.options.fov = 92;
+                        client.player.playSound(net.minecraft.sound.SoundEvents.BLOCK_STONE_STEP, .4F, 1.25F);
+                        client.world.syncWorldEvent(client.player, 2001, client.player.getBlockPos(),
+                                net.minecraft.block.Block.getRawIdFromState(Blocks.STONE.getDefaultState()));
+                    }
                 }
                 if (ticks == 60) {
                     screenshot(client, "replay-hud");
                     client.options.keyForward.setPressed(false);
                     client.player.swingHand(Hand.MAIN_HAND);
+                    if (Boolean.getBoolean("zsgrooms.replayPrototype.smokeSuperDetailed")) {
+                        client.options.fov = 70;
+                        client.player.playSound(net.minecraft.sound.SoundEvents.ENTITY_GENERIC_EAT, .5F, 1.1F);
+                    }
                     onServer(client, player -> {
                         // Keep status screenshots clear of the spawn's trees and camera collisions.
                         BlockPos platform = player.getBlockPos().add(0, 16, 0);
@@ -229,6 +280,8 @@ final class ReplaySmokeTest {
                                 platform.getY() + 1, platform.getZ() + 0.5, 0, 0);
                     });
                 }
+                if (ticks == 65 && Boolean.getBoolean("zsgrooms.replayPrototype.smokeSuperDetailed"))
+                    miningSmoke = new ReplayMiningSoundSmoke();
                 if (ticks == 70) {
                     client.openScreen(new net.minecraft.client.gui.screen.GameMenuScreen(true));
                     pauseUntil = System.nanoTime() + 2000000000L;
@@ -311,6 +364,81 @@ final class ReplaySmokeTest {
         } catch (Exception e) {
             fail(client, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+    }
+
+    private static void verifySuperDetailedTracks() throws Exception {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(firstRecording.toFile())) {
+            for (String name : new String[]{"presentation", "local-sounds"}) {
+                java.util.zip.ZipEntry entry = zip.getEntry("zsg-rooms/" + name + ".bin");
+                if (entry == null || entry.getSize() <= 20) throw new IllegalStateException("Missing Super Detailed " + name);
+                java.util.zip.ZipEntry metadata = zip.getEntry("zsg-rooms/" + name + ".json");
+                if (metadata == null) throw new IllegalStateException("Missing Super Detailed coverage " + name);
+                try (java.io.Reader reader = new java.io.InputStreamReader(zip.getInputStream(metadata), java.nio.charset.StandardCharsets.UTF_8)) {
+                    com.google.gson.JsonObject coverage = new com.google.gson.JsonParser().parse(reader).getAsJsonObject();
+                    String status = coverage.get("status").getAsString();
+                    if (!"complete".equals(status) && !("presentation".equals(name) && "gaps".equals(status)))
+                        throw new IllegalStateException("Super Detailed " + name + " failed: " + coverage);
+                    if (coverage.get("presentation".equals(name) ? "frames" : "events").getAsLong() <= 0)
+                        throw new IllegalStateException("Super Detailed " + name + " was empty");
+                    ZsgRooms.LOGGER.info("[ReplaySuperSmoke] {} {}", name, coverage);
+                }
+            }
+            verifyMiningSounds(zip);
+        }
+    }
+
+    private static void verifyMiningSounds(java.util.zip.ZipFile zip) throws Exception {
+        int hits = 0;
+        try (java.io.DataInputStream input = new java.io.DataInputStream(new java.io.BufferedInputStream(
+                zip.getInputStream(zip.getEntry("zsg-rooms/local-sounds.bin"))))) {
+            if (input.readInt() != 0x5A534E44 || input.readInt() != 1 || input.readInt() != 127)
+                throw new IllegalStateException("Unexpected sound track header");
+            while (true) {
+                int kind = input.readUnsignedByte(); input.readInt();
+                if (kind == 0) break;
+                input.readInt(); input.readInt();
+                if (kind == 1) { input.readInt(); continue; }
+                if (kind != 2) throw new IllegalStateException("Unknown sound track record");
+                int channel = input.readUnsignedByte(), category = input.readUnsignedByte();
+                float volume = input.readFloat(), pitch = input.readFloat();
+                double x = input.readDouble(), y = input.readDouble(), z = input.readDouble();
+                String id = input.readUTF();
+                if ("minecraft:block.stone.hit".equals(id)) {
+                    if (channel != ReplayLocalSoundTrack.MINING || category != net.minecraft.sound.SoundCategory.BLOCKS.ordinal()
+                            || volume != .25F || pitch != .5F || x - Math.floor(x) != .5 || y - Math.floor(y) != .5 || z - Math.floor(z) != .5)
+                        throw new IllegalStateException("Mining sound did not preserve constructor inputs");
+                    hits++;
+                }
+            }
+        }
+        if (hits < 2) throw new IllegalStateException("Missing normal/muted survival mining sound capture");
+        ZsgRooms.LOGGER.info("[ReplaySuperSmoke] Survival mining: {} raw hit events, including muted audio", hits);
+    }
+
+    private static void verifyCameraTrack() throws Exception {
+        int frames = 0, fastIntervals = 0, previous = -1;
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(firstRecording.toFile())) {
+            java.util.zip.ZipEntry entry = zip.getEntry("zsg-rooms/camera.bin");
+            if (entry == null) throw new IllegalStateException("Camera track missing");
+            try (java.io.DataInputStream input = new java.io.DataInputStream(new java.io.BufferedInputStream(zip.getInputStream(entry)))) {
+                if (input.readInt() != 0x5A43414D || input.readInt() != 1
+                        || input.readInt() != ReplayPrototype.getPreferences().cameraRate.hz)
+                    throw new IllegalStateException("Invalid camera header");
+                long remaining = entry.getSize() - 12;
+                if (remaining < 24 || remaining % 24 != 0) throw new IllegalStateException("Invalid camera length");
+                for (; remaining > 0; remaining -= 24) {
+                    int time = input.readInt(), world = input.readInt(), entity = input.readInt(), flags = input.readInt();
+                    float yaw = input.readFloat(), pitch = input.readFloat();
+                    if (time <= previous || world < -1 || entity < -1 || !Float.isFinite(yaw) || !Float.isFinite(pitch))
+                        throw new IllegalStateException("Invalid camera sample");
+                    if (flags == 1 && previous >= 0 && time - previous < 50) fastIntervals++;
+                    frames++;
+                    previous = time;
+                }
+            }
+        }
+        if (frames < 100 || fastIntervals < 50) throw new IllegalStateException("Render-rate camera sampling was not exercised");
+        ZsgRooms.LOGGER.info("[ReplaySmoke] Camera track PASS: {} frames, {} sub-tick intervals", frames, fastIntervals);
     }
 
     private static void click(MinecraftClient client, String label) {

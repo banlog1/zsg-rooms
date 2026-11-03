@@ -12,6 +12,9 @@ final class RecordingIndex implements AutoCloseable {
     volatile RaceRecording recording;
     volatile PlayerHudTrack hud;
     volatile DetailedTrack detail;
+    volatile CameraTrack camera;
+    volatile PresentationTrack presentation;
+    volatile LocalSoundTrack localSounds;
     volatile BarterHistory barters;
     volatile String barterStatus = "Reading barter history...";
     volatile String detailStatus = "Loading detailed capture";
@@ -44,20 +47,10 @@ final class RecordingIndex implements AutoCloseable {
                     if (!closed) hud = track;
                 } catch (IOException ignored) { /* Optional tracks fail independently. */ }
                 if (closed) return;
-                DetailedTrack detailed;
-                try { detailed = DetailedTrack.read(value); }
-                catch (IOException error) {
-                    if (!closed) detailStatus = "Detailed capture unavailable";
-                    return;
-                }
-                synchronized (this) {
-                    if (closed) {
-                        if (detailed != null) detailed.close();
-                    } else {
-                        detail = detailed;
-                        detailStatus = detailed == null ? "No detailed capture in this recording" : "";
-                    }
-                }
+                readCamera(value);
+                if (closed) return;
+                readDetailed(value);
+                if (!closed) readSupplemental(value);
             } catch (IOException ignored) {
                 if (!closed) {
                     detailStatus = "Detailed capture unavailable";
@@ -72,6 +65,48 @@ final class RecordingIndex implements AutoCloseable {
     static File file(ReplayFile replay) {
         ReplayFileAccessor archive = archive(replay);
         return archive == null ? null : archive.zsgViewer$getInput();
+    }
+
+    private void readCamera(RaceRecording value) {
+        try {
+            CameraTrack track = CameraTrack.read(value);
+            synchronized (this) {
+                if (closed) {
+                    if (track != null) track.close();
+                } else camera = track;
+            }
+        } catch (IOException ignored) { /* Camera capture is independent of all other optional tracks. */ }
+    }
+
+    private void readSupplemental(RaceRecording value) {
+        try {
+            LocalSoundTrack track = LocalSoundTrack.read(value);
+            synchronized (this) {
+                if (closed) { if (track != null) track.close(); }
+                else localSounds = track;
+            }
+        } catch (IOException | RuntimeException ignored) { /* Old or incomplete capture uses inferred sounds. */ }
+        if (closed) return;
+        try {
+            PresentationTrack track = PresentationTrack.read(value);
+            synchronized (this) {
+                if (closed) { if (track != null) track.close(); }
+                else presentation = track;
+            }
+        } catch (IOException | RuntimeException ignored) { /* Optional presentation must not block normal playback. */ }
+    }
+
+    private void readDetailed(RaceRecording value) {
+        try {
+            DetailedTrack track = DetailedTrack.read(value);
+            synchronized (this) {
+                if (closed) { if (track != null) track.close(); }
+                else {
+                    detail = track;
+                    detailStatus = track == null ? "No detailed capture in this recording" : "";
+                }
+            }
+        } catch (IOException error) { if (!closed) detailStatus = "Detailed capture unavailable"; }
     }
 
     static ReplayFileAccessor archive(ReplayFile replay) {
@@ -94,6 +129,18 @@ final class RecordingIndex implements AutoCloseable {
     @Override public synchronized void close() {
         closed = true;
         worker.interrupt();
+        if (presentation != null) {
+            try { presentation.close(); } catch (IOException ignored) { }
+            presentation = null;
+        }
+        if (localSounds != null) {
+            try { localSounds.close(); } catch (IOException ignored) { }
+            localSounds = null;
+        }
+        if (camera != null) {
+            try { camera.close(); } catch (IOException ignored) { }
+            camera = null;
+        }
         if (detail != null) {
             try { detail.close(); } catch (IOException ignored) { }
             detail = null;

@@ -77,8 +77,8 @@ final class TrailIndex implements AutoCloseable {
         int duration = duration(durationMs);
         TrailDiskStore.Window prepared = window;
         if (prepared != null && prepared.covers(time, entities, duration) && time < prepared.end - 1000) return;
-        Request value = new Request(time, entities, duration);
-        if (pending == null || !pending.equals(value)) pending = value;
+        if (pending == null || pending.time != time || pending.duration != duration || !pending.entities.equals(entities))
+            pending = new Request(time, entities, duration);
         if (worker == null) {
             status = "Indexing trail history...";
             worker = new Thread(this::run, "ZSG replay trails");

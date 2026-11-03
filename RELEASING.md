@@ -19,7 +19,8 @@ git push origin v1.0.12
 
 The release workflow builds/tests the core, isolated recording adapter, and
 optional replay viewer. One GitHub release publishes three JARs: the core mod,
-the viewer mod, and the viewer's source archive, plus the core's SHA-256 file.
+the viewer mod, and the viewer's source archive, plus the core's SHA-256 file,
+the gallery ZIP, and the easy-install ZIP/MRPACK pair.
 Existing installations discover the core update on the title screen. Updates
 remain optional, and players may disable checks or skip a specific version.
 
@@ -33,8 +34,9 @@ create viewer-only `v*` tags because the core updater reads this release feed.
 
 The viewer requires ReplayMod **1.16.1-2.6.27**, Minecraft 1.16.1, and Fabric
 Loader 0.19.3 or newer. ReplayMod and the viewer remain optional for core racing
-and recording. ReplayMod is downloaded separately by players, not bundled in
-either release JAR. The core updater updates an already-installed viewer, but
+and recording. ReplayMod is not bundled in either release JAR. Manual installs
+download it separately; the easy-install pack downloads the pinned original
+during import. The core updater updates an already-installed viewer, but
 does not install it for the first time or update ReplayMod.
 SpeedRunIGT is optional for recorded timer data, not a viewer dependency.
 
@@ -71,6 +73,41 @@ checksums are included in the generated release details instead.
 Release notes always append the generated download/compatibility instructions.
 Players need only the core JAR for racing; custom playback needs the companion
 and separately installed ReplayMod. The `-sources.jar` is not an installable mod.
+
+## Easy-Install Pack
+
+`stageRelease` also requires Node.js 22+ and creates `zsg-rooms-multimc.zip`
+and the identical `.mrpack`. Both contain the Modrinth-format manifest and
+three explicitly generated, privacy-safe default files. MultiMC's Import from
+ZIP detects `modrinth.index.json` by content, not by the archive extension.
+
+`pack/mods.lock.json` pins the 24 third-party mod URLs, file sizes, SHA-1 and
+SHA-512 hashes. The two ZSG entries are generated from the built release JARs
+and point at this release's exact tag. No third-party binaries, local instance
+configuration or diagnostic probe are copied into the archives. Downloads go
+to the original project or pinned MCSR distribution catalog, with original
+JAR contents and notices preserved. Our existing viewer source JAR and tagged
+source/build scripts remain available in the same release.
+
+The pack leaves recording opt-in and disables ReplayMod automatic recording.
+It inherits launcher Java/memory settings and does not ship machine-specific
+paths or pre-launch commands. Resource-pack artwork is still optional.
+
+Tests run automatically during staging. Verify external URLs before tagging:
+
+```powershell
+node --test scripts/Build-EasyInstallPack.test.mjs
+node scripts/Build-EasyInstallPack.mjs --verify-downloads
+```
+
+The release workflow also checks every third-party download before publishing.
+After publication, verify all 26 entries including the newly published ZSG JARs
+with `node scripts/Build-EasyInstallPack.mjs --verify-release` against the
+matching build's generated metadata. CI-built hashes can differ from a local
+build; use metadata extracted from the published pack when verifying CI assets.
+Keep the two pack filenames stable so README's `/releases/latest/download/`
+link continues working. Never make a new standalone `.sha256` asset for a pack;
+older installed core updaters accept any checksum asset.
 
 ## Notes And Tags
 

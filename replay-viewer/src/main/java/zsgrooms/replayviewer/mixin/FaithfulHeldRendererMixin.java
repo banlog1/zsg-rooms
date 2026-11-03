@@ -10,6 +10,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import zsgrooms.replayviewer.ReplayViewer;
+import zsgrooms.replayviewer.PresentationPlayback;
+import zsgrooms.replayviewer.PresentationState;
 
 /** Paused seeks do not tick vanilla's held-item cache. Read the captured hands for rendering only. */
 @Mixin(HeldItemRenderer.class)
@@ -32,6 +34,8 @@ public abstract class FaithfulHeldRendererMixin {
     }
 
     private static ItemStack captured(EquipmentSlot slot) {
+        PresentationState presentation = PresentationPlayback.handState();
+        if (presentation != null) return slot == EquipmentSlot.MAINHAND ? presentation.main : presentation.off;
         MinecraftClient client = MinecraftClient.getInstance();
         return ReplayViewer.faithfulActive() && client.player != null ? ReplayViewer.quickHeldItem(client.player, slot) : null;
     }

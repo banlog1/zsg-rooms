@@ -1,0 +1,294 @@
+{
+  "minecraft": "1.16.1",
+  "fabricLoader": "0.19.3",
+  "mods": [
+    {
+      "id": "antigone",
+      "name": "antigone",
+      "version": "2.0.0",
+      "file": "antigone-1.16.1-2.0.0.jar",
+      "fileSize": 4359,
+      "hashes": {
+        "sha1": "634c1a0f9f21916c2d5141fb04decffe34677a72",
+        "sha512": "b385e7615c644c0f354b85409f95c137413483796057a0755b4f2677b8acf3eb0dda8c55d7fb4358dd5e3c44f28c63816c787336b54ac3759ca8424bfc108493"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/antigone/1.16.1/antigone-1.16.1-2.0.0.jar"
+    },
+    {
+      "id": "antiresourcereload",
+      "name": "AntiResourceReload",
+      "version": "5.2.0+1.16.1",
+      "file": "antiresourcereload-5.2.0+1.16.1.jar",
+      "fileSize": 13891,
+      "hashes": {
+        "sha1": "33ad13fed317ac0ddf4e9d81030bc32db6c0c774",
+        "sha512": "68d9561b4e77563c7ccb55bcb0bea51ef56c7452169cf57d529ac339c08eaef0536793f2a08b3600dc5be3d613afa72182de55e1f915adf221a5d1eed31f7bae"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/antiresourcereload/1.16.1/antiresourcereload-5.2.0+1.16.1.jar"
+    },
+    {
+      "id": "atum",
+      "name": "Atum",
+      "version": "2.7.1+1.16-1.16.1",
+      "file": "atum-2.7.1+1.16-1.16.1.jar",
+      "fileSize": 71164,
+      "hashes": {
+        "sha1": "4451cde8918eb9f10d1607cc4713ad559953557a",
+        "sha512": "eebbf102b877aee48d75d79ee0cba4d2f215f02fc5347478f561d25009636ce33734cf12265a6a410551e3e68c0ab04b8a544f18e8933b3a0974e96e6a1c0c0b"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/915b28c31145355a9d27decf30676c2bb59e75cd/legal-mods/atum/1.16-1.16.1/atum-2.7.1+1.16-1.16.1.jar"
+    },
+    {
+      "id": "chunkumulator",
+      "name": "Chunkumulator",
+      "version": "1.1.1+MC1.16.1",
+      "file": "chunkumulator-1.1.1+MC1.16.1.jar",
+      "fileSize": 99061,
+      "hashes": {
+        "sha1": "29c20f0614cfaa3bd093b56f8ea8f86fbc90900f",
+        "sha512": "0e04c81b2b7bdc6fc664fb3a4dc99475a1563827f221928115e15b1b0164ed49cdd099bcc5943ce6b420886f3b51e639abcebd4fbddba8f3973e546312901c1f"
+      },
+      "url": "https://cdn.modrinth.com/data/NdXjQHpc/versions/CLT3h0lX/chunkumulator-1.1.1%2BMC1.16.1.jar"
+    },
+    {
+      "id": "fabric",
+      "name": "Fabric API",
+      "version": "0.18.0+build.387-1.16.1",
+      "file": "fabric-api-0.18.0+build.387-1.16.1.jar",
+      "fileSize": 656899,
+      "hashes": {
+        "sha1": "f1213e4a181192dafbcd201c9f3989fe173e6548",
+        "sha512": "5b70a6880274b6be4dc1fb817b25c06d47160d2bc390ea914f9a6578376b30f45bfcacd71953e0bea6af7a326f6f5597d2e714a298f4d36ecea5f62cbe6f51c2"
+      },
+      "url": "https://cdn.modrinth.com/data/P7dR8mSH/versions/0.18.0%2Bbuild.387-1.16.1/fabric-api-0.18.0%2Bbuild.387-1.16.1.jar"
+    },
+    {
+      "id": "fast_reset",
+      "name": "FastReset",
+      "version": "2.4.1+1.16.x",
+      "file": "fast-reset-2.4.1+1.16.x.jar",
+      "fileSize": 28785,
+      "hashes": {
+        "sha1": "28baa045a7b07f0209ec07231e27e62ae66e2c26",
+        "sha512": "ad1af8459ab27a2e45a6d6834df9be92499df8a6def0171a6a49b1fab063ab70e854098b1b5f7b8f8a74198d3ce5eca2d266531ca1faeb0c80f4ceeb5bafd4a6"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/fast_reset/1.16-1.16.5/fast-reset-2.4.1+1.16.x.jar"
+    },
+    {
+      "id": "forceport",
+      "name": "Force Port Mod",
+      "version": "1.3.0",
+      "file": "forceport-1.3.0.jar",
+      "fileSize": 30076,
+      "hashes": {
+        "sha1": "b484fa398a6c8399f277762adfa0a1e72870522e",
+        "sha512": "8678efc808f1bba880776abe696ad4a562a9becf7d45f42ea1b3d30219e751cc5d91209378df0b0ac58b036072eab5ddadb7dbef70b87382a5619ab9e0b51b13"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/forceport/1.14-1.21.8/forceport-1.3.0.jar"
+    },
+    {
+      "id": "fsg-mod",
+      "name": "FSG Mod",
+      "version": "5.3.0+MC1.16.1",
+      "file": "FSG-Mod-5.3.0+MC1.16.1.jar",
+      "fileSize": 99724,
+      "hashes": {
+        "sha1": "a38d67e309f58548f63c109110a2c286a701dbca",
+        "sha512": "93f8d9b30f828938b57737ed6ad0c7ac85d2af709e3f389bf829d986f81e2c50d252f1ea3142e9f3bf5226a597f432e878c75ab9794411d120e986842ceab11b"
+      },
+      "url": "https://cdn.modrinth.com/data/XZOGBIpM/versions/qc4OUmcd/FSG-Mod-5.3.0%2BMC1.16.1.jar"
+    },
+    {
+      "id": "krypton",
+      "name": "Krypton 1.16.1 Backport",
+      "version": "0.1.3-SNAPSHOT+2021-02-20",
+      "file": "krypton-1.16.1-backport-0.1.3-SNAPSHOT+2021-02-20.jar",
+      "fileSize": 118220,
+      "hashes": {
+        "sha1": "4081484aa589dd7e78b773107e3a6f158909a499",
+        "sha512": "b9e6ff4daaa6fc68357535a937b5950f1e8f5a5bc4ade56df71cc95feb5ef91fee687d90b4904b49bf0af260d46e6c2f89cc78c2271fec59f4c68819ba0c6de7"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/krypton/1.15-1.16.1/krypton-1.16.1-backport-0.1.3-SNAPSHOT+2021-02-20.jar"
+    },
+    {
+      "id": "lazydfu",
+      "name": "LazyDFU",
+      "version": "0.1.2",
+      "file": "lazydfu-0.1.2.jar",
+      "fileSize": 15517,
+      "hashes": {
+        "sha1": "2efec5781f1271bdcdae462eee402ccb97bff6fe",
+        "sha512": "20b1cd3e62051c7d7498ecdc49912acb918fc4748d469c67c078cc97197289760e64b9339a4d4a03d175f648c8be8601d131776a9a6bdb8832cecdda6fc46498"
+      },
+      "url": "https://cdn.modrinth.com/data/hvFnDODi/versions/0.1.2/lazydfu-0.1.2.jar"
+    },
+    {
+      "id": "lazystronghold",
+      "name": "Lazystronghold",
+      "version": "1.1.4",
+      "file": "lazystronghold-1.1.4+1.16.1.jar",
+      "fileSize": 12878,
+      "hashes": {
+        "sha1": "2c6ee8e5a76981bd068ae6eb2f66804777304290",
+        "sha512": "c739ff2d4695591417e990479fdb5f2de2b502870d8c63ac9866decf9e88e75df1e6c4d2a00edeaf7e5b4780c9d42c6d13a7a43b1227a610a7ac6db121764e4d"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/lazystronghold/1.16.1/lazystronghold-1.1.4+1.16.1.jar"
+    },
+    {
+      "id": "lithium",
+      "name": "Lithium 1.16.1 Backport",
+      "version": "1.0+backport-0.6.7+1.16.1",
+      "file": "lithium-1.0+backport-0.6.7+1.16.1.jar",
+      "fileSize": 356163,
+      "hashes": {
+        "sha1": "49945460280ba71bdbafbd0ce90cfe8637c425d4",
+        "sha512": "53f67abf325558d760d7d2f44ec8bbd14dc7180a6e137f1aed54b37aeb0d3b574b59f75970b5765d30e60df48aed3e27d632759452b1e66c5a123776f858ed31"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/lithium/1.16.1/lithium-1.0+backport-0.6.7+1.16.1.jar"
+    },
+    {
+      "id": "mcsrfairplay",
+      "name": "MCSR Fairplay",
+      "version": "1.1.6+1.16.1",
+      "file": "mcsrfairplay-1.1.6+1.16.1.jar",
+      "fileSize": 6897368,
+      "hashes": {
+        "sha1": "3914460d549208de14e3ec916cdc6af4e28c139c",
+        "sha512": "d3f8141f472ced9fa7cbd07282368e849b558a33747f9c82c54414088b5ce662318e035c4e2a54da94180006af1a2f159c8ea41dc0c4b46505bd63d50505bc2c"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/e70e26326c8d765a3c912c139463b8a698950ac9/legal-mods/mcsrfairplay/1.16.1/mcsrfairplay-1.1.6+1.16.1.jar"
+    },
+    {
+      "id": "replaymod",
+      "name": "Replay Mod",
+      "version": "1.16.1-2.6.27",
+      "file": "replaymod-1.16.1-2.6.27.jar",
+      "fileSize": 15394521,
+      "hashes": {
+        "sha1": "c35128e391ad2aba5ff818151939337b1ee2eaeb",
+        "sha512": "3f54c43fbd59b0e195a81e037ca70411df5c872bd9f1b803347fd01ee8a709b4545e8fcdec41049644edebd43b4f4633bdca3ac8c70702df4977ad1608f62d83"
+      },
+      "url": "https://www.replaymod.com/download/download_new.php?version=1.16.1-2.6.27"
+    },
+    {
+      "id": "seedqueue",
+      "name": "SeedQueue",
+      "version": "1.7.1+1.16.1",
+      "file": "seedqueue-1.7.1+1.16.1.jar",
+      "fileSize": 233847,
+      "hashes": {
+        "sha1": "b4c5565da9a5bb3b047fcd3e7bbda47c862ec207",
+        "sha512": "22b815943a818efa4ca1923ff3872b01f7ac0c591a43b9901cc0931a328a80eca781278bb2c204380d5d649867cc7a57f2641f97b15ea22e5fcfd09006c86d40"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/f85d7a967b812fe3b45531d3b5cdd7e931098e61/legal-mods/seedqueue/1.16.1/seedqueue-1.7.1+1.16.1.jar"
+    },
+    {
+      "id": "sleepbackground",
+      "name": "SleepBackground",
+      "version": "4.1+1.16.1",
+      "file": "sleepbackground-4.1+1.16.1.jar",
+      "fileSize": 21403,
+      "hashes": {
+        "sha1": "ce5d8994d7d25126ba3da754867b2f5f599243f5",
+        "sha512": "8ffb1d7eb62b5b7b6afcd0a0ce00a0f614eb9449a122b515980beecf75505d0903ae00f56f2b9b64ccb75ec9c48259c4d5694e748b54ae07ba8f4798bc7ec683"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/sleepbackground/1.16.1/sleepbackground-4.1+1.16.1.jar"
+    },
+    {
+      "id": "sodium",
+      "name": "Sodium",
+      "version": "2.5.1+1.16.1",
+      "file": "sodium-2.5.1+1.16.1.jar",
+      "fileSize": 477315,
+      "hashes": {
+        "sha1": "c0c9ebc703867e2101c42667b56d19f1856d8c88",
+        "sha512": "10e2aa8d8c7d64bfd443323ac9e61a0f4c7feef3eb9ae5d83dbd5f115dfa2d25c83331093a02cedb70585ed27ed2cc68c2d74376ab23ad0493b9d249fe20cb2f"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/sodium/1.16.1/sodium-2.5.1+1.16.1.jar"
+    },
+    {
+      "id": "speedrunapi",
+      "name": "Speedrun API",
+      "version": "2.2+1.16-1.16.1",
+      "file": "speedrunapi-2.2+1.16-1.16.1.jar",
+      "fileSize": 155367,
+      "hashes": {
+        "sha1": "0c5d2a9c8582289f6ff0e587236871cad99b99f1",
+        "sha512": "d1931bb45f67f512ce165223851b4cd83d7ef2d3afc83144066a8cf4742980d3514c2269605abf3bce66ee0d4b6d79622ae08cbcab305814fbbfd49500088e94"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/speedrunapi/1.16-1.16.1/speedrunapi-2.2+1.16-1.16.1.jar"
+    },
+    {
+      "id": "speedrunigt",
+      "name": "SpeedRunIGT",
+      "version": "16.0+1.16.1",
+      "file": "SpeedRunIGT-16.0+1.16.1.jar",
+      "fileSize": 853264,
+      "hashes": {
+        "sha1": "db03005e8f0063ea4be383b67251c4ec748041c0",
+        "sha512": "4b87dac0ca08c3594d8a4e55f127a07c5df0f4d8c44200e15858580f5d57a296e9456b01c0fd39c313f4b49db1fcead823b91d101fbadc7a6574fc0f31f8398a"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/speedrunigt/1.16.1/SpeedRunIGT-16.0+1.16.1.jar"
+    },
+    {
+      "id": "standardsettings",
+      "name": "StandardSettings",
+      "version": "2.3+1.16-1.16.1",
+      "file": "standardsettings-2.3+1.16-1.16.1.jar",
+      "fileSize": 69608,
+      "hashes": {
+        "sha1": "054798bb36c32c28dddefbaac1e848eafbfa0fc5",
+        "sha512": "dfdd039205fce0a16976615a485589afe413ba488ed29f79586d2faf0c292ba6c432972f34131a5332b8a8e0c80c81e36023eee85d769ee7dad7e1f3d611380c"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/standardsettings/1.16-1.16.1/standardsettings-2.3+1.16-1.16.1.jar"
+    },
+    {
+      "id": "starlight",
+      "name": "Starlight",
+      "version": "1.3.0+1.16.x-backport-1.1.3",
+      "file": "starlight-1.3.0+1.16.x-backport-1.1.3.jar",
+      "fileSize": 127553,
+      "hashes": {
+        "sha1": "95cd4882a22f9e19b6e6bbd7c8bcf9d306faec49",
+        "sha512": "36915546613b8fbce32cd2b2c0cf7ee42f1f49f9041285184a66382f202f03966e3c1b792155ff22270434216e2ada316db88e61742ed09c728cb3a4e44c3bb2"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/starlight/1.16-1.16.5/starlight-1.3.0+1.16.x-backport-1.1.3.jar"
+    },
+    {
+      "id": "state-output",
+      "name": "State Output",
+      "version": "1.2.3+1.16-1.18.1",
+      "file": "state-output-1.2.3+1.16-1.18.1.jar",
+      "fileSize": 12720,
+      "hashes": {
+        "sha1": "72c4333d6804281303c1320b38a2cc87781e5481",
+        "sha512": "3a8b610e7edc97ad4bb03fe5b11fd24d11d8ebff0b4d3fc953e5b4ddd4c518375f4c3454ffc8e41b73d0654477a0c948f2fb4ed5f0642a86ea01708b1c7c22a1"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/state-output/1.16-1.18.1/state-output-1.2.3+1.16-1.18.1.jar"
+    },
+    {
+      "id": "voyager",
+      "name": "Voyager",
+      "version": "1.0.1",
+      "file": "voyager-1.0.1.jar",
+      "fileSize": 4649,
+      "hashes": {
+        "sha1": "8a41d9e31d97b88eab8de9e08a09aec1ecacbb58",
+        "sha512": "7af0abc76408cf67dbc3d59a153dad16904cc93a9078aaa8b68e8ee2baf49ea40587e6ec0af0152b0b5195254d28445368e7ec2f9344676a5b3b8e85db3b75f0"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/voyager/1.14-1.16.5/voyager-1.0.1.jar"
+    },
+    {
+      "id": "worldpreview",
+      "name": "WorldPreview",
+      "version": "6.3.1+1.16-1.16.1",
+      "file": "worldpreview-6.3.1+1.16-1.16.1.jar",
+      "fileSize": 67933,
+      "hashes": {
+        "sha1": "3dc98534a93c2d815844f3aaffcad4a931f272d1",
+        "sha512": "488a42df0dae69bea45fc7a80f094515b6e50683295dfcbece9b8ddcdb546e651c14f6edeb6c4114241b4108142d2e17f8bf0c2951ab05555a9a91854728baaf"
+      },
+      "url": "https://raw.githubusercontent.com/Minecraft-Java-Edition-Speedrunning/legal-mods/db485741018725007e7625292bc6904d6803d08f/legal-mods/worldpreview/1.16-1.16.1/worldpreview-6.3.1+1.16-1.16.1.jar"
+    }
+  ]
+}

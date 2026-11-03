@@ -1,5 +1,121 @@
 # Viewer Performance Review
 
+## 2026-10-19 Recorder And Viewer Pass
+
+Baseline: core 1.1.0 / viewer 0.6.0, commit `79d3ad8`. Retained changes are
+deliberately limited to scratch-buffer reuse, disk-index page locality, and
+duplicate trail-request allocation. Sampling, timestamps, packet ordering,
+payloads, file formats, detail limits, trail bounds and settings are unchanged.
+There is no new performance mode and no detail is dropped.
+
+### Paired Measurements
+
+Tests ran sequentially on Java 17.0.18 with four active processors. Original and
+candidate paths alternate in the same JVM after warmup. These are component
+measurements, not whole-game FPS, whole-recorder cost, or seek-completion claims.
+Local XML/JFR evidence is under ignored `run/replay-performance-2026-10-19/`.
+
+Detailed-frame lookup uses a synthetic three-hour, 20 Hz track (216,000 frames,
+256-byte payloads), 8,192 queries per batch, four warmups and nine measured rounds.
+Fixture construction/indexing is excluded. Both paths check each returned frame.
+
+| Lookup | Original median | Retained change median | Allocation per lookup |
+| --- | --- | --- | --- |
+| Sequential | 55.48 us | 7.39 us | 336 -> 304 B |
+| Reverse sequential | 54.45 us | 7.05 us | 336 -> 304 B |
+| Random | 74.15 us | 68.79 us | 336 -> 304 B |
+| Same frame | 80 ns | 84 ns | 0 -> 0 B |
+
+The main gain is avoiding a whole-index disk search when the requested time is
+already covered by the loaded index page. A synchronized 16-byte header buffer
+also replaces per-frame allocation. Random-query ranges overlap substantially;
+do not claim a reliable random-seek improvement. An initial candidate retaining
+`ByteBuffer` wrappers had worse random-query timing and was simplified back to
+local wrappers before the final measurement.
+
+Trail requests compare an already pending selection before allocating and copying
+a new request. The benchmark uses the actual request method with a dormant worker
+and a frozen original method, not a stripped-down collection operation. Six
+alternating rounds follow warmup and adaptive CPU-duration calibration.
+
+| Duplicate pending request | Original CPU/request | Current CPU/request | Allocation/request |
+| --- | --- | --- | --- |
+| 1 UUID | 195 ns | 111 ns | 312 -> 64 B |
+| 32 UUIDs | 1,660 ns | 553 ns | 1,544 -> 64 B |
+
+This applies only to duplicate pending requests, not all frames or all trail work.
+The proposed trail page-buffer rewrite was **rejected**: longer batches showed
+warm-window CPU rising from 157 to 182 us with unchanged allocation, and eviction
+workloads did not establish a gain. The disk-store implementation remains unchanged.
+
+Detailed Capture now uses its own nested-safe, thread-local scratch buffer through
+the existing encoding-buffer helper. Buffers above 8 KiB are released; output
+arrays remain independently owned. A paired envelope/item-cache benchmark compares
+every output byte outside timing across unchanged, one-changing and all-changing
+slot scenarios. Representative unchanged-frame allocation:
+
+| Fixture | Original | Reused scratch |
+| --- | --- | --- |
+| 46 slots, mostly empty | 2,048 B | 944 B |
+| 90 slots, mostly empty | 4,576 B | 1,408 B |
+| 54 slots, 16-byte NBT fixture payload | 20,632 B | 7,208 B |
+| 90 slots, 128-byte NBT fixture payload (over retention cap) | 83,156 B | 83,156 B |
+
+CPU timings are mixed, so this is an allocation reduction, not a demonstrated
+general recorder speedup. Client/HUD observation, sampling, packet queues,
+compression and disk writing are outside that microbenchmark. Normal recording
+with Detailed Capture disabled is unaffected.
+
+### Verification And Reproduction
+
+Added tests cover detail page boundaries, gaps, world/entity mismatches, forward,
+backward and random lookups; pending-request identity and defensive selection
+copies; byte-identical detailed payloads with nested NBT mutations; buffer
+ownership, nesting, thread isolation, oversize release and overflow recovery.
+
+An isolated Java 17 recorder smoke passed inventory/crafting/chest interactions,
+actual barter outcomes, pauses, dimension changes and one same-seed reset. Its
+76.7-second replay contains 8,069 packets and 480 detailed frames, no reported
+detail gaps, and passes the independent packet-order/content inspector. The JFR
+includes startup and world generation; its GC totals are not recorder-specific.
+Two approximately 147-149 ms connection-lock waits occurred together during
+startup. This is a follow-up profiling lead, not enough evidence to change the
+packet synchronization design.
+
+Both builds pass. The full Java 17 suites passed 601 core, 242 viewer and 15
+writer tests (12 additional tests skipped in the normal runs). Opt-in benchmarks
+were run separately. Independent reviews found no boundary, ownership or
+concurrency regression in the retained production changes.
+
+The Faithful Follow runtime check decoded the fresh recording's populated detail
+track, then used isolated synthetic presentation fixtures for deterministic UI
+checks. It passed automatic inventory/crafting/chest playback with timeline
+seeking, pause/hide recovery, manual read-only inspection, timer/counter/render
+distance toggles, F1/F5, legacy fallback and browser playback at 1280x720 and
+640x480. Screenshot pixel checks passed; crafting screenshots were also inspected.
+The input recording's SHA-256 stayed unchanged. This is not an end-to-end proof
+of arbitrary live-client capture equivalence; payload equivalence is covered by
+the separate encoder fixtures above. The native folder dialog was not retested.
+
+The historical-trail runtime regression also passed using its fixed recording:
+paused historical positions, stable samples, backward/forward seeking, duration
+bounds, reset-world isolation, recorded mob paths, independent styles, synthetic
+fallback, shortcut deduplication and settings snapshot/restore.
+
+Opt-in benchmarks (excluded from normal test runs):
+
+- `DetailedTrackBenchmark`: JVM property `zsgrooms.viewerDetailBenchmark=true`.
+- `TrailPerformanceBenchmark`: environment `ZSG_TRAIL_BENCHMARK=1`.
+- `ReplayDetailedCaptureBenchmark`: environment `ZSGROOMS_DETAILED_CAPTURE_BENCHMARK=true`.
+
+Run the corresponding Gradle `test --tests '*ClassName'` task (viewer tests use
+`-p replay-viewer`), ensuring the test JVM is Java 17, not just the Gradle JVM.
+Use `--info` for benchmark output and `--rerun-tasks` when changing only opt-in
+environment flags. The local `java17.gradle` init script and saved XML reports
+record this pass's exact setup. These benchmarks do not assert timing thresholds.
+
+## Earlier Investigation
+
 Date: 2026-09-28. Baseline investigation followed by completed-index caching and
 live chest-lookup allocation reduction.
 
@@ -543,3 +659,129 @@ neither formatter cleanup nor our metadata cache removes it.
 Index reuse and first-scan chest-key allocation reduction are now implemented
 and measured above. The small formatter change remains an independent
 equivalence-tested candidate. None is an established overall FPS improvement.
+
+## Supplemental Capture Audit (2026-10-22)
+
+Scope: high-rate camera, Super Detailed presentation, original local sound
+capture, and their viewer tracks. This pass adds opt-in benchmarks only; it
+does not change production behavior, recording defaults, or audio settings.
+All tests are headless and silent: no Minecraft client, sound engine or OpenAL
+device is started. Sound events are processed as data with a silent consumer.
+
+### Measured Viewer Priorities
+
+Java 17.0.18, Windows, four JVM-visible processors, separate serial test runs.
+Synthetic 10- and 30-minute archives contain 240 Hz camera samples, 60 Hz
+presentation samples with tagged held items, and four local sound events per
+second. Peak fixture/index disk bounds are about 20 and 58 MiB respectively.
+These are warm-filesystem data-path tests, not live gameplay/FPS tests.
+
+| Optional-track open/index | 10-minute fixture | 30-minute fixture |
+| --- | ---: | ---: |
+| Camera | 131 ms | 211 ms |
+| Presentation | 113 ms | 200 ms |
+| Local sounds | 843 ms | 2,532 ms |
+
+Each open figure is one observation, including first-use effects, not a
+distribution or a cold-disk guarantee. The sound track contains only 2,399
+or 7,199 events. Its unbuffered primitive writes in
+`LocalSoundTrack.read` dominate these supplemental load observations.
+`RecordingIndex.readSupplemental` loads sounds before presentation, so this
+also delays presentation availability. Evaluate buffered index construction
+and bounded page/record reads first, preserving all validation and cleanup.
+
+`LocalSoundCursor.frame` calls the disk-backed `after(now)` on every paused
+frame, even when time and identity are unchanged. Median batch means were
+126 and 184 microseconds per paused call, versus 4.2 and 4.4 microseconds
+during sequential playback. This path is reached by `ViewerControls.update`
+while paused. At 240 rendered frames/s, those paused means correspond to
+30-44 ms of wall work per second, not a claimed FPS gain or CPU percentage.
+Avoid repeated unchanged lookups, while retaining exact seek/pause/resume,
+blocked-state, dimension/identity, failure, and no-catch-up-audio semantics.
+
+Presentation lookup plus cached decode/interpolation took about 25-27
+microseconds per sequential query and allocated about 519 bytes/query in
+these fixtures. Random presentation lookups were about 205-223 microseconds;
+this excludes world/packet reconstruction and is not total seek latency.
+`PresentationTrack.load` reads headers through primitive disk calls and
+allocates payloads; evaluate bounded bulk reads before redesigning item caches.
+Camera lookups allocated zero bytes in sequential, stationary and random tests.
+
+### Recorder Findings
+
+`ReplaySupplementalCaptureBenchmark` uses the actual camera sampler, private
+presentation encoder, sound encoder and real buffered disk spools. Presentation
+state is supplied through method handles: live client observation, transformed
+Mixin hooks and rendering are not included. Measured producer work also
+includes fixture state setters and, in the changing case, item mutation.
+
+| Producer workload | Approximate allocation/input | Raw sidecar size/hour |
+| --- | ---: | ---: |
+| Camera, 60/120/240 Hz at synthetic 480 Hz render timestamps | 0 B | 4.95 / 9.89 / 19.78 MiB |
+| Presentation, ordinary held tools | 180 B | 28.63 MiB |
+| Presentation, stable 1 KiB item NBT | 1,220 B | 242.87 MiB |
+| Presentation, changing 1 KiB item NBT | 4,116 B | 242.87 MiB |
+| Local sound event | 344 B | 1.03 MiB at 4 events/s |
+
+Sizes are extrapolations of measured uncompressed fixtures, not final MCPR
+sizes or heap retention. These spools are disk-backed and their queues are
+bounded. Full presentation states duplicate unchanged item bytes at up to
+60 Hz; large NBT therefore matters more for temporary disk use than ordinary
+tools. Payloads are encoded/copied before queue rejection is known. Consider
+bounded owned-buffer reuse only after live allocation/pressure profiling.
+Sound encoding creates temporary buffers/copies inside its queue monitor,
+but its event frequency is much lower; it is below the measured viewer work
+in optimization priority. All accepted benchmark streams validated complete
+with no dropped camera/presentation frames or rejected sound events.
+
+The benchmark submits batches of 32 and waits for dequeue outside producer
+timing. This deliberately excludes sustained pressure and is not actual
+480-FPS pacing. An empty queue may still have an in-flight write; pre-finish
+writer counters omit that last work and flush. Short Windows CPU samples are
+coarse. Sidecar-only ZIP timings are not complete recorder stop/save timings.
+The initial sub-millisecond park-based harness timed out on Windows and is
+excluded; the corrected harness uses untimed yields and passes.
+
+### Remaining Checks
+
+- Measure transformed mining-hook allocation with capture disabled: `ModifyArgs`
+  packages arguments before the capture API null guard. Headless disabled-API
+  results do not cover this injection, the camera entrypoint, or all sound hooks.
+- Profile real render-state reads, 60/120/240 Hz capture under chunk-load bursts,
+  capture-health HUD on/off, and concurrent packet compression. No queue/writer
+  redesign or sampling reduction is justified by these microbenchmarks alone.
+- Measure multi-hour stop-to-save latency and peak temporary disk usage. The
+  new tracks can each join for five seconds, followed by archive copying,
+  whereas client shutdown still waits two seconds for the recorder worker.
+  This is a code-inspected lifecycle risk, not a reproduced failure in this pass.
+- Validate candidate optimizations with exact payload/event equivalence and
+  gaps, corrupt input, seeks, pauses, identity changes and resource cleanup.
+
+### Reproduction
+
+Core opt-in: `ZSG_SUPPLEMENTAL_CAPTURE_BENCHMARK=1`, test class
+`zsgrooms.modid.replay.ReplaySupplementalCaptureBenchmark`.
+Viewer opt-in: `ZSG_SUPPLEMENTAL_TRACK_BENCHMARK=1`, optional
+`ZSG_SUPPLEMENTAL_TRACK_MINUTES=1..30` (default 10), test class
+`zsgrooms.replayviewer.SupplementalTrackBenchmark`. Use `--rerun-tasks` for
+repeat measurements; the environment flags are not Gradle task inputs.
+Tests otherwise skip these benchmarks. Use the existing Java 17 test init
+script and run recorder/viewer benchmarks serially.
+
+Private XML evidence is in `run/replay-performance-2026-10-22/`. Viewer
+sequential batches span about 17 seconds regardless of archive length;
+longer fixtures test index size, not an uninterrupted long playback session.
+The initial stationary presentation probe used fractional timestamps; it is
+not used as exact paused-viewer latency. The finalized harness uses integer
+paused timestamps and clears decoded states for random-seek queries.
+
+The final 30-minute repeat, run with the full viewer test suite, measured
+2.151 s for sound indexing, 181 ms for camera and 176 ms for presentation.
+Its paused sound cursor averaged 157 microseconds/query (median batch mean),
+versus 3.0 microseconds while advancing. Sequential presentation was 23
+microseconds/query and random presentation lookup/decode was 157 microseconds.
+These warmed-run differences reinforce the priorities, not an optimization
+claim: no production code changed. A separate recorder repeat reproduced
+the allocation and raw-size table above. Final validation: 642 core tests
+and 282 viewer tests passed; 12 other opt-in tests were skipped, with no
+failures. Writer tests were up-to-date rather than rerun in this audit.

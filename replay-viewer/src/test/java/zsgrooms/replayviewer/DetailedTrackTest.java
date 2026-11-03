@@ -78,6 +78,55 @@ class DetailedTrackTest {
         assertThrows(IOException.class, () -> DetailedTrack.read(new ByteArrayInputStream(bytes(new int[][]{{1,0,1,1}}, false)), 1000));
     }
 
+    @Test void mixedLookupsMatchReferenceAcrossPagesGapsAndWorlds() throws Exception {
+        int[][] frames = new int[2307][4];
+        int time = 100;
+        for (int i = 0; i < frames.length; i++) {
+            frames[i] = new int[]{time, i / 431, 7 + i / 187, i % 17 == 0 ? 0 : 5};
+            time += i % 113 == 0 ? 2300 : 50;
+        }
+        java.util.Random random = new java.util.Random(752413);
+        try (DetailedTrack track = read(frames)) {
+            for (int pass = 0; pass < 3; pass++) {
+                for (int n = 0; n < frames.length; n++) {
+                    int slot = pass == 0 ? n : pass == 1 ? frames.length - 1 - n : random.nextInt(frames.length);
+                    int[] expected = frames[slot];
+                    for (int delta : new int[]{0, 49, -1, 1500, 1501}) {
+                        int query = expected[0] + delta;
+                        assertLookup(track, frames, query, expected[1], expected[2], 0);
+                        assertLookup(track, frames, query, expected[1] + 1, expected[2], 0);
+                        assertLookup(track, frames, query, expected[1], expected[2] + 1, 0);
+                        assertLookup(track, frames, query, expected[1], expected[2], expected[0] + 1);
+                    }
+                }
+            }
+            assertLookup(track, frames, -1, 0, 7, 0);
+            assertLookup(track, frames, Integer.MAX_VALUE, 0, 7, 0);
+            assertLookup(track, frames, 100, 0, 7, 0);
+        }
+    }
+
+    private static void assertLookup(DetailedTrack track, int[][] frames, int time, int world, int entity, int start) {
+        int low = 0, high = frames.length;
+        while (low < high) {
+            int mid = (low + high) >>> 1;
+            if (frames[mid][0] <= time) low = mid + 1; else high = mid;
+        }
+        int[] expected = low == 0 ? null : frames[low - 1];
+        DetailedTrack.Frame actual = track.at(time, world, entity, start);
+        if (expected == null || expected[1] != world || expected[2] != entity || expected[0] < start
+                || (long) time - expected[0] > 1500 || expected[3] == 0) {
+            assertNull(actual);
+        } else {
+            assertNotNull(actual);
+            assertEquals(expected[0], actual.time);
+            assertEquals(world, actual.world);
+            assertEquals(entity, actual.entity);
+            assertEquals(expected[3], actual.payload.length);
+            assertSame(actual, track.at(time, world, entity, start));
+        }
+    }
+
     @Test void closedTrackCannotReturnCachedState() throws Exception {
         DetailedTrack track = read(new int[][]{{1,0,1,1}});
         assertNotNull(track.at(1, 0, 1, 0));

@@ -52,6 +52,7 @@ public final class ReplayAudio {
             current = value;
             enabled = true;
             reset();
+            LocalSoundPlayback.reset();
             if (value != null) gate.begin();
         }
         return value;
@@ -73,6 +74,7 @@ public final class ReplayAudio {
         if (handler() == null) return;
         gate.begin();
         reset();
+        LocalSoundPlayback.reset();
         MinecraftClient.getInstance().getSoundManager().stopAll();
     }
 
@@ -87,7 +89,7 @@ public final class ReplayAudio {
     }
 
     static boolean enabled() { handler(); return enabled; }
-    static void setEnabled(boolean value) { handler(); enabled = value; reset(); }
+    static void setEnabled(boolean value) { handler(); enabled = value; reset(); LocalSoundPlayback.reset(); }
 
     private static void reset() {
         tracked = null;
@@ -121,7 +123,8 @@ public final class ReplayAudio {
             if (above.isOf(Blocks.SNOW)) block = above;
             if (!block.isAir() && !block.getMaterial().isLiquid()) {
                 BlockSoundGroup group = block.getSoundGroup();
-                play(player, group.getStepSound(), group.getVolume() * 0.15F, group.getPitch());
+                if (!LocalSoundPlayback.coversPlayerSound(LocalSoundTrack.STEP, player.getEntityId(), group.getStepSound()))
+                    play(player, group.getStepSound(), group.getVolume() * 0.15F, group.getPitch());
             }
         }
         // Replay players may not have a swing hand until their first arm-swing packet.
@@ -136,7 +139,8 @@ public final class ReplayAudio {
                 if (!block.isAir() && block.getHardness(player.world, pos) > 0) {
                     if (mining.sample(time, pos.asLong(), Block.getRawIdFromState(block), player.handSwingTicks)) {
                         BlockSoundGroup group = block.getSoundGroup();
-                        playBlock(player, pos, group.getHitSound(), (group.getVolume() + 1) / 8, group.getPitch() * 0.5F);
+                        if (!LocalSoundPlayback.covers(LocalSoundTrack.MINING, player.getEntityId()))
+                            playBlock(player, pos, group.getHitSound(), (group.getVolume() + 1) / 8, group.getPitch() * 0.5F);
                     }
                     return;
                 }
@@ -153,15 +157,16 @@ public final class ReplayAudio {
                 || sound == SoundEvents.ENTITY_PLAYER_DEATH || sound == SoundEvents.ENCHANT_THORNS_HIT
                 || sound == SoundEvents.ITEM_SHIELD_BLOCK || sound == SoundEvents.ITEM_SHIELD_BREAK) {
             track(player);
-            play(player, sound, volume, pitch);
+            if (!LocalSoundPlayback.covers(LocalSoundTrack.HURT, player.getEntityId())) play(player, sound, volume, pitch);
             if (sound == SoundEvents.ENTITY_PLAYER_HURT) {
                 fallImpact(player, falls.hurt(current.getReplaySender().currentTimeStamp()));
             }
             return;
         }
         ItemStack stack = player.getActiveItem();
-        if (player.isUsingItem() && !stack.isEmpty()
-                && (sound == stack.getEatSound() || sound == stack.getDrinkSound())) play(player, sound, volume, pitch);
+        if (player.isUsingItem() && !stack.isEmpty() && (sound == stack.getEatSound() || sound == stack.getDrinkSound())
+                && !LocalSoundPlayback.coversPlayerSound(LocalSoundTrack.CONSUMPTION, player.getEntityId(), sound))
+            play(player, sound, volume, pitch);
     }
 
     public static boolean enabledForMovement() { return active(); }
@@ -190,12 +195,13 @@ public final class ReplayAudio {
                 block.isOf(Blocks.HAY_BLOCK) || block.isOf(Blocks.HONEY_BLOCK));
         if (damage <= 0) return;
         ClientWorld world = (ClientWorld) player.world;
-        world.playSound(falls.landedX, falls.landedY, falls.landedZ,
-                damage > 4 ? SoundEvents.ENTITY_PLAYER_BIG_FALL : SoundEvents.ENTITY_PLAYER_SMALL_FALL,
-                SoundCategory.PLAYERS, 1, 1, false);
+        SoundEvent fallSound = damage > 4 ? SoundEvents.ENTITY_PLAYER_BIG_FALL : SoundEvents.ENTITY_PLAYER_SMALL_FALL;
+        if (!LocalSoundPlayback.coversPlayerSound(LocalSoundTrack.FALL, player.getEntityId(), fallSound))
+            world.playSound(falls.landedX, falls.landedY, falls.landedZ, fallSound, SoundCategory.PLAYERS, 1, 1, false);
         BlockSoundGroup group = block.getSoundGroup();
-        world.playSound(falls.landedX, falls.landedY, falls.landedZ, group.getFallSound(), SoundCategory.PLAYERS,
-                group.getVolume() * 0.5F, group.getPitch() * 0.75F, false);
+        if (!LocalSoundPlayback.coversPlayerSound(LocalSoundTrack.FALL, player.getEntityId(), group.getFallSound()))
+            world.playSound(falls.landedX, falls.landedY, falls.landedZ, group.getFallSound(), SoundCategory.PLAYERS,
+                    group.getVolume() * 0.5F, group.getPitch() * 0.75F, false);
     }
 
     public static void blockUpdate(ClientWorld world, BlockPos pos, BlockState state) {
@@ -216,7 +222,8 @@ public final class ReplayAudio {
         lastPlacement = time;
         mining.reset();
         BlockSoundGroup group = state.getSoundGroup();
-        playBlock(player, pos, group.getPlaceSound(), (group.getVolume() + 1) / 2, group.getPitch() * 0.8F);
+        if (!LocalSoundPlayback.covers(LocalSoundTrack.PLACEMENT, player.getEntityId()))
+            playBlock(player, pos, group.getPlaceSound(), (group.getVolume() + 1) / 2, group.getPitch() * 0.8F);
     }
 
     private static boolean places(Item item, BlockState block) {
@@ -279,8 +286,10 @@ public final class ReplayAudio {
             case EMPTY_LAVA: sound = SoundEvents.ITEM_BUCKET_EMPTY_LAVA; break;
             default: return false;
         }
-        if (fill) play(player, sound, 1, 1);
-        else playBlock(player, pos, sound, 1, 1);
+        if (!LocalSoundPlayback.covers(LocalSoundTrack.BUCKET, player.getEntityId())) {
+            if (fill) play(player, sound, 1, 1);
+            else playBlock(player, pos, sound, 1, 1);
+        }
         return true;
     }
 

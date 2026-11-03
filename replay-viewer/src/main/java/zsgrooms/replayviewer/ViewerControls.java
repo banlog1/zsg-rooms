@@ -72,6 +72,11 @@ final class ViewerControls {
     private int lastSecond = -1;
     private int lastWidth = -1;
     private boolean lastQuick;
+    private final float[] recordedRotation = new float[2];
+    private boolean cameraSampled, cameraSampleAvailable;
+    private CameraTrack sampledCameraTrack;
+    private net.minecraft.entity.Entity sampledCameraEntity;
+    private int cameraDiscontinuities;
 
     ViewerControls(ReplayHandler handler) {
         this.handler = handler;
@@ -221,7 +226,7 @@ final class ViewerControls {
     }
 
     private void seekTo(int time) {
-        if (playback.busy()) return;
+        if (playback.busy()) { PresentationPlayback.clear(); LocalSoundPlayback.reset(); return; }
         visibility.touch(System.nanoTime());
         ReplaySender sender = handler.getReplaySender();
         if (!sender.isAsyncMode() || sender instanceof FullReplaySender && ((FullReplaySender) sender).isHurrying()) return;
@@ -280,9 +285,10 @@ final class ViewerControls {
     }
 
     void update() {
+        cameraSampled = false;
         IndicatorTooltips.beginFrame(overlay.isMouseVisible() && statusVisible());
         playback.update();
-        if (playback.busy()) return;
+        if (playback.busy()) { PresentationPlayback.clear(); LocalSoundPlayback.reset(); return; }
         analysis.update(handler);
         if (!metadataApplied && recordingIndex.recording != null) {
             metadataApplied = true;
@@ -290,7 +296,7 @@ final class ViewerControls {
         }
         updateQuickHands();
         faithful.update(recordingIndex, handler.getReplaySender().currentTimeStamp(), !editing && camera.getSelected() == 5);
-        if (editing) return;
+        if (editing) { PresentationPlayback.clear(); LocalSoundPlayback.reset(); return; }
         int time = handler.getReplaySender().currentTimeStamp();
         int width = client.getWindow().getScaledWidth();
         if (time / 1000 != lastSecond || width != lastWidth || lastQuick != handler.isQuickMode()) {
@@ -316,6 +322,34 @@ final class ViewerControls {
         if (inventory || modal) visible = false;
         setControlsShown(visible, !inventory && !modal && !client.options.hudHidden);
         if (client.currentScreen == null || client.currentScreen instanceof OverlayScreenAccessor) updateCamera();
+        updateSupplemental();
+    }
+
+    private void updateSupplemental() {
+        ReplaySender sender = handler.getReplaySender();
+        RaceRecording recording = recordingIndex.recording;
+        PlayerEntity target = FarFollowController.recordedPlayer(client);
+        boolean exporting = client.gameRenderer instanceof com.replaymod.render.hooks.EntityRendererHandler.IEntityRenderer
+                && ((com.replaymod.render.hooks.EntityRendererHandler.IEntityRenderer) client.gameRenderer).replayModRender_getHandler() != null;
+        boolean blocked = cameraDiscontinuities != 0 || !sender.isAsyncMode() || exporting
+                || sender instanceof FullReplaySender && ((FullReplaySender) sender).isHurrying();
+        int timestamp = sender.currentTimeStamp();
+        RaceRecording.Interval interval = recording == null ? null : recording.intervalAt(timestamp);
+        blocked |= interval == null || target == null || client.world == null || target.world != client.world
+                || recording != null && recording.loading.at(timestamp);
+        LocalSoundPlayback.frame(recordingIndex.localSounds, timestamp, interval == null ? -1 : interval.world,
+                target == null ? -1 : target.getEntityId(), sender.paused(), blocked);
+        if (blocked || camera.getSelected() != 5 || handler.isCameraView() || client.options.perspective != 0
+                || client.getCameraEntity() != target || target.hasVehicle() || target.isSleeping()) {
+            PresentationPlayback.clear();
+            return;
+        }
+        long quickUpdate = handler.isQuickMode() && sender instanceof zsgrooms.replayviewer.mixin.QuickCameraClockAccessor
+                ? ((zsgrooms.replayviewer.mixin.QuickCameraClockAccessor) sender).zsgViewer$cameraUpdateTime() : 0;
+        double time = CameraPlaybackClock.time(timestamp, handler.isQuickMode(), sender.paused(),
+                sender.getReplaySpeed(), System.currentTimeMillis(), quickUpdate);
+        PresentationPlayback.update(recordingIndex.presentation, time, interval.world, target.getEntityId(), interval.start,
+                interval.end, true);
     }
 
     private void updateCamera() {
@@ -339,10 +373,55 @@ final class ViewerControls {
         lastMode = mode;
     }
 
+    void cameraDiscontinuity(boolean begin) {
+        cameraSampled = false;
+        PresentationPlayback.clear();
+        LocalSoundPlayback.reset();
+        if (begin) cameraDiscontinuities++;
+        else cameraDiscontinuities = Math.max(0, cameraDiscontinuities - 1);
+    }
+
+    boolean recordedCameraRotation(net.minecraft.entity.Entity focused, float[] rotation) {
+        int mode = camera.getSelected();
+        if (editing || playback.busy() || cameraDiscontinuities != 0 || client.options.perspective != 0
+                || mode != 2 && mode != 4 && mode != 5 || client.world == null || handler.isCameraView()
+                || focused == null || focused.world != client.world || focused != client.getCameraEntity()
+                || focused != FarFollowController.recordedPlayer(client) || focused.hasVehicle()
+                || ((PlayerEntity) focused).isSleeping()) return false;
+        if (client.gameRenderer instanceof com.replaymod.render.hooks.EntityRendererHandler.IEntityRenderer
+                && ((com.replaymod.render.hooks.EntityRendererHandler.IEntityRenderer) client.gameRenderer)
+                .replayModRender_getHandler() != null) return false;
+        ReplaySender sender = handler.getReplaySender();
+        if (!sender.isAsyncMode() || sender instanceof FullReplaySender && ((FullReplaySender) sender).isHurrying()) return false;
+        CameraTrack track = recordingIndex.camera;
+        RaceRecording recording = recordingIndex.recording;
+        if (track == null || recording == null) return false;
+        if (!cameraSampled || sampledCameraTrack != track || sampledCameraEntity != focused) {
+            cameraSampled = true;
+            sampledCameraTrack = track;
+            sampledCameraEntity = focused;
+            cameraSampleAvailable = false;
+            long quickUpdate = handler.isQuickMode() && sender instanceof zsgrooms.replayviewer.mixin.QuickCameraClockAccessor
+                    ? ((zsgrooms.replayviewer.mixin.QuickCameraClockAccessor) sender).zsgViewer$cameraUpdateTime() : 0;
+            double time = CameraPlaybackClock.time(sender.currentTimeStamp(), handler.isQuickMode(), sender.paused(),
+                    sender.getReplaySpeed(), System.currentTimeMillis(), quickUpdate);
+            RaceRecording.Interval interval = !Double.isFinite(time) || time < 0 || time >= recording.duration
+                    ? null : recording.intervalAt((int) time);
+            if (interval != null && !recording.loading.at((int) time)) {
+                cameraSampleAvailable = track.sample(time, interval.world, focused.getEntityId(), interval.start,
+                        interval.end, recordedRotation);
+            }
+        }
+        if (!cameraSampleAvailable) return false;
+        rotation[0] = recordedRotation[0];
+        rotation[1] = recordedRotation[1];
+        return true;
+    }
+
     boolean hideChat() { return faithful.hidden() || !showChat.isChecked(); }
     boolean faithfulActive() { return faithful.active(); }
     boolean faithfulHudHidden() { return faithful.hidden(); }
-    void releaseFaithfulOptions() { faithful.releaseOptions(); }
+    void releaseFaithfulOptions() { PresentationPlayback.clear(); faithful.releaseOptions(); }
     boolean inspectChest() {
         if (editing || playback.busy() || camera.getSelected() > 1 || !handler.isCameraView()
                 || client.world == null || client.currentScreen != null || !client.mouse.isCursorLocked()
@@ -414,7 +493,7 @@ final class ViewerControls {
         if (statusVisible()) analysis.render(matrices, view);
     }
     void refreshTimestamp() { lastSecond = -1; }
-    void close() { faithful.releaseOptions(); IndicatorTooltips.beginFrame(false); quickHands.clear(); playback.close(); analysis.close(); milestoneIndex.close(); recordingIndex.close(); }
+    void close() { PresentationPlayback.clear(); LocalSoundPlayback.reset(); faithful.releaseOptions(); IndicatorTooltips.beginFrame(false); quickHands.clear(); playback.close(); analysis.close(); milestoneIndex.close(); recordingIndex.close(); }
 
     private void updateQuickHands() {
         if (!handler.isQuickMode() || client.world == null || recordingIndex.hud == null) {

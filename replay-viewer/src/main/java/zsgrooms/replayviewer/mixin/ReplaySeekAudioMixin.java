@@ -10,6 +10,6 @@ import zsgrooms.replayviewer.ReplayAudio;
 
 @Mixin(value = ReplayHandler.class, remap = false)
 public abstract class ReplaySeekAudioMixin {
-    @Inject(method = {"doJump", "setQuickMode"}, at = @At("HEAD"))
+    @Inject(method = {"doJump", "setQuickMode", "restartedReplay"}, at = @At("HEAD"))
     private void zsgViewer$seekAudio(CallbackInfo ci) { ReplayAudio.beginSeek(); }
 }

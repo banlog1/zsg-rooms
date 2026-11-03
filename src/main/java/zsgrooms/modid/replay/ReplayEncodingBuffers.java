@@ -9,6 +9,7 @@ final class ReplayEncodingBuffers {
     static final int RETAIN_LIMIT = 256 * 1024;
     private static final ThreadLocal<PacketByteBuf> IDLE = new ThreadLocal<>();
     private static final ThreadLocal<PacketByteBuf> HUD = new ThreadLocal<>();
+    private static final ThreadLocal<PacketByteBuf> DETAIL = new ThreadLocal<>();
     private static final ThreadLocal<PacketByteBuf> METADATA = new ThreadLocal<>();
 
     static PacketByteBuf acquire() {
@@ -17,6 +18,8 @@ final class ReplayEncodingBuffers {
 
     static PacketByteBuf acquireHud() { return acquire(HUD, 512, ReplayHudTrack.MAX_FRAME); }
     static void recycleHud(PacketByteBuf buffer) { recycle(HUD, buffer, 8192); }
+    static PacketByteBuf acquireDetail() { return acquire(DETAIL, 1024, ReplayDetailedTrack.MAX_FRAME); }
+    static void recycleDetail(PacketByteBuf buffer) { recycle(DETAIL, buffer, 8192); }
     static PacketByteBuf acquireMetadata() { return acquire(METADATA, 256, Integer.MAX_VALUE); }
     static void recycleMetadata(PacketByteBuf buffer) { recycle(METADATA, buffer, RETAIN_LIMIT); }
 

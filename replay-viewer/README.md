@@ -22,7 +22,11 @@ settings, **Recording Folder** sets the destination of new recordings; it is
 separate from the supporting writer-library folder. ReplayMod is still required
 as the playback engine, but its file chooser is no longer the normal entry point.
 
-**Detailed Capture** is opt-in and applies to the next recording. **Faithful Follow**
+**Rooms Settings > Recording > Recording detail** selects **Standard**, **Detailed**
+or **Super Detailed** for the next recording. Existing Detailed Capture preferences
+migrate to Detailed; Standard remains the default. Camera sampling and Performance
+mode remain independent, and changing detail never changes an active session.
+**Faithful Follow**
 uses that track for recorded render distance, F5 perspective, F1 visibility,
 attack cooldown/indicator, HUD, and automatic inventory, crafting-table and chest
 screens. The inventory key opens a separate read-only inspection view without
@@ -41,9 +45,56 @@ Cursor stacks are shown in a fixed inset; mouse movement is not recorded. Unsupp
 screens and missing coverage are marked unavailable, never guessed. Recorded pause
 is shown with a gray overlay and centered label, distinct from playback pause.
 The existing Follow: Details mode and old replays remain supported.
+**Rooms Settings > Recording > Camera sampling** independently selects Standard
+(the default), 60 Hz, 120 Hz or 240 Hz (advanced) for the next recording, with any preset.
+The optional camera track preserves full-precision first-person yaw/pitch at up to
+the selected rate, limited by rendered frames. Follow Player, Follow: Details and
+Faithful Follow use it automatically in first person, including Quick Mode. Old
+replays, unsupported writer libraries and unavailable samples retain ordinary
+packet-based camera behavior. Freecam, drone, F5, riding/sleeping and offline video
+export are unchanged. Position, hand sway, targeting/block outlines, inventory and
+world updates retain their existing rates with camera sampling alone; this is not high-rate game simulation.
+The camera track uses a bounded 4,096-sample queue and a temporary disk file,
+approximately 5.2/10.4/20.7 MB/hour at 60/120/240 Hz before compression.
+Higher rates require more recorder work and storage; 240 Hz is intended for high-FPS capture.
+A separate 2 GiB camera budget or overload stops/gaps only this optional track.
+Playback never interpolates across explicit gaps, world/entity boundaries or
+sample gaps longer than 100 ms, and deletes its temporary camera index on close.
+Short live capture and Full/Quick playback checks cover pauses, seeks, resets and
+fallback. Sustained 240 FPS, multi-hour AA recordings and slow-disk shutdown still
+need stress testing. The recorder's existing two-second application-exit grace is
+unchanged; closing the application during finalization can still outlast it.
 Recorded render distance does not recreate chunks absent from the replay. Screen
-state is sampled, not a video: intermediate changes within a 50 ms sample may not
-be retained, and equip-animation progress is not part of this first capture format.
+state is sampled, not a video: intermediate changes within a 50 ms inventory sample may not
+be retained. Standard/Detailed recordings do not include equip-animation progress.
+
+**Super Detailed** adds an optional render-only presentation track at up to 60 Hz,
+limited by rendered FPS: effective first-person FOV, compatible FOV-based zoom,
+view bobbing, held items, equip/swing progress and item-use timing. Faithful Follow
+uses these inputs without installing them into game entities or changing saved
+FOV/bobbing options. Missing coverage, Freecam, F5, riding/sleeping and offline
+video export retain ordinary rendering. This is not a capture of arbitrary modded
+post-processing or a video of the original screen.
+
+Super Detailed also records supported original local-player sound events: footsteps,
+mining, block placement, bucket interactions, eating/drinking, damage and falls.
+Incoming world sounds remain in the normal packet stream. The viewer's player-sounds
+toggle controls this playback; covered sound categories replace their inferred
+equivalents, and old or unavailable coverage keeps the existing reconstruction.
+Seeking is silent and does not replay the sound history up to the destination.
+Vanilla crafting remains silent.
+
+The extra presentation queue is bounded to 4 MiB / 128 frames and its disk track
+to 2 GiB. Local sounds use a 256 KiB / 1,024-record queue and a 512 MiB disk budget;
+an incomplete sound sidecar is discarded so the viewer can safely use reconstruction.
+These limits affect optional fidelity, not packet recording. Neither mode disables
+itself merely because a run is long, but these limits and existing metadata limits
+still apply. Super Detailed costs more CPU, disk work and storage during recording;
+multi-hour and comparative performance profiling remain necessary.
+**Capture health** is a separate local HUD toggle for every mode, independent of the
+REC badge. It shows observed camera Hz, actual dropped camera samples, packet/camera
+queue pressure and Super Detailed track status. A rate below the target may simply
+reflect lower game FPS.
 
 The optional detail track streams through a bounded 4 MiB / 128-frame queue to
 disk, rather than retaining a whole session in memory. It records changed states
@@ -346,7 +397,7 @@ From the repository root, prepare the pinned reference and build:
 .\gradlew.bat -p replay-viewer build --offline
 ```
 
-Artifact: `build/libs/zsg-replay-viewer-0.4.0.jar` inside this directory.
+Artifact: `build/libs/zsg-replay-viewer-<viewer_version>.jar` inside this directory.
 The version comes from `viewer_version` in this directory's `gradle.properties`;
 both the filename and `fabric.mod.json` use it. The core's playback test resolves
 the same version automatically. See [release packaging](../RELEASING.md).
@@ -375,6 +426,17 @@ inventory/status, actual inventory-key dispatch, both display modes, small/wide
 windows, backward seeking, dimension changes and a same-file world reset. It also
 checks inventory/crafting indicators in drone and first-person follow, verifies
 that the viewer's own inventory controls do not change them, and captures screenshots.
+
+For Super Detailed, create a fresh development capture with
+`runReplayPrototype -PreplaySmoke=true -PreplaySuperDetailed=true -PreplayResets=1`.
+Camera sampling is optional; add `-PreplayCameraHz=120` to cover it too. Then use
+`runReplayPlaybackTest -PreplayViewer=true -PreplaySuperDetailedSmoke=true`
+with `-PreplayPlaybackFile=<absolute capture path>`. This driver validates the
+real presentation/sound tracks, makes isolated test copies, and checks transformed
+Minecraft projection/hand/bob rendering, pause/seeks, ordinary-camera and
+missing-track fallbacks, immediate exit cleanup, and unchanged source SHA-256.
+Require `[SuperDetailedSmoke] PASS`. Short live checks passed with both Standard
+and 120 Hz camera capture; this does not establish long-session performance cost.
 
 The extended smoke driver uses the local `7bbdc52d-751b-4136-8a03-ff65922ffe6f`
 fixture: a dimension transfer before 22 seconds, a world reset around 66 seconds,
@@ -448,8 +510,10 @@ legacy files are not provided. Manual sharing needs no relay deployment.
 **Settings > Playback > Player sounds (experimental)** reconstructs the recorded player's
 footsteps, mining hits, nearby held-block placements, water/lava bucket filling
 and emptying, eating/drinking, hurt/death, shield/thorns and damaging fall impacts.
-It is on for each newly opened replay and can be disabled in Analysis. This is entirely viewer-side: existing
-recordings work, with no change to capture performance or file size. Sounds remain
+It is on for each newly opened replay and can be disabled in Analysis. Reconstruction
+is entirely viewer-side: existing recordings work, with no change to capture
+performance or file size. Super Detailed recordings additionally supply the original
+supported local sound events described above. Sounds remain
 positional and use Minecraft's sound-category volume controls.
 
 Movement, swings and block updates are approximations of the original inputs.
@@ -470,8 +534,8 @@ blocks and overlapping combat can prevent accurate classification. Water, flying
 climbing and slime landings are excluded; seeks and toggles clear fall evidence.
 Crafting items remains silent, matching vanilla 1.16.1. Quick
 Mode may omit action information, so it cannot reproduce every sound. This option
-is intended for ZSG recordings; captures that already include local-player audio
-may produce duplicate action sounds and should leave it off.
+is intended for ZSG recordings; unrelated capture formats that already include
+local-player audio may produce duplicate action sounds and should leave it off.
 
 Forward/backward seeking is always silent, regardless of this option. Existing
 and queued sounds are stopped, incoming seek sounds are discarded, and audio

@@ -3,6 +3,6 @@
   "package": "zsgrooms.replayviewer.mixin",
   "compatibilityLevel": "JAVA_8",
   "client": ["ReplayBrowserChooserMixin", "FaithfulOptionsMixin", "FaithfulHudMixin", "FaithfulHandMixin", "ChatHudMixin", "DirectSpeedAccessor", "ClassicSpeedAccessor", "OverlayScreenAccessor", "ReplayModInitializationMixin", "ReplayFileAccessor", "DelegatingReplayFileAccessor", "FullReplaySenderAccessor", "QuickReplaySenderAccessor", "QuickChunkFormatMixin", "QuickCacheMixin", "ReplayTerrainScreenMixin", "ReplayStatusHudMixin", "PlayerPauseIndicatorMixin", "PiglinActivityMixin", "DroneLookMixin", "DroneClickMixin", "ReplayTrailSeekMixin", "DragonTrailRenderMixin", "MobHighlightMixin", "MobHighlightColorMixin", "DetailedFollowMixin", "DetailedInventoryKeyMixin", "ReplayAudioMixin", "ReplayPlayerSoundsMixin", "ReplayConsumptionSoundMixin", "ReplayPlacementSoundMixin", "ReplaySeekAudioMixin", "ReplayFallSoundMixin"],
-  "mixins": ["CompactTransportMixin", "CompactTimelineMixin", "PredictionLootContextAccessor", "PredictionStewAccessor", "SeekLightingHandlerMixin", "SeekLightingSenderMixin", "QuickHeldItemsMixin", "FaithfulHeldRendererMixin"],
+  "mixins": ["CompactTransportMixin", "CompactTimelineMixin", "PredictionLootContextAccessor", "PredictionStewAccessor", "SeekLightingHandlerMixin", "SeekLightingSenderMixin", "QuickHeldItemsMixin", "FaithfulHeldRendererMixin", "RecordedCameraMixin", "RecordedCameraSeekMixin", "QuickCameraClockAccessor", "PresentationRendererMixin", "PresentationHeldMixin", "PresentationHeldAccess"],
   "injectors": { "defaultRequire": 1 }
 }

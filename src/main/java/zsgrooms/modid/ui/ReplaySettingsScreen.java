@@ -19,7 +19,7 @@ public final class ReplaySettingsScreen extends Screen {
     private CheckboxWidget recording;
     private CheckboxWidget coexistence;
     private CheckboxWidget performance;
-    private CheckboxWidget detailed;
+    private ButtonWidget detailed;
     private CheckboxWidget keepSeedChanges;
     private ButtonWidget browse;
     private ButtonWidget check;
@@ -116,13 +116,12 @@ public final class ReplaySettingsScreen extends Screen {
                     refresh();
                 }
             });
-            detailed = this.addButton(new CheckboxWidget(left + half + 6, 162, half, 20,
-                    new LiteralText("Detailed Capture"), preferences.detailedCapture) {
-                @Override public void onPress() {
-                    ReplayPrototype.configureDetailedCapture(!ReplayPrototype.getPreferences().detailedCapture);
+            detailed = this.addButton(new ReplayMenuButton(left + half + 6, 162, half, 20,
+                    new LiteralText(preferences.recordingDetail.label), button -> {
+                    ReplayPreferences.RecordingDetail[] levels = ReplayPreferences.RecordingDetail.values();
+                    ReplayPrototype.configureRecordingDetail(levels[(ReplayPrototype.getPreferences().recordingDetail.ordinal() + 1) % levels.length]);
                     refresh();
-                }
-            });
+            }));
             performance = this.addButton(new CheckboxWidget(left, 184, half, 20,
                     new LiteralText("Performance Mode"), preferences.performanceMode) {
                 @Override public void onPress() {
@@ -194,7 +193,7 @@ public final class ReplaySettingsScreen extends Screen {
                     Math.min(280, this.width - 32)), mouseX, mouseY);
         } else if (detailed != null && detailed.isHovered()) {
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(
-                    "Opt-in capture of player view settings and inventory/container slot changes for faithful follow. Uses additional disk space and recorder work. Applies to the next recording, even when changed during an active session. Current detail status: " + ReplayPrototype.getDetailedCaptureStatus()),
+                    "Recording detail: Standard, Detailed or Super Detailed. Detailed adds view settings and inventory/container changes for Faithful Follow. Super Detailed also captures first-person presentation and original local-player sounds. Higher detail is more demanding during recording and uses more disk space. Camera Hz remains independent. Next recording only. Current detail status: " + ReplayPrototype.getDetailedCaptureStatus()),
                     Math.min(280, this.width - 32)), mouseX, mouseY);
         } else if (performance != null && performance.isHovered()) {
             this.renderTooltip(matrices, this.textRenderer.wrapLines(new LiteralText(

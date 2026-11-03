@@ -18,6 +18,32 @@ public final class ReplayPreferences {
     public final boolean performanceMode;
     public final boolean keepSeedChanges;
     public final boolean detailedCapture;
+    public final RecordingDetail recordingDetail;
+    public final CameraRate cameraRate;
+    public final boolean showCaptureHealth;
+
+    public enum RecordingDetail {
+        STANDARD("Standard"), DETAILED("Detailed"), SUPER_DETAILED("Super Detailed");
+        public final String label;
+        RecordingDetail(String label) { this.label = label; }
+        static RecordingDetail parse(String value, boolean legacyDetailed) {
+            try { return valueOf(value); }
+            catch (IllegalArgumentException | NullPointerException ignored) {
+                return legacyDetailed ? DETAILED : STANDARD;
+            }
+        }
+    }
+
+    public enum CameraRate {
+        STANDARD(0, "Standard"), HZ_60(60, "60 Hz"), HZ_120(120, "120 Hz"), HZ_240(240, "240 Hz (advanced)");
+        public final int hz;
+        public final String label;
+        CameraRate(int hz, String label) { this.hz = hz; this.label = label; }
+        static CameraRate parse(String value) {
+            try { return valueOf(value); }
+            catch (IllegalArgumentException | NullPointerException ignored) { return STANDARD; }
+        }
+    }
 
     public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled) {
         this(enabled, libraryDirectory, replayModRecordingDisabled, "");
@@ -40,6 +66,17 @@ public final class ReplayPreferences {
     }
 
     public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode, boolean keepSeedChanges, boolean detailedCapture) {
+        this(enabled, libraryDirectory, replayModRecordingDisabled, soloTestGroup, showRecordingHud,
+                performanceMode, keepSeedChanges, detailedCapture, CameraRate.STANDARD);
+    }
+
+    public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode, boolean keepSeedChanges, boolean detailedCapture, CameraRate cameraRate) {
+        this(enabled, libraryDirectory, replayModRecordingDisabled, soloTestGroup, showRecordingHud,
+                performanceMode, keepSeedChanges, detailedCapture ? RecordingDetail.DETAILED : RecordingDetail.STANDARD,
+                cameraRate, false);
+    }
+
+    public ReplayPreferences(boolean enabled, String libraryDirectory, boolean replayModRecordingDisabled, String soloTestGroup, boolean showRecordingHud, boolean performanceMode, boolean keepSeedChanges, RecordingDetail recordingDetail, CameraRate cameraRate, boolean showCaptureHealth) {
         this.enabled = enabled;
         this.libraryDirectory = libraryDirectory == null ? "" : libraryDirectory.trim();
         this.replayModRecordingDisabled = replayModRecordingDisabled;
@@ -47,7 +84,10 @@ public final class ReplayPreferences {
         this.showRecordingHud = showRecordingHud;
         this.performanceMode = performanceMode;
         this.keepSeedChanges = keepSeedChanges;
-        this.detailedCapture = detailedCapture;
+        this.recordingDetail = recordingDetail == null ? RecordingDetail.STANDARD : recordingDetail;
+        this.detailedCapture = this.recordingDetail != RecordingDetail.STANDARD;
+        this.cameraRate = cameraRate == null ? CameraRate.STANDARD : cameraRate;
+        this.showCaptureHealth = showCaptureHealth;
     }
 
     public static String normalizeTestGroup(String value) {
@@ -78,7 +118,10 @@ public final class ReplayPreferences {
                 Boolean.parseBoolean(values.getProperty("showRecordingHud", "true")),
                 Boolean.parseBoolean(values.getProperty("performanceMode", "false")),
                 Boolean.parseBoolean(values.getProperty("keepSeedChanges", "false")),
-                Boolean.parseBoolean(values.getProperty("detailedCapture", "false")));
+                RecordingDetail.parse(values.getProperty("recordingDetail"),
+                        Boolean.parseBoolean(values.getProperty("detailedCapture", "false"))),
+                CameraRate.parse(values.getProperty("cameraRate", "STANDARD")),
+                Boolean.parseBoolean(values.getProperty("showCaptureHealth", "false")));
     }
 
     void save(Path path) throws IOException {
@@ -91,6 +134,9 @@ public final class ReplayPreferences {
         values.setProperty("performanceMode", Boolean.toString(performanceMode));
         values.setProperty("keepSeedChanges", Boolean.toString(keepSeedChanges));
         values.setProperty("detailedCapture", Boolean.toString(detailedCapture));
+        values.setProperty("recordingDetail", recordingDetail.name());
+        values.setProperty("cameraRate", cameraRate.name());
+        values.setProperty("showCaptureHealth", Boolean.toString(showCaptureHealth));
         Files.createDirectories(path.toAbsolutePath().getParent());
         try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
             values.store(writer, "Local ZSG replay settings");

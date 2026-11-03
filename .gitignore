@@ -40,6 +40,7 @@ replay_*.log
 *.jfr
 zsg-rooms-seed-detection.log
 logs/
+/debug.log
 tmp/
 .agents/
 
@@ -81,6 +82,8 @@ node_modules/
 /.tools/
 /farmer-assets/
 /farmer-preview-godot/
+/lab3-completed/
+/output/wallpapers/
 
 # Python/editor caches and backup files
 __pycache__/
