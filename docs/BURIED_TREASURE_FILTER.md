@@ -140,19 +140,14 @@ old/new comparison also generated identical nonempty shipwreck banks. Existing
 loot and surface regression tests passed. These are regression samples, not
 exhaustive equivalence over every seed.
 
-## Initial Integration
-
-A subsequent fresh two-minute run accepted 32 seeds from 20 lower48 families:
-7 stables seeds (4 layouts), 7 bridge, 15 housing and 3 treasure. All 32 saved
-Overworld records passed the rechecker. After the user tested the supplied
-examples and approved integration, this batch became the initial publication
-input. Private source: `run/mapless-samples/long-160d8e69b1864e6c9215ff6f92536a1c/batch-001.jsonl`.
+## Hosted Integration
 
 The hosted API type is `buried_treasure`. Imports require
 `buriedTreasureRule: mapless-regular-v1` and allow at most two seeds per family.
 Legacy three-type publications remain readable with zero treasure records;
 extension keeps the bank revision and all existing per-type slots unchanged.
-See [production state](../seed-service/PRODUCTION.md) for live counts.
+See [production operations](../seed-service/PRODUCTION.md) for upload procedures.
+Keep live counts and publication state in the private operator journal.
 
 Spawn-close and preload use the existing buried-treasure structure path.
 Shared first Nether entry retains the existing common-spawn reference behavior;

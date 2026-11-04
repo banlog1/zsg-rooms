@@ -1,25 +1,25 @@
 # Overnight Seed Bank
 
-The Windows supervisor supports temple, shipwreck, village, buried treasure and
-ruined portal batches. The default rotation remains the original three types, with up to
-four workers by default at below-normal priority. An explicit `-AllowFullCpu`
-allows up to six workers, limited to the physical core count. It uses only the existing model-only v5
-finder. No Minecraft generation or filter-criteria changes are involved.
+The Windows supervisor supports temple, AA temple, shipwreck, village, buried
+treasure and ruined portal batches. The default rotation is temple, shipwreck
+and village, with four workers requested at below-normal priority, subject to
+the host limits. An explicit `-AllowFullCpu` allows up to six workers, limited
+to the physical core count. It uses the existing model-only v5 finder.
+No Minecraft generation or filter-criteria changes are involved.
 
 ## Start Or Resume
 
 ### Buried Treasure And Ruined Portal
 
-Use the new `bt-rp` preset for alternating BT and RP batches:
+From the repository root, use the `bt-rp` preset for alternating BT and RP batches:
 
 ```powershell
-Set-Location "E:\recordings\code\minecraft rooms"
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Preset bt-rp -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
 ```
 
 This starts or resumes `run/model-bank/overnight/bt-rp`. It does not change any
 existing three-type bank. To prepare its frozen runtime without starting workers,
-use `-Preset bt-rp -ExportOnly`. No twelve-hour search is started by setup itself.
+use `-Preset bt-rp -ExportOnly`; that command does not start a search.
 
 | Type | Families per batch | Sister attempts | Accepted seeds per family |
 | --- | ---: | ---: | ---: |
@@ -46,115 +46,41 @@ their original type selection, policies and runtime snapshots.
 This setup only collects local files. It does not upload seeds or replace the
 existing external RP Seedbank in Rooms. The hosted service and publication tools
 support mixed BT/RP snapshots, including the RP v3 tool and ignition requirements.
-Extend the latest publication listed in `seed-service/PRODUCTION.md` when ready
-to upload; keep the pending tail and existing published slots intact.
+Follow [production operations](../seed-service/PRODUCTION.md), using the latest
+plan in the private operator journal. Preserve the pending tail and live slots.
 
-### Existing Three-Type Setup
+### Standard And Custom Banks
 
-**Current all-three-type setup (2026-09-24):** use
-`run/model-bank/overnight/all-types-wood-first` to rotate temple, shipwreck and
-village batches. It uses the same validated model as `temple-village-wood-first`,
-including near-temple wood sampling and the calibrated village confidence and
-well-placement fixes. The previous temple/village bank and its checkpoints are
-unchanged; older bank folders below still resume their original frozen models.
+Build the standalone finder as described in [Model Seed Finder](MODEL_SEED_FINDER.md).
+Supply `-Java` on the first launch if a compatible Java is not on PATH.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/all-types-wood-first -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
-```
-
-No overnight search was started during this upgrade. Existing seeds and
-checkpoints remain intact; the new bank shares the installation-wide range
-cursor to avoid repeating previously reserved overnight work. Keep the old banks
-for publication alongside new results. Do not copy the new runtime into them.
-Types rotate by batch, not by accepted seed count or equal wall-clock time.
-The saved plan selects all three types automatically on subsequent launches.
-Use this new directory for future runs; resuming `temple-village-wood-first`
-still runs only those two types. New results are consolidated in
-`run/model-bank/overnight/all-types-wood-first/bank.jsonl`; append that snapshot
-to the latest seed-service publication when ready to upload.
-
-On a fresh checkout, build/install the finder and initialize the all-type bank:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/all-types-wood-first' -Types temple,shipwreck,village -ExportOnly"
-```
-
-The earlier `temple-village-corrected` folder includes the village corrections
-but retains pool-centered temple wood sampling. Both `wood-first` folders require a
-tree-bearing biome within 20 blocks per axis of the temple reference instead;
-it does not additionally require wood near the pool. Village and shipwreck wood
-checks, pool distances and water checks are unchanged.
-
-From the repository directory, run:
+The default command starts or resumes an eight-hour standard bank under
+`run/model-bank/overnight/main`:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Minutes 480
 ```
 
-This starts an eight-hour session, or resumes the existing bank for another eight
-hours. The bank is `run/model-bank/overnight/main`. Its current configuration uses
-all three types, and the tested Java executable is remembered in `plan.json`.
-An initial bounded trial has already populated this bank. No overnight session
-was started as part of implementation.
+A fresh standard bank rotates temple, shipwreck and village. Existing directories
+always retain their saved type selection, search policies and frozen runtime.
+Their `plan.json`, not this guide or the directory name, identifies that state.
+To adopt updated filtering logic, initialize a new directory; never replace
+runtime files inside a saved bank.
 
-### Temple And Village Only
-
-The prepared bank `run/model-bank/overnight/temple-village` selects only temple
-and village. Its runtime was initialized with `-ExportOnly`; no search was started.
-The existing three-type `main` bank and all its results remain separate. Both use
-the same installation-wide range cursor, so new batches do not repeat old ranges.
-
-For a twelve-hour session with five workers, run from the repository root:
+For a custom temple/village bank, initialize without starting workers. The
+`-Command` form passes the PowerShell type array correctly:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/custom-temple-village' -Types temple,village -ExportOnly"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/custom-temple-village -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
 ```
 
-Reusing this command resumes that bank; change `-Minutes` for a shorter extension.
-Check its own `status.json` for progress. Its consolidated output is
-`run/model-bank/overnight/temple-village/bank.jsonl`; add that completed snapshot
-to the latest seed-service publication with `extend-bank.mjs` when ready to upload.
-The two types alternate by batch, not by accepted seed count. Shipwreck counts
-may still appear as zero in generic progress output, but no shipwreck jobs run.
+Use a fresh directory name if that example already exists with another runtime.
+Check and stop each bank in its own directory. All banks on this installation
+share the reservation cursor and overnight supervisor lock; do not reset either.
+For AA-only settings and requirements, see [AA Temple Filter](AA_TEMPLE_FILTER.md).
 
-On a fresh checkout where this private bank has not been initialized, initialize
-it first (the `-Command` form passes the PowerShell type array correctly):
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& './scripts/Start-OvernightFilterBank.ps1' -Directory 'run/model-bank/overnight/temple-village' -Types temple,village -ExportOnly"
-```
-
-Supply `-Java` inside that command if needed. Stop this bank using a `STOP` file
-inside its own directory, not `overnight/main`. No second supervisor can run
-alongside it. Keep using the existing shared cursor; do not reset it.
-
-### Updated Village Pickaxe Credit
-
-The updated finder accepts four chest iron ingot equivalents, or one plus an
-iron pickaxe, or one plus three diamonds. Pickaxe credit applies only once and
-cannot replace bucket/ignition iron. This still assumes three iron from a golem;
-the filter does not guarantee that a golem is present.
-
-Existing bank directories keep their pinned finder and original resource rule.
-The new `run/model-bank/overnight/temple-village-pickaxe` directory is prepared
-with the updated runtime and no search jobs started. To use it:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village-pickaxe -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
-```
-
-On a fresh checkout, rebuild/install both finder components first, then initialize
-that directory with the `-Types temple,village -ExportOnly` command above using
-the new directory name. Do not replace runtime files inside an existing bank.
-The shared range cursor avoids repeating earlier overnight ranges. Keep the old
-bank: its accepted seeds remain valid and can be combined with the new bank in
-a later seed-service publication.
-
-On a new installation, build the standalone finder first using
-[MODEL_SEED_FINDER.md](MODEL_SEED_FINDER.md). Supply `-Java` on the first launch
-if a compatible Java is not on PATH. A new bank can be selected with `-Directory`.
-
-Useful options:
+### Options
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -163,7 +89,7 @@ Useful options:
 | `-AllowFullCpu` | off | Allow up to six workers, capped at physical core count; normally the count is limited to four and physical cores minus two. Memory guards remain active |
 | `-CollectSamples` | off | Save five-second host CPU, available RAM, worker peak committed memory and progress samples to `samples.json` on shutdown |
 | `-Types` | temple, shipwreck, village | Rotation for a new bank; an existing bank retains its saved selection |
-| `-Preset` | standard | `bt-rp` selects the two new types and defaults to their separate bank directory; mutually exclusive with `-Types` |
+| `-Preset` | standard | `bt-rp` selects BT/RP and defaults to their separate bank directory; mutually exclusive with `-Types` |
 | `-BuriedTreasureFamilies` / `-RuinedPortalFamilies` | 1000000 each | Fixed family work per new BT/RP batch; changing a saved batch policy requires a fresh directory |
 | `-ReserveGiB` | 3 | Emergency available-RAM threshold |
 | `-WorkerStartupGiB` | 0.9 | Admission estimate per newly starting worker, not a memory cap |
@@ -182,12 +108,12 @@ no automatic reboots, scheduled tasks, cloud purchases or account operations.
 ### Checkpointed Resume
 
 Resumes use a checksum-protected `checkpoint.json` paired with `bank.jsonl`.
-The first run after upgrading must verify the old journal once to create it.
+An existing bank without a checkpoint must verify its journal once to create it.
 Subsequent starts load the validated combined bank, enumerate the job journal,
 and fully validate only new or changed completed entries. Pending attempts still
 follow normal recovery: reuse a completed attempt or retry its reserved range.
 Runtime fingerprints, range overlap, missing assignments and duplicate-seed
-guards remain in place. Startup now reports its recovery stages and progress;
+guards remain in place. Startup reports its recovery stages and progress;
 the requested `-Minutes` search duration starts after startup recovery finishes.
 
 Checkpoints are refreshed every 500 newly completed batches and on shutdown.
@@ -204,12 +130,12 @@ force full verification. With the supervisor stopped, this also rebuilds the
 checkpoint without starting any search workers:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/temple-village -ExportOnly -FullVerify
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/main -ExportOnly -FullVerify
 ```
 
 Keep the entire bank directory, including its journal, attempts and checkpoint.
-Do not edit or delete history to speed up a resume. An active older supervisor
-keeps its already-loaded code; these changes apply on its next invocation.
+Do not edit or delete history to speed up a resume, or change supervisor scripts
+while a session is active.
 
 The isolated checkpoint tests cover cache reuse, delta validation, corruption,
 changed plans/jobs, completed-attempt recovery, missing/overlapping assignments,
@@ -220,13 +146,9 @@ benchmark runs without accessing the live bank or reserving search ranges:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-OvernightFilterBank.ps1 -BenchmarkBatches 1000
 ```
 
-On the development laptop, the 1,000-batch synthetic test measured 5.78 seconds
-for full export and 0.82 seconds for checkpoint load/export. After migrating the
-real temple/village bank, an `-ExportOnly` launch took 35.13 seconds including
-runtime checks, checkpoint loading, startup export and shutdown export. All
-27,685 completed batches were reused, zero were fully revalidated, and the
-combined bank hash was unchanged. These are warm-run measurements, not a fixed
-startup-time guarantee; disk cache, bank size and other applications still matter.
+A historical 1,000-batch synthetic test measured 5.78 seconds for full export
+and 0.82 seconds for checkpoint load/export. This is not a fixed startup-time
+guarantee; disk cache, bank size and other applications still matter.
 
 `scripts/Benchmark-OvernightWorkers.ps1 -OutputDirectory <new-directory> -Java <java-path>`
 runs four, five and six workers sequentially for ten minutes each. It stops the
@@ -240,41 +162,6 @@ use helper threads. Below-normal priority and the RAM reserve still apply.
 Use the benchmark's `-Resume` option to rebuild its summary and skip already
 completed tests without repeating their searches. Incomplete tests are rejected,
 not silently treated as full-duration measurements.
-
-### Laptop Soak Comparison, 2026-09-14
-
-Ten minutes each, in order 4/5/6, on the i7-8750H with 15.85 GiB RAM, Chrome
-closed and AC power connected. Same default mixed-type batch policy and 3 GiB
-reserve; fresh disjoint ranges for every test, not identical candidate inputs.
-
-| Workers | Completed batches | Batches/min | Minimum free GiB | Peak worker committed GiB | Average host CPU |
-| --- | --- | --- | --- | --- | --- |
-| 4 | 103 | 10.3 | 6.68 | 3.54 | 50.5% |
-| 5 | 115 | 11.5 | 6.33 | 4.39 | 63.1% |
-| 6 | 123 | 12.3 | 6.12 | 5.23 | 73.1% |
-
-Completed temple/shipwreck/village batch counts were 35/34/34, 39/39/37 and
-42/41/40 respectively. All tests reached their deadlines without retry warnings
-or memory stops. CPU averages exclude the first 30 seconds and include other
-host activity. Memory/progress samples are taken every five seconds; the
-emergency memory check still runs every supervisor iteration. Committed memory
-is not the same as resident physical RAM.
-
-Five delivered about 12% more batches than four; six added about 7% over five.
-There was no large late-run throughput decline, but temperatures, power draw
-and paging were not measured. This is not a twelve-hour stability guarantee or
-an identical-input scaling benchmark. Five is the suggested first overnight
-setting; six remains an explicit option. Four remains the default.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
-```
-
-Reports and retained private banks are under
-`run/filter-bench/overnight-workers-20260914/workers-4`, `workers-5` and
-`workers-6`; the parent contains `summary.json`. These are separate from the
-main overnight bank. Timed-out in-flight batches remain pending in their own
-test banks. No twelve-hour session was launched by this comparison.
 
 ## Stop And Monitor
 
@@ -301,8 +188,8 @@ workers; startup reservations account for children that have not allocated yet.
 The awake request prevents ordinary idle sleep while the supervisor runs and is
 released on exit. It does not keep the display on or override lid-close actions.
 Keep the laptop plugged in, ventilated, and avoid sleep/hibernation or closing the
-lid. There is no CPU-temperature or battery monitor. Four-worker short trials
-were promising, but an overnight thermal/memory soak has not been completed.
+lid. There is no CPU-temperature or battery monitor; short worker comparisons
+are not a guarantee of overnight thermal or memory stability.
 
 ## Where The Seeds Go
 
@@ -330,8 +217,8 @@ Keep all exact-seed files private and out of public commits/logs.
 
 1. Every new batch reserves a disjoint lower48 ordinal range through the same
    `run/model-bank/parallel-offset.json` cursor used by ordinary parallel searches.
-   An exclusive sibling `.lock` file protects atomic cursor replacement. Stop any
-   older pre-update search scripts before using this new locking protocol.
+   An exclusive sibling `.lock` file protects atomic cursor replacement.
+   Never run legacy scripts that bypass this locking protocol alongside it.
 2. The supervisor saves the assignment before launching its worker. Each retry
    uses a fresh attempt directory but the same assignment, not a new range.
 3. Completed work is never intentionally rerun. If a worker finished before the
@@ -370,16 +257,12 @@ should not run alongside the overnight supervisor if desktop headroom matters.
 ## Verification
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-OvernightFilterBank.ps1 -Integration -Java "C:/Program Files/Microsoft/jdk-25.0.2.10-hotspot/bin/java.exe"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Test-OvernightFilterBank.ps1 -Integration
 ```
 
+Use a compatible Java on PATH, or supply its local executable with `-Java`.
 Coverage includes cursor contention/exhaustion/corruption, immutable batch hashes,
 duplicate/overlap/partial rejection, atomic export and idempotence, real all-type
 queue execution, completed-attempt recovery without rerunning it, session locking,
 plan compatibility, deadline interruption, same-range resume, export-only and STOP.
 Fixtures and partial failure outputs are isolated under `run/filter-bench`.
-
-The initial normal-sized trial committed six batches with up to four workers:
-8 temple and 10 shipwreck seeds, no villages in that short sample. All 18 seeds
-were validated on consolidation. This is a functional trial, not a forecast of
-overnight yield or a multi-hour reliability test.

@@ -14,21 +14,20 @@ the timer's previous category. This is a room-specific completion rule, not a
 standard AA leaderboard completion. The mod remains usable without SpeedrunIGT.
 
 The production seed service accepts `type: aa_temple` in its own bank, requiring
-current `aa-temple-v4` metadata. After the September 27, 2026 overnight upload,
-the bank has 909 seeds from 669 lower48 families, including the original two
-test seeds. AA alone retries once without
+current `aa-temple-v4` metadata. AA alone retries once without
 recent-family exclusions when the service returns HTTP 409 (no fresh candidate),
 so an exhausted recent-family selection can still be played. Ordinary filters retain their
 anti-repeat behavior. An empty AA bank or a service error still fails explicitly
-without substituting an ordinary temple seed. See [production notes](../seed-service/PRODUCTION.md)
-for the current publication and upload state.
+without substituting an ordinary temple seed. See
+[production operations](../seed-service/PRODUCTION.md) for uploads; current
+publication state and counts belong in the private operator journal.
 
 ## Overnight Run
 
-For a resumable AA-only 12-hour run with up to five workers:
+From the repository root, start or resume an AA-only 12-hour run with up to five
+workers:
 
 ```powershell
-Set-Location "E:\recordings\code\minecraft rooms"
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-OvernightFilterBank.ps1 -Directory run/model-bank/overnight/aa-temple-v4 -Types aa_temple -Minutes 720 -Workers 5 -AllowFullCpu -CollectSamples
 ```
 
@@ -169,11 +168,11 @@ overnight seed count.
 
 Build the operator tools as described in [Model Seed Finder](MODEL_SEED_FINDER.md).
 The following reserves a fresh family range and runs one worker for at most ten
-minutes, stopping sooner if it finds ten seeds. All outputs remain private under
+minutes, stopping sooner if it finds ten seeds. Run from the repository root.
+All outputs remain private under
 ignored `run/`; it does not upload anything or change an overnight bank.
 
 ```powershell
-Set-Location "E:\recordings\code\minecraft rooms"
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 . .\scripts\FilterBankState.ps1
 $families = 100000000L

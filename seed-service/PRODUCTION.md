@@ -1,542 +1,128 @@
-# Seed Service Production
+# Seed Service Production Operations
 
 Worker: `https://zsg-rooms-seeds.banlogzzz.workers.dev`
 
-The production config is `seed-service/wrangler.production.jsonc`. It pins account
-`3cee401ab7a7bc6f8d9be942204fe527` and D1 database
-`ade095f8-532f-4b0a-9220-b3b2410d3d40` (`zsg-rooms-seeds`). These IDs are not
-credentials. Wrangler OAuth credentials stay outside the repository. This is
-the separate seed-bank account on Workers Free, not the room-relay account.
+Run commands from the repository root. Use
+[`wrangler.production.jsonc`](wrangler.production.jsonc) for every remote
+seed-service operation. It pins the separate seed-bank account and D1 database,
+not the room relay. Keep Wrangler credentials outside the repository.
 
-## Current Publication
+## Private Publication State
 
-Use `run/seed-service/publications/production-v5-20261003-structure-targets` for
-uploads and as the base for the next extension. Snapshot revision:
-`0f6953fa0a33c1daefcf817f5d3af81b6ce4cdaa79f58a6275a97266a9b7e7bc`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
+Publication directories, source snapshots, SQL, upload receipts, live counts and
+the operator's current-publication pointer belong in ignored `run/` or
+`local-notes/`, never in source control, release assets or mod JARs. This page
+describes the procedure, not the current queue or daily quota.
 
-### October 3 Structure Coordinate Backfill
+Before extending or uploading, identify the latest authoritative publication
+from the private operator journal and receipts. Verify its ancestry and uploaded
+prefix against production. Do not choose an old plan or infer the active plan
+solely from a directory's name or modification time.
 
-- Recovered all **309,877** intended starting-structure coordinates from saved
-  accepted model records, with no missing records or coordinate conflicts.
-- Backfilled metadata for all **230,118 live seeds** and prepared all **79,759
-  queued seeds**. No seeds were added, removed, reordered or regenerated.
-- Metadata is stored in 256-entry pages in `bank_structures`, independently of
-  seed slots. Seed strings in each page bind coordinates to the correct entry.
-- Upload plus full readback used **2,434 writes** and **234,425 reads**, including
-  preflight/final counts. Private receipts are `coordinate-upload-*.json` in the
-  current publication. The upload ran October 2 UTC (October 3 local time).
-- The uploader now requires structure metadata and publishes it before new seed
-  counts. Resume only from this enriched publication or a descendant.
-- The mod requests coordinates and preserves them in room/sequence seed metadata.
-  Missing actual structures keep the original safe spawn; no alternate locate
-  target is silently substituted.
-- Deployed Worker version `238a9317-e400-4727-8570-d0bf4f6966b6`. Three live
-  responses for each of the six profiles matched recovered source coordinates
-  and honored recent-family exclusions. Private `coordinate-delivery-*.json`
-  receipts are in the current publication directory.
-- Real Minecraft regression passed on the reported village seed: intended
-  village, smith chest, preload centered on the relocated spawn, identical reset
-  destination, and original-spawn fallback for a deliberately missing target.
+A publication's `revision` identifies the desired snapshot. Its stable
+`bankRevision` identifies the collection as it grows; it is not a hash of the
+currently available prefix. Preserve existing slots, structure metadata and the
+unpublished queue when extending. Routine growth must not replace the bank.
 
-- Added **32,136 seeds** to the live bank: **8,734 temple, 11,000 shipwreck,
-  10,800 BT, 714 RP and 888 AA**. All pending temple, RP and AA seeds are now
-  uploaded; village was already fully uploaded.
-- Live counts: **83,257 temple, 24,406 village, 45,784 shipwreck, 42,032 BT,
-  32,842 RP and 1,797 AA**. Total live: **230,118**.
-- The completed AA snapshot contains 1,795 records from 13,200 committed
-  batches. Its checkpoint, bank checksum and journal match, as do the BT/RP
-  snapshot's 110,675 records and 18,406 committed batches. Each run has five
-  unfinished assignments, which were not imported.
-- This extension adds **888 new AA records and 39,314 previously unimported
-  BT records** to the plan, preserving all existing slots and pending order.
-  The BT upload cleared the 7,319 older queued seeds and added 3,481 newer ones.
-  Desired total: **309,877**. Remaining: **79,759**, comprising **43,926
-  shipwreck and 35,833 BT**. Other types have no pending entries.
-- September 28 UTC preflight analytics reported zero account reads and writes.
-  The upload used **96,571 writes and 263,103 reads**, excluding read-only
-  preflight and final verification. The configured budget was 97,000 writes;
-  nominal daily write headroom is **3,429**. Analytics can lag: use the receipt
-  rather than a lower analytics count when budgeting any further writes today.
-- Every new remote row matches the publication. Live delivery and family
-  exclusion passed for all six types. The private receipts are `preflight.json`,
-  `upload.json` and `verification.json` in this publication directory. All 28
-  seed-service tests passed. Seed values remain private under ignored `run/`.
-- No uploader remains running. No Worker or relay deployment, mod rebuild,
-  git push or release was needed. Existing clients fetch the expanded bank.
+## Preflight
 
-## Previous Update, September 27 UTC BT and RP Split
-
-Use `run/seed-service/publications/production-v5-20260927-bt-rp-split` for
-the previous, now superseded upload plan. Snapshot revision:
-`f37980219dddf4234fedb91b84587ee3182ed23503e91427676dff2bf914774c`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-- The equal split is complete: **15,600 queued BT seeds and 15,600 new RP
-  seeds** are live. BT now has **31,232** live seeds; RP has **32,128**.
-  Other live counts are unchanged: **74,523 temple, 24,406 village, 34,784
-  shipwreck, 909 AA**. Total live: **197,982**.
-- The latest completed `bt-rp` snapshot contains 77,833 BT and 32,842 RP records.
-  Its checkpoint and bank checksum match, covering 18,406 committed batches.
-  This extension imports only the **16,314 new RP records**; BT uses the
-  existing queue. The 39,314 newer BT records remain outside this publication.
-- Existing seed slots and pending order are preserved. Desired total:
-  **269,675**. Pending in this publication: **71,693**, comprising **7,319 BT,
-  714 RP, 8,734 temple and 54,926 shipwreck**. The 39,314 newer, unimported BT
-  records above are not included in these queue counts.
-- BT used **46,879 writes and 198,411 reads**; RP used **46,878 writes and
-  214,010 reads**. Total upload cost: **93,757 writes and 412,421 reads**,
-  excluding read-only preflight and final checks.
-- Preflight September 27 UTC usage was **2,750 writes and 338,066 reads**.
-  Recorded writes for that UTC day now total **96,507**, leaving **3,493** as
-  nominal headroom. Recheck usage after the UTC reset before another bulk upload;
-  account analytics can lag recent writes.
-- All 31,200 uploaded records match their sources: BT matches the existing
-  queue slots, and RP matches the latest overnight snapshot without duplicating
-  earlier RP records. Live delivery and family exclusion passed for all six
-  types. Private receipts: `upload-buried_treasure.json`,
-  `upload-ruined_portal.json`, `upload.log`, and `verification.json`.
-- No uploader remains running. No service deployment, relay deployment, mod
-  rebuild, git push or release was needed. Seed values remain private.
-
-## Previous Update, September 27 UTC AA Overnight
-
-`run/seed-service/publications/production-v5-20260927-aa-overnight` was the
-previous upload base and is now superseded. Snapshot revision:
-`1d51d956cde5dd24b77162b6a049ea005f500d0296ce5f10ef9d74895090623c`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-- Added all **907 AA seeds from 668 families** from the completed 12-hour run
-  in `run/model-bank/overnight/aa-temple-v4`. All 6,605 committed batches were
-  verified; five unfinished assignments remain available for the next run.
-  The local resume checkpoint was refreshed and validated.
-- **909 AA seeds from 669 families** are now live, including the original two.
-  Other live counts are unchanged: **74,523 temple, 24,406 village, 34,784
-  shipwreck, 15,632 buried treasure, 16,528 ruined portal**. Total **166,782**;
-  desired total **253,361**; existing pending backlog **86,579**, unchanged.
-- The upload used **2,741 writes and 167,823 reads**, excluding preflight and
-  final verification. Preflight account analytics showed 9 writes and 168,129
-  reads for September 27 UTC. The new upload was limited to AA; no pending
-  ordinary-filter rows were uploaded or reordered.
-- All 907 new remote rows match both the overnight snapshot and publication.
-  Live delivery and family exclusion passed for all six types. Private receipts
-  are `upload.log` and `verification.json` under the new publication directory.
-  Seed values remain private under ignored `run/`.
-- No Worker or relay deployment, mod rebuild, git push, or release was needed.
-  Existing AA Thunderless clients fetch the enlarged bank automatically.
-  No uploader or filter worker remains running from this operation.
-
-## Previous Update, September 27 UTC AA Test Bank
-
-`run/seed-service/publications/production-v5-20260927-aa-test` was the previous
-upload base and is now superseded. Snapshot revision:
-`8535c2db4cc2ca1bc399cd596842bcf1dc1e0fc032d6a9f11f73dfbc89b27ec1`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-- Added exactly **two AA temple seeds**, both current `aa-temple-v4` sister
-  seeds from **one family**, from the baseline production run in
-  `run/filter-bench/timing-performance-20260927/aa_temple-0-baseline.jsonl`.
-  No experimental timing build or older AA sample was promoted.
-- Live counts: **74,523 temple, 24,406 village, 34,784 shipwreck, 15,632 buried
-  treasure, 16,528 ruined portal, 2 AA temple**. Total **165,875**;
-  desired total **252,454**; the existing **86,579** pending rows are unchanged.
-  Every previous slot was verified before appending; no existing seeds moved.
-- Upload receipt: **9 writes and 165,915 reads**, excluding preflight and final
-  checks. This is a two-seed test publication, not a bulk backlog upload.
-- The dedicated seed-service Worker now supports `aa_temple`; deployed version
-  `a2fb2a37-f626-4087-a360-503ef776a29a`. The room relay was not deployed.
-- Select **AA Thunderless** in the mod's Rooms filter picker. AA remains outside
-  the ordinary random mix. In the new client build, only AA retries once without
-  recent-family exclusions after HTTP 409 (no fresh candidate). Other errors
-  and all other profiles retain their existing behavior. An empty AA bank does
-  not fall back to regular temple seeds.
-- Both uploaded rows match the source and publication. Live delivery passed
-  for all six profiles; ordinary family exclusions and the AA 409/retry sequence
-  passed. The private receipt is `verification.json`, with upload counts in
-  `upload.log`, under this publication directory. Seed values remain private.
-- Mod tests/build passed: 486 tests, one skipped, no failures. All 28 seed-service
-  tests passed. The in-game picker was not manually opened during this upload.
-
-## Previous Update, September 25 UTC BT and RP
-
-`run/seed-service/publications/production-v5-20260925-bt-rp` was the previous
-upload base and is now superseded. Snapshot revision:
-`84a316d22e6bc3acd32c3642131d10a02498669de0d32293fb9829b8bc4a878c`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The completed `bt-rp` overnight snapshot contains **38,519 buried-treasure**
-and **16,528 ruined-portal** seeds from 9,101 committed batches. All 55,047
-were appended to this private plan, preserving every existing slot and pending
-temple/shipwreck row. Desired total: **252,452**. Only committed snapshot rows
-were imported; the three unfinished reservations remain the supervisor's work.
-
-- All **16,528 RP seeds** are live, using **49,669 writes and 167,243 reads**.
-- **15,600 new BT seeds** are live, using **46,878 writes and 181,895 reads**.
-  Live counts: **74,523 temple, 24,406 village, 34,784 shipwreck, 15,632 buried
-  treasure, 16,528 ruined portal**. Total **165,873**; pending **86,579**:
-  22,919 BT from this run plus the unchanged 8,734 temple and 54,926 shipwreck
-  backlog. No uploader remains running.
-- September 25 UTC preflight analytics reported zero account reads and writes.
-  Upload receipts total **96,547 writes and 349,138 reads**, excluding final
-  read-only checks, leaving 3,453 nominal writes as headroom. The 19:27 UTC
-  analytics query still showed only 89,335 writes due to reporting lag. Do not
-  use that lagging number to budget more writes today; recheck after UTC reset.
-- The seed-service Worker now supports `ruined_portal`; deployed version
-  `e5f153fa-2de7-43fb-ad1f-0bc3451753c2`. The room relay was not deployed.
-- The mod exposes **ZSG Rooms Ruined Portal**, with existing portal art, HUD
-  identity and automatic chest/obsidian repair. Its generated-chest lookup does
-  not require Looting; the external RP Seedbank retains that requirement.
-  Existing external choices remain selectable. ZSG Rooms Mode now draws our
-  temple/village/shipwreck/BT at 20% each, our RP at 15%, and external RP
-  Seedbank at 5%. This draw-policy change needs no service or relay deployment.
-- All 32,128 newly uploaded rows match the overnight snapshot and publication.
-  Live delivery and recent-family exclusion passed for all five types. Private
-  receipts: `upload-ruined_portal.json`, `upload-buried_treasure.json`, and
-  `verification.json` in this publication directory.
-- The mod build passed (479 tests, one skipped, no failures), as did all 26
-  seed-service tests. The in-game picker was not manually opened in this check.
-- Seed values and upload receipts remain private under ignored `run/`.
-
-## Previous Update, September 24 UTC Buried Treasure
-
-`run/seed-service/publications/production-v5-20260924-buried-treasure` was used
-for this update and is now superseded. Snapshot revision:
-`e6498403f12a19e1e68e35d5e0dc3b32a9146e402f4d171c2ed0df3dbc0ef1ab`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-- Added **32 buried-treasure seeds from 20 families**, including 7 stables
-  seeds across 4 layouts, from the user-approved two-minute sample.
-- Live counts: **74,523 temple, 24,406 village, 34,784 shipwreck, 32 buried
-  treasure**. Total **133,745**; desired total **197,405**; pending **63,660**.
-  Existing slots and the pending temple/shipwreck batches were left unchanged.
-- This upload used **99 writes and 133,803 reads**, excluding final checks.
-  Preflight analytics reported 97,480 writes, so recorded September 24 UTC
-  writes now total **97,579**. Leave the remaining nominal 2,421 writes as
-  headroom; recheck usage after the next UTC reset before bulk uploading.
-- The seed-service Worker was deployed to accept `buried_treasure`; version
-  `b8e029ec-001f-4249-87a4-fdb994eef2d4`. No relay deployment was needed.
-- All 32 uploaded rows match the source sample. Live delivery and recent-family
-  exclusion passed for all four types. Private receipt: `verification.json`
-  alongside this publication. All 24 seed-service tests and the mod build pass.
-- The new mod build exposes **ZSG Rooms Buried Treasure** on the Rooms filter
-  tab. Existing Mapless choices and random-mode weights remain unchanged.
-  The overnight scheduler still supports only the original three types.
-- No uploader remains running. Seed values remain private under ignored `run/`.
-
-## Previous Update, September 24 UTC Evening
-
-`run/seed-service/publications/production-v5-20260924-latest-priority` was used for
-uploads and as the base for the next extension. Snapshot revision:
-`86eb9247b778f905790f8ce3858120223f88f307bde73ffae807838c1ae7978e`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The latest `all-types-wood-first` run ended normally on September 24 at 15:24 UTC,
-with zero active workers and 10,327 completed batches. Its snapshot contains
-8,734 temple, 4,277 village and 47,193 shipwreck seeds. All 60,204 passed
-publication validation and were added to the private plan; only villages and
-shipwrecks were requested for this upload.
-
-- All 4,277 new villages are live: **24,406 active**, using 12,854 writes.
-- **9,734 latest-run shipwrecks** were added: **34,784 active**, using 29,251 writes.
-- Temple remains **74,523 active**; all 8,734 new temples remain pending.
-- Active total: **133,713**. Desired plan total: **197,373**. Pending: **63,660**,
-  comprising 8,734 temples, 37,459 latest-run shipwrecks and 17,467 older shipwrecks.
-- At the user's explicit request, the latest shipwrecks were prioritized over
-  the older unpublished backlog. Only the unuploaded tail was reordered; all
-  25,050 previously live shipwreck slots and every temple/village slot were
-  preserved. The uploader verified the complete remote prefix before writing.
-  The intermediate `production-v5-20260924-all-types` plan is superseded and must
-  not be used for uploads. Resume or extend the priority plan named above.
-- Account-wide analytics reported 55,375 writes before this evening upload.
-  These uploads used **42,105 writes** and 272,099 reads, excluding preflight and
-  final checks. Recorded writes for September 24 UTC now total **97,480**.
-  Uploads stopped with 2,520 writes of nominal headroom; wait until the next UTC
-  day and recheck account usage before uploading more. Analytics can lag writes.
-- Final checks matched every new row to both the private publication and latest
-  overnight snapshot, including preceding boundary slots. Counts, plan identity,
-  live delivery and recent-family exclusion passed for all three types. The
-  private `verification.json` receipt is stored alongside the priority plan.
-- No uploader remains running. No Worker or relay deployment or mod update was
-  needed. Seed values and publication files remain private under ignored `run/`.
-
-## Previous Update, September 24 UTC Morning
-
-Use `run/seed-service/publications/production-v5-20260924-wood-first` for uploads
-and as the base for that update (now superseded). Snapshot revision:
-`a1f425abcb7d1c129c2d209fac52da9e6fa52656992d3ef15c033c7dda7d0770`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The latest `temple-village-wood-first` run ended normally on September 23 at
-15:42 UTC, with zero active workers and 28,803 completed batches. Its cumulative
-snapshot contains 36,347 temple and 17,899 village seeds. Extending the previous
-publication deduplicated prior results and added **18,427 new seeds**: 12,387
-temple and 6,040 village. All passed publication validation; existing slots and
-the older shipwreck backlog are preserved.
-
-- All 6,040 new village seeds are live: **20,129 active**, using 18,152 writes.
-- All 12,387 new temple seeds are live: **74,523 active**, using 37,223 writes.
-- Shipwreck remains **25,050 active**; 17,467 older seeds remain pending.
-- Active total: **119,702**. Desired plan total: **137,169**. Every new seed
-  from this overnight snapshot is live.
-- Before uploading on September 24 UTC, account-wide D1 analytics reported
-  zero reads and writes since midnight UTC. The two uploads used **55,375
-  writes** and 245,950 reads, excluding read-only preflight and final checks.
-  Allow for analytics lag and other activity when budgeting further uploads.
-- Final verification matched the registered plan, active counts and every new
-  row, including the preceding slot at each upload boundary. Live delivery and
-  recent-family exclusion passed for all three types. A private verification
-  receipt is stored alongside the publication. All 22 seed-service tests passed.
-- No uploader remains running. No Worker or relay deployment or mod update was
-  needed. All seed data remains private under ignored `run/`.
-
-## Previous Update, September 23 UTC
-
-Use `run/seed-service/publications/production-v5-20260923-wood-first` for uploads
-and as the base for that update (now superseded). Snapshot revision:
-`ddb6f61828bcfce137c99321db66c4ecfb10117a488b44c759f9ffda728a6b56`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The latest `temple-village-wood-first` snapshot ended normally on September 21 at
-17:00 UTC, with zero active workers and 19,173 completed batches. It contains
-23,960 temple and 11,859 village seeds cumulatively. Extending the previous plan
-deduplicated the prior snapshot and added **17,950 new seeds**: 12,043 temple and
-5,907 village. All passed publication validation; previous slots and the older
-shipwreck backlog are preserved.
-
-- All 5,907 new village seeds are live: **14,089 active**, using 17,752 writes.
-- All 12,043 new temple seeds are live: **62,136 active**, using 36,190 writes.
-- Shipwreck remains **25,050 active**; 17,467 older seeds remain pending.
-- Active total: **101,275**. Desired plan total: **118,742**. Only the older
-  shipwreck backlog remains pending; every new seed from this snapshot is live.
-- Before uploading on September 23 UTC, the dedicated account's only D1 database
-  reported zero writes in the previous 24 hours. The completed uploads used
-  **53,942 writes** and 208,953 reads, excluding read-only preflight and final checks.
-  Allow for analytics lag and other activity before spending the remaining quota.
-- Final verification matched the registered plan, active counts and every newly
-  uploaded row against the private publication, including the preceding slot at
-  each boundary. Live delivery and recent-family exclusion passed for all three
-  types. No uploader remains running.
-- No Worker or relay deployment is part of this update. Seed data remains private
-  under ignored `run/`; no seed values are printed.
-
-## Previous Update, September 20 UTC
-
-Use `run/seed-service/publications/production-v5-20260921-wood-first` for uploads
-and as the base for that update (now superseded). Snapshot revision:
-`c789e12658087cc7fb555b9d0d21cb1cfa5f3ed953ed98e7f66a80c98d13b218`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The latest `temple-village-wood-first` run ended normally on September 20 at
-15:23 UTC, with zero active workers and 9,562 completed batches. Its snapshot
-contains **17,869 new seeds**: 11,917 temple and 5,952 village. All passed
-publication validation and were appended without changing existing slots.
-Only this latest run was added, not the older unpublished overnight snapshots.
-
-- All 5,952 new village seeds are live: **8,182 active**, using 17,887 writes.
-- All 11,917 new temple seeds are live: **50,093 active**, using 35,811 writes.
-- Shipwreck is unchanged at **25,050 active**; 17,467 older seeds remain pending.
-- Active total: **83,325**. Desired plan total: **100,792**.
-- Uploads completed September 20 UTC (September 21 locally). Account-wide D1
-  analytics reported zero writes before uploading. These uploads used **53,698
-  writes** and 173,093 reads, excluding read-only preflight and final checks.
-  Allow for analytics lag and other account activity when budgeting more writes.
-- Final active counts, registered plan and last uploaded slots matched the
-  private publication. Live delivery and recent-family exclusion passed for all
-  three types. No seed values were printed.
-- No uploader remains running. No Worker deployment or mod update was needed.
-
-## Previous Update, September 16 UTC
-
-That update used `run/seed-service/publications/production-v5-20260916-evening`.
-Snapshot revision:
-`a53343986ed1e3cdbf3b5d328ce8d4d781554b5104a27ad9c76b06e0f14159a2`.
-The stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The latest temple/village session ended normally on September 16 at 16:32 UTC,
-with zero active workers. Its cumulative snapshot contains 28,806 temple and
-1,696 village seeds from 19,044 completed batches. Extending the previous plan
-deduplicated that snapshot and added **16,769 new seeds**: 15,840 temple and 929
-village. Earlier slots and the pending shipwreck backlog were preserved.
-
-- All 929 new village seeds are live: **2,230 active**, using 2,793 writes.
-- All 15,840 new temple seeds are live: **38,176 active**, using 47,600 writes.
-- Shipwreck is unchanged at **25,050 active**; 17,467 older seeds remain pending.
-- Active total: **65,456**. Desired plan total: **82,923**.
-- Before uploading, account-wide D1 analytics reported zero writes since
-  September 16 00:00 UTC. These two uploads used **50,393 writes** and 132,307
-  reads, excluding the small read-only preflight and final checks. Allow for
-  analytics lag and other account activity before spending the remaining quota.
-- Final active counts, the registered plan and each type's last uploaded slot
-  matched the private publication. Live delivery passed for all three types;
-  recent-family exclusion also passed. No seed values were printed.
-- No uploader remains running. No Worker deployment or mod update was needed.
-
-## Previous Update, September 15 UTC
-
-Use `run/seed-service/publications/production-v5-20260916` for uploads and as the
-base for that update (now superseded by the evening publication above). Its snapshot revision is
-`6ad83ddc52151c72420bf2af23f6a855731627e39294e195085c2063a05300c0`;
-the stable bank revision remains
-`fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The temple/village overnight run completed 8,553 batches and produced 12,966
-temple and 767 village seeds. All 13,733 were validated and added to the plan,
-bringing its desired totals to 22,336 temple, 1,301 village and 42,517 shipwreck.
-Existing slots and pending rows from the previous plan are preserved.
-
-- Village is fully uploaded: 1,301 active seeds; this update added 1,251 rows
-  using 3,761 writes, including previously pending village seeds.
-- Temple is fully uploaded: 22,336 active seeds; this update added 17,286 rows
-  using 51,945 writes. An interrupted attempt added no rows; the retry completed.
-- Shipwreck remains at 25,050 active seeds; its older backlog is not part of
-  this temple/village update.
-- Active total: 48,687 seeds. All 13,733 newly generated seeds, plus the older
-  temple/village backlog, are live. Only 17,467 older shipwreck seeds are pending.
-- Successful uploads used 55,706 writes on September 15 UTC. Final live checks
-  passed for all three types, including exact publication membership and recent
-  family exclusion. No seed values were printed. No upload remains running.
-
-## Initial Import History
-
-Publication: `run/seed-service/publications/production-v5-20260915-staged`.
-Revision: `fd4ac774dfda3d4e0c43999a96a73ecfd33df7844ce35c7194ba57f287991dc8`.
-
-The latest completed main bank and the three completed worker benchmark banks
-produce 52,421 seeds: 9,370 temple, 534 village and 42,517 shipwreck.
-
-- Worker deployed. Its database binding and rate limiter are configured.
-- Part 001 uploaded on **2026-09-14 UTC**: 25,000 seeds, **75,010 rows written**.
-- The verified 25,000-row shipwreck prefix was activated using 9 metadata writes.
-- A live append test added 150 seeds using 455 writes. All three types passed
-  live delivery and recent-family exclusion checks against their uploaded subsets.
-- A temple-only top-up added 5,000 seeds using 15,100 writes. **Then-active
-  counts: 25,050 shipwreck, 5,050 temple and 50 village.** Live temple requests
-  returned newly added seeds during the upload.
-- The remaining 22,271 seeds have **not** been uploaded.
-- Recorded write operations total 90,574 for September 14 UTC. Cloudflare's
-  aggregate metrics may lag recent writes; use operation totals when budgeting.
-- No background upload or scheduled task is running.
-
-The Free plan allows 100,000 row writes per UTC day, including index writes.
-The current schema writes about three rows per seed plus small metadata updates.
-Do not import the full `import.sql` on this plan: it exceeds a day's allowance.
-Use the resumable uploader below, not the old bulk-import/activation files.
-See [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/).
-
-## Resume Uploading
-
-Check D1 account usage in the dashboard first. Limits reset at 00:00 UTC
-(03:00 Sofia during summer). Other D1 activity shares the allowance. The
-`--write-budget` is an operator-supplied allowance for this invocation, not an
-automatic account quota lookup. Leave headroom and do not reuse the full daily
-budget on several runs in the same UTC day.
-
-From the repository root, with at least 90,000 daily writes still available:
+1. Confirm the seed-service account and database in the explicit production
+   configuration. Allow only one operator/uploader to update the bank at a time.
+2. Check current account-wide reads and writes for the UTC quota day. Include
+   earlier uploads, other activity and pending operations; leave safety headroom.
+3. Check the private publication's completed source snapshots, checksums and
+   pending counts. Do not import unfinished attempts or overlapping raw outputs.
+4. Run the local service tests before using changed publishing tools:
 
 ```powershell
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260924-buried-treasure --write-budget 90000
+node --test seed-service/test/*.test.mjs
 ```
 
-The uploader verifies existing rows privately against the desired publication,
-then inserts only missing rows in 50-seed batches, rotating through the four
-types. Each successful batch increases that type's available count. It stops
-before the next batch would exceed the supplied write allowance. Re-run the
-same command with an appropriate budget to resume, including after a crash.
-Counts and quota metrics are printed; seed values and SQL are not.
+`--write-budget` requires at least 100 and is an allowance for one invocation,
+not a live quota lookup.
+Analytics can lag recent writes: reconcile usage with receipts conservatively.
+Do not give successive invocations the same full-day allowance. Metadata,
+indexes and advertisement updates also consume writes; a seed count is not a
+write count. Readback verification consumes reads, so avoid repeated full-bank
+preflights or retry loops.
 
-`--batch-size 200` reduces command-launch overhead for larger uploads. The default
-remains 50; the allowed range is 1-200 to keep SQL and Windows command lines
-bounded. Changing this size between resumes does not change slot assignments.
-Write-budget accounting still applies to each batch.
+## Extend The Plan
 
-To focus on one type, add `--type temple`, `--type village`, `--type shipwreck`,
-or `--type buried_treasure`.
-For example, with at least 16,000 writes still available, add at most 5,000 temple
-seeds without adding other types:
+Use a new output directory and completed, consolidated `bank.jsonl` snapshots.
+The arguments below are placeholders for private paths:
 
 ```powershell
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260924-buried-treasure --write-budget 16000 --max-new-seeds 5000 --type temple
+node seed-service/scripts/extend-bank.mjs BASE_PUBLICATION NEW_PUBLICATION COMPLETED_BANK_JSONL
 ```
 
-To verify and activate already-uploaded rows without adding seeds:
+Additional snapshots can follow the first input. Cumulative snapshots are
+deduplicated against the existing plan. Invalid profiles, conflicting records,
+invalid structure coordinates and excess sisters fail validation. The command
+only prepares local files; it does not upload or deploy anything.
+
+Check the new manifest before making it the current private plan. Keep its
+source provenance and the previous publication for recovery. Do not reorder
+already published slots to prioritize new seeds. Changing an unpublished tail
+requires a separately validated plan that preserves every live slot.
+
+## Upload And Resume
+
+After preflight, supply the remaining safe allowance for this invocation:
 
 ```powershell
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/production-v5-20260924-buried-treasure --write-budget 100 --max-new-seeds 0
+node seed-service/scripts/upload-bank.mjs NEW_PUBLICATION --write-budget WRITE_ALLOWANCE
 ```
 
-No Worker deployment or full-publication activation is needed when adding seeds.
-The normal query API is used, not `d1 execute --file`, so routine growth does not
-put D1 into bulk-import maintenance. Queries can still experience normal database
-contention. Existing rows are never deleted or overwritten. If interrupted after
-inserting a batch but before advertising it, the previous count remains safe;
-resuming verifies and advertises the new prefix.
+The uploader checks existing rows, inserts only missing seeds, publishes structure
+metadata before advertising them, and increases each type's available prefix
+after successful batches. Existing seeds remain usable during an upload.
 
-Initial verification reads all existing rows for this bank on each invocation.
-These reads count toward D1's daily read allowance. Avoid tight retry loops.
-No background task needs to remain running while waiting for quota reset.
+Optional controls:
 
-In Minecraft, **Room Settings -> Seed Bank...**, clear an old localhost override
-and Save to use the new default. Only the host requests seeds from the service.
-The mod must include the production-default change, or set the URL explicitly
-on an older build. A type with zero uploaded seeds still reports unavailable.
+- `--type`: restrict to `temple`, `village`, `shipwreck`,
+  `buried_treasure`, `ruined_portal` or `aa_temple`.
+- `--max-new-seeds N`: limit added seeds. Zero permits metadata/publication
+  updates for existing rows; **it is not a read-only dry run**.
+- `--batch-size N`: use 1-200 seeds per batch; the default is 50.
 
-## Later Publications
+After interruption, reconcile usage and resume the same latest plan with a
+freshly calculated allowance. Do not delete live rows, rebuild from a partial
+snapshot or run competing uploads. Save receipts privately, check remote
+readback and delivery for changed types, and update the private journal with
+the remaining queue and account usage. Never print numeric seeds in public logs.
 
-Extend the **latest planned publication**, even if some of it is still waiting
-to upload. Existing seeds keep their original slots; repeated seeds in cumulative
-finder snapshots are skipped. Changed type assignments, invalid records and
-excess sister seeds are rejected. Nothing is uploaded by the extension command.
+## Structure Metadata
+
+Modern clients require each seed's modeled starting-structure coordinates.
+Private `bank_structures` pages bind up to 256 coordinate records to their seed
+strings and slots. Uploads verify existing prefixes and read back metadata before
+new counts become available.
+
+For a legacy publication missing coordinates, recover them from saved accepted
+model records, without rerunning world generation:
 
 ```powershell
-node seed-service/scripts/extend-bank.mjs run/seed-service/publications/production-v5-20260924-buried-treasure run/seed-service/publications/next-v5 run/model-bank/overnight/all-types-wood-first/bank.jsonl
-node seed-service/scripts/upload-bank.mjs run/seed-service/publications/next-v5 --write-budget 90000
+node seed-service/scripts/backfill-structures.mjs BASE_PUBLICATION NEW_PUBLICATION SOURCE_BANK_JSONL
+node seed-service/scripts/upload-bank.mjs NEW_PUBLICATION --write-budget WRITE_ALLOWANCE --max-new-seeds 0
 ```
 
-Use a new output directory each day and replace the base path with yesterday's
-latest plan. Additional completed snapshot paths can follow the first input.
-The private manifest records ancestry and the stable `bankRevision` that identifies
-the growing D1 collection. Its `revision` hashes that particular desired snapshot.
-The API's existing `revision` field identifies the stable bank collection; it is
-not a promise of a fixed seed count. No client protocol changes are required.
+Additional source files may follow the first. Missing or conflicting coordinates
+fail closed. The enriched publication preserves the bank ID and slots and must
+be the base for future extensions. Budget this operation like any other write.
 
-The database registers the latest upload plan. A stale or competing branch fails
-closed instead of replacing current assignments. Use one operator/uploader at a
-time; this is not a distributed job queue. Preserve the private publication
-chain. `publish-bank.mjs` remains for initial/local full snapshots; do not use a
-fresh independent snapshot as a daily replacement for the growing live bank.
+## Deployment Boundary
 
-Storage grows with new seeds, not daily copies of all existing seeds. Existing
-SQL import files are retained for offline use but are not the live update path.
-
-Keep all publication files under ignored `run/`. Never upload them as public
-assets, include them in a mod JAR, or commit them. No public bulk/admin route is
-provided. The anonymous 60/minute/IP limiter is not authentication or a strict
-account-wide cost cap. Worker observability and the uploader's Wrangler disk
-logging are disabled; never add seed/body logging when troubleshooting.
-
-The growth path passes 22 service tests, including fixed slot assignments,
-deduplication, partial availability, interrupted uploads, daily budget stops,
-extending unfinished plans, type-specific uploads, bounded batch sizes, family
-caps and stale-plan rejection. Live shipwreck
-requests also succeeded while the append test was running. These tests do not
-guarantee zero latency impact from database contention at higher traffic volumes.
-
-To redeploy only the seed service:
+Routine seed uploads need no Worker deployment, room-relay deployment or mod
+release. Only deploy when seed-service code or configuration changes:
 
 ```powershell
 node relay/node_modules/wrangler/bin/wrangler.js deploy --config seed-service/wrangler.production.jsonc
 ```
 
-Do not use the relay configuration for this account. Logging into a different
-Wrangler account does not change an already deployed relay.
+`publish-bank.mjs` and full `import.sql` loading are for initial/local snapshot
+setup, not routine replacement of production. See the [service guide](README.md)
+for local setup, API validation, selection rules and gameplay boundaries.
+
+The anonymous request limiter is abuse mitigation, not a global collection or
+billing cap. Do not enable response-body logging or publish seed SQL. Review
+access controls and account limits separately from upload budgeting.

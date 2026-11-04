@@ -86,6 +86,9 @@ node_modules/
 /output/wallpapers/
 /performance-probe/
 
+# Private operator journals and archived session notes
+/local-notes/
+
 # Python/editor caches and backup files
 __pycache__/
 *.py[cod]

@@ -82,20 +82,18 @@ updates. For production growth use `extend-bank.mjs` and `upload-bank.mjs` as
 described in [production operations](PRODUCTION.md). Daily cumulative snapshots
 are deduplicated against the previous plan; older live slots are never reassigned.
 
-The first local publication, `run/seed-service/publications/first-v5`, combines the
-completed main snapshot and the three benchmark banks: 51,126 seeds (9,158 temple,
-41,447 shipwreck, 521 village). It was taken before the extension's final export
-and does not include those extra results. Private outputs belong under ignored
-`run/`, not source control.
+Publication snapshots, live counts and upload receipts belong under ignored
+`run/` or `local-notes/`, not source control. Keep a private operator journal
+identifying the latest plan and reconcile it with production before each upload.
 
 ## Verification
 
-The initial local setup passed all 358 Gradle tests and all 9 service/publisher
-tests. A real local Wrangler/D1 smoke test served each profile, excluded the
-previous family, rejected a mismatched profile and returned 404 for a bulk-bank
-path. Seed values were not printed. The settings screen compiles, but still needs
-an in-game visual check. The smoke-test server was stopped afterward; use the
-local command above to start it for Minecraft testing.
+Run `node --test seed-service/test/*.test.mjs` from the repository root for the
+service/publisher tests. Use the local Wrangler setup above to exercise delivery
+for each populated profile, recent-family exclusions, request/profile validation,
+structure coordinates and unavailable-bank errors without changing production.
+Keep numeric seeds and response bodies out of public logs. Client-side checks
+are described in the [development guide](../docs/DEVELOPMENT.md).
 
 ## API And Selection
 
@@ -140,8 +138,8 @@ response; it is not an authentication credential.
 
 ## Deployment Boundary
 
-See [production operations](PRODUCTION.md) for the pinned account, staged import
-status, remaining activation steps and quota precautions. The existing room
+See [production operations](PRODUCTION.md) for the pinned configuration,
+resumable uploads, deployment boundaries and quota precautions. The existing room
 relay is not modified or redeployed by this feature. Always pass the explicit
 seed-service production configuration to remote Wrangler commands.
 

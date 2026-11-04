@@ -20,6 +20,23 @@ future-facing UI that do not yet have complete gameplay logic.
 - [Release process](../RELEASING.md): version tags and GitHub Releases.
 - [Relay deployment](../relay/README.md): deploying the Cloudflare Worker and
   Durable Object.
+- [Seed-service operations](../seed-service/PRODUCTION.md): private publication
+  plans, resumable uploads, structure metadata and quota precautions.
+
+## Performance And Filtering
+
+- [Recorder performance](RECORDER_PERFORMANCE.md): capture invariants, buffer
+  headroom, finalization and profiling tools.
+- [Viewer performance](VIEWER_PERFORMANCE_REVIEW.md): retained improvements,
+  experimental seeking, supplemental-track priorities and measurement limits.
+- [Filter optimization notes](FILTER_OPTIMIZATION_LOG.md): equivalent search
+  optimizations, policy tradeoffs and bounded benchmark tools.
+- [Overnight seed bank](OVERNIGHT_SEED_BANK.md): starting, resuming, monitoring
+  and validating private model-only searches.
+
+Keep dated operator journals, upload receipts and raw profiling artifacts in
+ignored `run/` or `local-notes/`. Public docs retain reusable procedures and
+qualified engineering findings, not machine-specific session logs.
 
 ## Design Proposals
 
