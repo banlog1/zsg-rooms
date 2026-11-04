@@ -2,7 +2,7 @@
 
 `mods.lock.json` describes the 24 third-party JARs used by the tested Rooms
 instance. The release builder adds the freshly built core and viewer for a
-26-mod installation. The diagnostic performance probe is deliberately absent.
+26-mod installation.
 
 Both release archives (`zsg-rooms-multimc.zip` and `.mrpack`) use the Modrinth
 pack format. MultiMC recognizes the manifest in either extension through

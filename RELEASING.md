@@ -56,7 +56,7 @@ reference JAR or the external recording-library directory.
 
 `stageRelease` checks artifact IDs, embedded versions, dependency boundaries,
 and license/source presence, then replaces `build/release` with the exact assets
-and `release-details.md`. It fails if the viewer has not been built at the selected
+and `release-installation.md` / `release-details.md`. It fails if the viewer has not been built at the selected
 version. Push CI exercises the same packaging check without publishing anything.
 Tag CI passes the tag version into the core build and staging task.
 
@@ -70,7 +70,8 @@ The new parser matches the exact core filename, but publishing two checksum
 files would still risk breaking old installations. Companion binary/source
 checksums are included in the generated release details instead.
 
-Release notes always append the generated download/compatibility instructions.
+Release notes start with the generated MultiMC instructions and copyable import
+URL, followed by the version's changes, then manual downloads and checksums.
 Players need only the core JAR for racing; custom playback needs the companion
 and separately installed ReplayMod. The `-sources.jar` is not an installable mod.
 
@@ -83,8 +84,8 @@ ZIP detects `modrinth.index.json` by content, not by the archive extension.
 
 `pack/mods.lock.json` pins the 24 third-party mod URLs, file sizes, SHA-1 and
 SHA-512 hashes. The two ZSG entries are generated from the built release JARs
-and point at this release's exact tag. No third-party binaries, local instance
-configuration or diagnostic probe are copied into the archives. Downloads go
+and point at this release's exact tag. No third-party binaries or local instance
+configuration are copied into the archives. Downloads go
 to the original project or pinned MCSR distribution catalog, with original
 JAR contents and notices preserved. Our existing viewer source JAR and tagged
 source/build scripts remain available in the same release.
@@ -112,9 +113,16 @@ older installed core updaters accept any checksum asset.
 ## Notes And Tags
 
 Write player-facing release notes in `docs/releases/<version>.md` before tagging.
+Keep this file focused on changes and player-relevant limitations; the workflow
+adds installation instructions first, so do not repeat them or lead with a
+clickable ZIP download. Leave local diagnostics, cleanup notes, unpublished
+experiments and backend deployment reminders out of player-facing notes.
+Keep unrelated projects and generated artifacts out of commits; stage explicit
+paths and review the staged file list before pushing.
 For a stable release after experimental builds, cover all changes since the last
 stable release, including the experimental builds' additions and any limitations.
-The workflow publishes that file when present, otherwise it generates GitHub notes.
+The workflow inserts that file between installation and manual-download details
+when present, otherwise it generates GitHub notes for the changes section.
 
 Experimental versions use a prerelease suffix and are marked as GitHub
 prereleases automatically:

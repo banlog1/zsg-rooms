@@ -83,9 +83,8 @@ https://github.com/banlog1/zsg-rooms/releases/latest/download/zsg-rooms-multimc.
    settings, and launch. Open **ZSG Rooms** from the title screen.
 
 The pack pins Minecraft 1.16.1, Fabric 0.19.3 and the full 26-mod racing/replay
-suite, including ReplayMod. Downloads are hash-checked. No diagnostic probe,
-worlds, recordings, private settings or launch commands are included. Internet
-access and your own Minecraft account are required. The `.mrpack` release asset
+suite, including ReplayMod. Downloads are hash-checked. Internet access and
+your own Minecraft account are required. The `.mrpack` release asset
 contains the same pack for other compatible launchers. The optional gallery
 resource pack remains a separate download.
 

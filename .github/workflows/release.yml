@@ -53,11 +53,13 @@ jobs:
             RELEASE_FLAGS+=(--prerelease)
           fi
           NOTES="build/release/notes.md"
+          cp build/release/release-installation.md "$NOTES"
+          printf '\n' >> "$NOTES"
           if [[ -f "docs/releases/$VERSION.md" ]]; then
-            cp "docs/releases/$VERSION.md" "$NOTES"
+            cat "docs/releases/$VERSION.md" >> "$NOTES"
           else
             gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
-              -f tag_name="$GITHUB_REF_NAME" --jq '.body' > "$NOTES"
+              -f tag_name="$GITHUB_REF_NAME" --jq '.body' >> "$NOTES"
           fi
           printf '\n\n' >> "$NOTES"
           cat build/release/release-details.md >> "$NOTES"

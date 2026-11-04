@@ -60,7 +60,7 @@ export function createIndex(lock, core, viewer) {
   assert.equal(new Set(files.map(file => file.path.toLowerCase())).size, files.length, 'Duplicate mod filename');
   return {
     formatVersion: 1, game: 'minecraft', versionId: core.version, name: 'ZSG Rooms',
-    summary: 'ZSG Rooms racing and replay suite. No experimental performance probe.',
+    summary: 'ZSG Rooms racing and replay suite.',
     files, dependencies: { minecraft: lock.minecraft, 'fabric-loader': lock.fabricLoader },
   };
 }

@@ -115,31 +115,34 @@ tasks.register('stageRelease', Sync) {
         File output = destination.get().asFile
         // Older installed updaters accept any .sha256 asset. Publish exactly one, for the core.
         new File(output, coreJar.name + '.sha256').setText("${hash(coreJar)}  ${coreJar.name}\n", 'UTF-8')
-        new File(output, 'release-details.md').setText("""## Easy Install (MultiMC)
+        new File(output, 'release-installation.md').setText("""## Install With MultiMC
 
-1. Open **MultiMC > Add Instance > Import from ZIP**.
-2. Paste this release's link and select **OK**:
+1. In MultiMC, select **Add Instance > Import from ZIP**.
+2. Copy the URL below into the import box, then select **OK**. There is no need to download or extract the ZIP yourself.
 
 ```text
 https://github.com/banlog1/zsg-rooms/releases/download/v${project.version}/zsg-rooms-multimc.zip
 ```
 
-3. Wait for the pinned mods to download. Select **Java 17** in the instance's Java settings, then launch and open **ZSG Rooms** from the title screen.
+3. Wait for installation to finish, select **Java 17** in the instance's Java settings, and launch. Open **ZSG Rooms** from the title screen.
 
-The ZIP uses MultiMC's supported Modrinth-pack format. It installs Minecraft 1.16.1, Fabric Loader 0.19.3 and 26 mods, including Rooms, Replay Viewer and ReplayMod. Downloads are hash-checked. The experimental performance probe, worlds, recordings, personal configuration and launch commands are excluded. Internet access and your own Minecraft account are required. Use a current MultiMC version with Modrinth-pack support; the identical **zsg-rooms-multimc.mrpack** is available for other compatible launchers.
+Use a current MultiMC version with Modrinth-pack support. The import installs Minecraft 1.16.1, Fabric Loader 0.19.3 and the 26-mod racing/replay suite, including Rooms, Replay Viewer, ReplayMod and SpeedRunIGT. Internet access and your own Minecraft account are required.
 
-Recording stays **off** until enabled under **Settings > Recording**. ReplayMod automatic recording is already disabled in the pack. This is a Rooms/practice suite, not a certified leaderboard-legal pack. Import creates a new instance; existing users can update the two ZSG mods in place. Third-party versions remain pinned, and our updater does not update the entire pack.
+Recording is optional: enable it under **Settings > Recording**. ReplayMod automatic recording is already disabled to avoid recording twice. This is a Rooms/practice suite, not a certified leaderboard-legal pack.
+""", 'UTF-8')
+        new File(output, 'release-details.md').setText("""## Manual Downloads
 
-## Individual Downloads
+Already using Rooms? The in-game updater updates Rooms and an already-installed Replay Viewer. It does not update ReplayMod or the other mods in the pack.
 
 - **${coreJar.name}**: the main mod. ReplayMod is not required for racing or recording.
 - **${viewerJar.name}**: optional playback controls. Install alongside [ReplayMod **1.16.1-2.6.27**](https://www.replaymod.com/download/), on Minecraft 1.16.1 with Fabric Loader 0.19.3+.
 - **${viewerSources.name}**: viewer source, not an installable mod. GPL-3.0-or-later; the core remains CC0-1.0. Full build scripts are in the tagged source archive.
 - **zsg-rooms-filter-gallery.zip**: optional picker and loading artwork. Put it in `resourcepacks` and enable it in Minecraft, not in `mods`. The images are not bundled in either mod.
+- **zsg-rooms-multimc.mrpack**: the same installation pack for other compatible launchers.
 
-Enable recording under **Settings > Recording**. If ReplayMod is installed, disable its Record Singleplayer, Record Server, and Automatic Recording options first. SpeedRunIGT is needed during recording for RTA/IGT data. Player switching currently uses manually shared files.
+For manual installs, disable ReplayMod's Record Singleplayer, Record Server, and Automatic Recording options before enabling ZSG recording. SpeedRunIGT is needed during recording for RTA/IGT data.
 
-The in-game updater updates ZSG Rooms and an already-installed Replay Viewer. Install the viewer manually the first time; ReplayMod and resource packs remain manual updates. Updaters through ZSG Rooms 1.0.28 update only the core. [Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
+[Replay setup and controls](https://github.com/banlog1/zsg-rooms/blob/v${project.version}/replay-viewer/README.md).
 
 <details>
 <summary>Optional Download SHA-256</summary>

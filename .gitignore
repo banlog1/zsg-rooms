@@ -84,6 +84,7 @@ node_modules/
 /farmer-preview-godot/
 /lab3-completed/
 /output/wallpapers/
+/performance-probe/
 
 # Python/editor caches and backup files
 __pycache__/
