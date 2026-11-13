@@ -254,6 +254,10 @@ public class ZsgRooms implements ModInitializer {
 			changeRoomRules(roomName, playerName, value);
 			return;
 		}
+		if ("capacity".equals(action)) {
+			changeRoomCapacity(roomName, playerName, value);
+			return;
+		}
 		if ("leave_room".equals(action)) {
 			removeRoomPlayer(roomName, playerName);
 			return;
@@ -340,6 +344,14 @@ public class ZsgRooms implements ModInitializer {
 
 	public static String completionReason(String value) {
 		return zsgrooms.modid.net.RaceFinishArbiter.reason(value);
+	}
+
+	public static boolean changeRoomCapacity(String roomName, String playerName, String value) {
+		if (roomName == null) return false;
+		Room room = ACTIVE_ROOMS.get(roomName);
+		InGame game = ACTIVE_GAMES.get(roomName);
+		if (!RoomRuleSettings.canEdit(room, game, playerName) || game.tournamentLocked()) return false;
+		return room.setCapacity(Room.parseCapacity(value));
 	}
 
 	public static boolean changeRoomRules(String roomName, String playerName, String value) {

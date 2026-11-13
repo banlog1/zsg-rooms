@@ -64,7 +64,7 @@ test('minimal defaults avoid duplicate recording and never export personal setti
   const defaults = packDefaults();
   assert.deepEqual(Object.keys(defaults).sort(), [
     'overrides/ZSG-ROOMS-SETUP.txt', 'overrides/config/replaymod.json',
-    'overrides/config/zsg-rooms-replay.properties',
+    'overrides/config/zsg-rooms-replay.properties', 'overrides/options.txt',
   ]);
   assert.deepEqual(JSON.parse(defaults['overrides/config/replaymod.json']), { recording: {
     recordSingleplayer: false, recordServer: false, autoStartRecording: false,
@@ -72,4 +72,11 @@ test('minimal defaults avoid duplicate recording and never export personal setti
   assert.match(defaults['overrides/config/zsg-rooms-replay.properties'], /\nenabled=false\n/);
   assert.match(defaults['overrides/config/zsg-rooms-replay.properties'], /replayModRecordingDisabled=true/);
   assert(!JSON.stringify(defaults).includes('C:\\'));
+  assert.match(defaults['overrides/ZSG-ROOMS-SETUP.txt'], /Java 17 is recommended/);
+});
+
+test('fresh installs mute only music without overriding other game options', () => {
+  const defaults = packDefaults();
+  assert.equal(defaults['overrides/options.txt'], 'soundCategory_music:0.0\n');
+  assert.match(defaults['overrides/ZSG-ROOMS-SETUP.txt'], /Music starts at 0%/);
 });

@@ -44,6 +44,17 @@ public class RoomSettingsScreen extends Screen {
         this.parent = parent;
     }
 
+    RoomSettingsScreen(Screen parent, Page page, int firstRow) {
+        this(parent);
+        this.page = page;
+        offsets.put(page, firstRow);
+    }
+
+    AbstractButtonWidget tutorialRow(String label) {
+        for (Row row : rows) if (row.label.equals(label) && row.widget != null) return row.widget;
+        throw new IllegalArgumentException("Tutorial row is not visible: " + label);
+    }
+
     @Override protected void init() {
         menu.clear(); draggingScroll = false;
         layout = new PersonalSettingsLayout(width, height);
@@ -82,8 +93,18 @@ public class RoomSettingsScreen extends Screen {
     private void populate() {
         switch (page) {
             case GENERAL:
+                command("Import settings", "Import compatible settings or save named setups in the Saved Settings tab, with preview and backup. Imports and restores require closing Minecraft completely and relaunching; returning to title is not enough.",
+                        "Import...", () -> client.openScreen(new SettingsImportScreen(this)))
+                        .available = () -> client.world == null ? recordingConfigReason() : "Return to the title screen before importing settings.";
                 toggle("Update checks", "Checks for Rooms and optional viewer updates. Local preference; does not change room rules.",
                         UpdatePreferences::areChecksEnabled, UpdatePreferences::setChecksEnabled);
+                command("Guided tutorial", "Choose the quick introduction or full tour. Practice with highlighted controls without changing settings or connecting to a room.",
+                        "Open tutorial", () -> TutorialOnboarding.open(this))
+                        .available = () -> client.world == null ? "" : "Return to the title screen before starting the tutorial.";
+                command("Room connection", "Use the default room service or choose a custom relay. Everyone joining a custom room needs the same relay. Includes a deployment guide.",
+                        "Configure...", () -> client.openScreen(new RelaySettingsScreen(this,
+                                zsgrooms.modid.net.RoomWebSocketTransport.getRelayUrl(), ignored -> {})))
+                        .available = () -> zsgrooms.modid.ZsgRooms.getActiveRoom() == null ? "" : "Leave your room before changing the relay.";
                 break;
             case HUD:
                 toggle("Show match HUD", "Shows the race overlay on your screen only.", () -> hud.visible, v -> hud.visible = v);

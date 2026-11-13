@@ -17,6 +17,9 @@ public class RoomMenuScreen extends Screen {
         this.parent = parent;
     }
 
+    ButtonWidget tutorialSettingsButton() { return settingsButton; }
+    ButtonWidget tutorialHistoryButton() { return historyButton; }
+
     @Override
     protected void init() {
         int centerX = this.width / 2;
@@ -26,11 +29,11 @@ public class RoomMenuScreen extends Screen {
         int panelX = (this.width - panelWidth) / 2;
 
         this.addButton(new ButtonWidget(centerX - buttonWidth / 2, startY, buttonWidth, 20, new LiteralText("Create Room"), button -> {
-            this.client.openScreen(new RoomSetupScreen(this, true));
+            this.client.openScreen(new RoomEntryScreen(this, true));
         }));
 
         this.addButton(new ButtonWidget(centerX - buttonWidth / 2, startY + 28, buttonWidth, 20, new LiteralText("Join Room"), button -> {
-            this.client.openScreen(new RoomSetupScreen(this, false));
+            this.client.openScreen(new RoomEntryScreen(this, false));
         }));
 
         this.historyButton = new ButtonWidget(panelX + 16, startY + 56, 24, 20, new LiteralText(""), button -> {

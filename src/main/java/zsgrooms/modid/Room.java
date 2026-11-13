@@ -69,6 +69,31 @@ public class Room {
         return countPlayers();
     }
 
+    public static int parseCapacity(String value) {
+        if (value == null || !value.matches("[0-9]{1,2}")) {
+            return -1;
+        }
+        int capacity = Integer.parseInt(value);
+        return capacity >= 2 && capacity <= 64 ? capacity : -1;
+    }
+
+    public boolean setCapacity(int capacity) {
+        if (capacity < 2 || capacity > 64 || capacity < countPlayers() || capacity == maxPlayers) {
+            return false;
+        }
+        // Departures leave holes; copy the roster in order rather than truncating occupied slots.
+        Player[] resized = new Player[capacity];
+        int index = 0;
+        for (Player player : players) {
+            if (player != null) {
+                resized[index++] = player;
+            }
+        }
+        this.players = resized;
+        this.maxPlayers = capacity;
+        return true;
+    }
+
     public List<String> getPlayerNames() {
         List<String> names = new ArrayList<String>();
         for (Player player : players) {

@@ -38,7 +38,9 @@ public class SimpleWebSocketClient {
     private final Listener listener;
     private final SecureRandom random;
     private final AtomicBoolean closeNotified;
-    private Socket socket;
+    private final Object socketLifecycle = new Object();
+    private volatile Socket socket;
+    private volatile boolean closed;
     private InputStream input;
     private OutputStream output;
     private volatile boolean running;
@@ -66,34 +68,55 @@ public class SimpleWebSocketClient {
         int port = this.uri.getPort() > 0 ? this.uri.getPort() : (secure ? 443 : 80);
 
         Socket tcpSocket = new Socket();
-        tcpSocket.connect(new InetSocketAddress(host, port), timeoutMillis);
-        tcpSocket.setTcpNoDelay(true);
-        tcpSocket.setKeepAlive(true);
-        tcpSocket.setSoTimeout(timeoutMillis);
+        installSocket(tcpSocket);
+        try {
+            tcpSocket.connect(new InetSocketAddress(host, port), timeoutMillis);
+            tcpSocket.setTcpNoDelay(true);
+            tcpSocket.setKeepAlive(true);
+            tcpSocket.setSoTimeout(timeoutMillis);
 
-        if (secure) {
-            SSLSocketFactory sslFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-            SSLSocket sslSocket = (SSLSocket) sslFactory.createSocket(tcpSocket, host, port, true);
-            SSLParameters parameters = sslSocket.getSSLParameters();
-            parameters.setEndpointIdentificationAlgorithm("HTTPS");
-            sslSocket.setSSLParameters(parameters);
-            sslSocket.startHandshake();
-            this.socket = sslSocket;
-        } else {
-            this.socket = tcpSocket;
+            if (secure) {
+                SSLSocketFactory sslFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+                SSLSocket sslSocket = (SSLSocket) sslFactory.createSocket(tcpSocket, host, port, true);
+                installSocket(sslSocket);
+                SSLParameters parameters = sslSocket.getSSLParameters();
+                parameters.setEndpointIdentificationAlgorithm("HTTPS");
+                sslSocket.setSSLParameters(parameters);
+                sslSocket.startHandshake();
+            }
+
+            this.input = this.socket.getInputStream();
+            this.output = this.socket.getOutputStream();
+            performUpgrade(host, port, secure);
+            this.socket.setSoTimeout(0);
+            synchronized (socketLifecycle) {
+                if (closed) throw new IOException("Connection cancelled");
+                this.running = true;
+            }
+            this.lastPongNanos = System.nanoTime();
+
+            Thread reader = new Thread(this::readLoop, "ZSG Room WebSocket");
+            reader.setDaemon(true);
+            reader.start();
+            startHeartbeat();
+        } catch (IOException | RuntimeException error) {
+            abort();
+            throw error;
         }
+    }
 
-        this.input = this.socket.getInputStream();
-        this.output = this.socket.getOutputStream();
-        performUpgrade(host, port, secure);
-        this.socket.setSoTimeout(0);
-        this.running = true;
-        this.lastPongNanos = System.nanoTime();
+    private void installSocket(Socket next) throws IOException {
+        synchronized (socketLifecycle) {
+            if (closed) { next.close(); throw new IOException("Connection cancelled"); }
+            socket = next;
+        }
+    }
 
-        Thread reader = new Thread(this::readLoop, "ZSG Room WebSocket");
-        reader.setDaemon(true);
-        reader.start();
-        startHeartbeat();
+    /** Cancellation must close an in-progress TCP/TLS handshake without sending a frame. */
+    public void abort() {
+        synchronized (socketLifecycle) { closed = true; running = false; }
+        closeSocket();
+        notifyClosed("Connection closed");
     }
 
     public boolean isOpen() {
@@ -108,6 +131,7 @@ public class SimpleWebSocketClient {
     }
 
     public void close() {
+        synchronized (socketLifecycle) { this.closed = true; }
         boolean wasRunning = this.running;
         this.running = false;
         if (wasRunning) {

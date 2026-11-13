@@ -15,6 +15,9 @@
 	"icon": "assets/zsg-rooms/icon.png",
 	"environment": "*",
 	"entrypoints": {
+		"preLaunch": [
+			"zsgrooms.modid.settings.SettingsImportStartup"
+		],
 		"main": [
 			"zsgrooms.modid.ZsgRooms"
 		],

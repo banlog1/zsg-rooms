@@ -1,5 +1,6 @@
 package zsgrooms.modid.ui;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -22,6 +23,7 @@ import java.util.List;
 public class RoomLobbyScreen extends Screen {
     private final Screen parent;
     private final String roomName;
+    private final Room tutorialRoom;
     private TextFieldWidget chatField;
     private ButtonWidget optionsButton;
     private ButtonWidget startButton;
@@ -33,11 +35,35 @@ public class RoomLobbyScreen extends Screen {
     private String muteButtonPlayerSignature = "";
 
     public RoomLobbyScreen(Screen parent, String roomName) {
+        this(parent, roomName, null);
+    }
+
+    private RoomLobbyScreen(Screen parent, String roomName, Room tutorialRoom) {
         super(new LiteralText("Room Lobby"));
         this.parent = parent;
         this.roomName = roomName;
+        this.tutorialRoom = tutorialRoom;
         this.chatScrollOffset = 0;
         this.roomCodeVisible = false;
+    }
+
+    static RoomLobbyScreen forTutorial(Screen parent) {
+        String localName = ZsgRoomsClient.localPlayerName(MinecraftClient.getInstance());
+        Room room = new Room("Tutorial room", "123|structure:rooms-mix", new Player(localName, true, true), 2);
+        room.addPlayer(new Player("Your friend", true, false));
+        return new RoomLobbyScreen(parent, room.roomName, room);
+    }
+
+    private Room room() {
+        return this.tutorialRoom != null ? this.tutorialRoom : ZsgRooms.getRoom(this.roomName);
+    }
+
+    private zsgrooms.modid.InGame game() {
+        return this.tutorialRoom != null ? null : ZsgRooms.getGame(this.roomName);
+    }
+
+    private String localPlayerName() {
+        return this.tutorialRoom != null ? this.tutorialRoom.host.getName() : ZsgRoomsClient.localPlayerName(this.client);
     }
 
     @Override
@@ -53,12 +79,14 @@ public class RoomLobbyScreen extends Screen {
         int visibilityWidth = 46;
         int visibilityX = copyX - visibilityWidth - 4;
         this.copyCodeButton = new ButtonWidget(copyX, compact ? 16 : 11, copyWidth, 20, new LiteralText("Copy"), button -> {
+            if (this.tutorialRoom != null) return;
             this.client.keyboard.setClipboard(this.roomName);
             button.setMessage(new LiteralText("Copied"));
         });
         this.addButton(this.copyCodeButton);
         this.codeVisibilityButton = new ButtonWidget(visibilityX, compact ? 16 : 11, visibilityWidth, 20,
                 codeVisibilityText(), button -> {
+            if (this.tutorialRoom != null) return;
             this.roomCodeVisible = !this.roomCodeVisible;
             button.setMessage(codeVisibilityText());
         });
@@ -88,7 +116,7 @@ public class RoomLobbyScreen extends Screen {
             this.standingsButton = addLobbyButton(this.width - 116, bottomY, 100, "Share Seed", "share");
         }
         updateHostControls();
-        Room room = ZsgRooms.getRoom(this.roomName);
+        Room room = room();
         addMuteButtons(room);
         this.muteButtonPlayerSignature = playerSignature(room);
     }
@@ -96,7 +124,7 @@ public class RoomLobbyScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        Room room = ZsgRooms.getRoom(this.roomName);
+        Room room = room();
         if (!this.muteButtonPlayerSignature.equals(playerSignature(room))) {
             this.init(this.client, this.width, this.height);
             return;
@@ -110,6 +138,7 @@ public class RoomLobbyScreen extends Screen {
 
     @Override
     public boolean charTyped(char chr, int keyCode) {
+        if (this.tutorialRoom != null) return true;
         if (this.chatField != null && this.chatField.isFocused() && this.chatField.charTyped(chr, keyCode)) {
             return true;
         }
@@ -118,6 +147,7 @@ public class RoomLobbyScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (this.tutorialRoom != null) return true;
         if (this.chatField != null) {
             boolean clickedChat = this.chatField.mouseClicked(mouseX, mouseY, button);
             this.chatField.setSelected(clickedChat);
@@ -130,8 +160,9 @@ public class RoomLobbyScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        if (this.tutorialRoom != null) return true;
         if (isMouseOverChat(mouseX, mouseY)) {
-            Room room = ZsgRooms.getRoom(this.roomName);
+            Room room = room();
             int maxOffset = maxChatScrollOffset(room);
             if (amount > 0.0D) {
                 this.chatScrollOffset = Math.min(maxOffset, this.chatScrollOffset + 1);
@@ -145,6 +176,7 @@ public class RoomLobbyScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.tutorialRoom != null) return true;
         if (this.chatField != null && this.chatField.isFocused()) {
             if (keyCode == 257 || keyCode == 335) {
                 sendChatMessage();
@@ -169,7 +201,7 @@ public class RoomLobbyScreen extends Screen {
         fill(matrices, 0, top, this.width, playerPanelBottom, 0xB8060606);
         fill(matrices, 0, playerPanelBottom, this.width, playerPanelBottom + 1, 0xFF000000);
 
-        Room room = ZsgRooms.getRoom(this.roomName);
+        Room room = room();
         if (room != null) {
             String seed = room.getSeed();
             int detailsHeight = isCompact() ? 18 : 44;
@@ -199,7 +231,8 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private void drawSocketStatus(MatrixStack matrices) {
-        String status = RoomSocketTransport.isHosting() || RoomSocketTransport.isConnected()
+        String status = this.tutorialRoom != null ? "Tutorial room - no connection"
+                : RoomSocketTransport.isHosting() || RoomSocketTransport.isConnected()
                 ? RoomSocketTransport.getStatus()
                 : RoomWebSocketTransport.getStatus();
         if (status == null || status.isEmpty()) {
@@ -226,7 +259,7 @@ public class RoomLobbyScreen extends Screen {
 
     private void drawPlayerRows(MatrixStack matrices, Room room, int startY, int maxY) {
         List<String> names = room.getPlayerNames();
-        String localName = ZsgRoomsClient.localPlayerName(this.client);
+        String localName = localPlayerName();
         boolean compact = isCompact();
         int columns = this.width >= 480 ? 2 : 1;
         int outerMargin = compact ? 12 : 24;
@@ -278,7 +311,7 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private String runnerStatus(String name, boolean host) {
-        zsgrooms.modid.InGame game = ZsgRooms.getGame(roomName);
+        zsgrooms.modid.InGame game = game();
         zsgrooms.modid.RaceSequence race = game == null ? null : game.getSequence();
         zsgrooms.modid.RaceSequence.Runner runner = race == null ? null : race.runner(name);
         if (runner == null) return game != null && game.getTournament() != null ? "Waiting - Tournament" : host ? "Host - Ready" : "Ready";
@@ -302,7 +335,8 @@ public class RoomLobbyScreen extends Screen {
         int panelW = Math.min(380, this.width - 40);
         fill(matrices, panelX, y, panelX + panelW, y + (aa ? 64 : 40), 0x66000000);
         drawCenteredString(matrices, this.textRenderer, trimToWidth(filter, panelW - 16), this.width / 2, y + 6, 0x88CCFF);
-        String seedStatus = RoomWebSocketTransport.isHosting() || RoomSocketTransport.isHosting()
+        String seedStatus = this.tutorialRoom != null ? "Seed Source: Tutorial demo"
+                : RoomWebSocketTransport.isHosting() || RoomSocketTransport.isHosting()
                 ? HostSeedPrefetchManager.getInstance().getStatus()
                 : "Seed Source: " + ZsgSeedBridge.getLastSeedSource();
         drawCenteredString(matrices, this.textRenderer, trimToWidth(seedStatus, panelW - 16), this.width / 2, y + 21, 0x88FF88);
@@ -318,7 +352,7 @@ public class RoomLobbyScreen extends Screen {
         int chatTop = top + 1;
         int chatBottom = chatBottom();
         fill(matrices, 0, chatTop, this.width, footerTop(), 0x88000000);
-        zsgrooms.modid.InGame game = ZsgRooms.getGame(this.roomName);
+        zsgrooms.modid.InGame game = game();
         String raceStatus = game != null && game.getTournament() != null ? game.getTournament().status()
                 : game != null && game.getIsInGame() ? "Race in progress" : "Waiting for host to start...";
         drawCenteredString(matrices, this.textRenderer, trimToWidth(raceStatus, width - 20), this.width / 2, chatTop + 7, 0xFFFFFF);
@@ -351,6 +385,7 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private void sendChatMessage() {
+        if (this.tutorialRoom != null) return;
         String message = this.chatField.getText().trim();
         if (!message.isEmpty()) {
             ZsgRoomsClient.sendRoomAction("chat", this.roomName, message);
@@ -377,7 +412,7 @@ public class RoomLobbyScreen extends Screen {
         }
 
         List<String> names = room.getPlayerNames();
-        String localName = ZsgRoomsClient.localPlayerName(this.client);
+        String localName = localPlayerName();
         boolean compact = isCompact();
         int columns = this.width >= 480 ? 2 : 1;
         int outerMargin = compact ? 12 : 24;
@@ -409,10 +444,11 @@ public class RoomLobbyScreen extends Screen {
                     buttonHeight,
                     muteButtonText(playerName),
                     button -> {
+                        if (this.tutorialRoom != null) return;
                         RoomMuteManager.toggle(this.roomName, playerName);
                         button.setMessage(muteButtonText(playerName));
                         this.chatScrollOffset = Math.min(this.chatScrollOffset,
-                                maxChatScrollOffset(ZsgRooms.getRoom(this.roomName)));
+                                maxChatScrollOffset(room()));
                     });
             this.addButton(muteButton);
         }
@@ -424,7 +460,7 @@ public class RoomLobbyScreen extends Screen {
             return visible;
         }
         for (String message : room.getRoomMessages()) {
-            if (!RoomMuteManager.shouldHideRoomMessage(this.roomName, message)) {
+            if (this.tutorialRoom != null || !RoomMuteManager.shouldHideRoomMessage(this.roomName, message)) {
                 visible.add(message);
             }
         }
@@ -436,11 +472,12 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private LiteralText muteButtonText(String playerName) {
-        return new LiteralText(RoomMuteManager.isMuted(this.roomName, playerName) ? "Unmute" : "Mute");
+        return new LiteralText(this.tutorialRoom == null && RoomMuteManager.isMuted(this.roomName, playerName) ? "Unmute" : "Mute");
     }
 
     private ButtonWidget addLobbyButton(int x, int y, int width, String label, String action) {
         ButtonWidget widget = new ButtonWidget(x, y, width, 20, new LiteralText(label), button -> {
+            if (this.tutorialRoom != null) return;
             if ("leave".equals(action)) {
                 ZsgRoomsClient.sendRoomAction("leave_room", this.roomName, "");
                 RoomWebSocketTransport.stop();
@@ -455,7 +492,7 @@ public class RoomLobbyScreen extends Screen {
             } else if ("start".equals(action)) {
                 ZsgRoomsClient.sendRoomAction("start", this.roomName, "");
             } else if ("share".equals(action)) {
-                zsgrooms.modid.InGame game = ZsgRooms.getGame(this.roomName);
+                zsgrooms.modid.InGame game = game();
                 if (game != null && game.getTournament() != null) this.client.openScreen(new TournamentStandingsScreen(this, this.roomName, null));
                 else if (game != null && game.getTournamentSettings().enabled) this.client.openScreen(new TournamentScreen(this, this.roomName));
                 else if (game != null && game.getSequence() != null) this.client.openScreen(new RaceStandingsScreen(this, this.roomName));
@@ -467,10 +504,10 @@ public class RoomLobbyScreen extends Screen {
     }
 
     private void updateHostControls() {
-        Room room = ZsgRooms.getRoom(this.roomName);
-        String localName = ZsgRoomsClient.localPlayerName(this.client);
+        Room room = room();
+        String localName = localPlayerName();
         boolean isHost = room != null && room.host != null && localName.equals(room.host.getName());
-        zsgrooms.modid.InGame game = ZsgRooms.getGame(this.roomName);
+        zsgrooms.modid.InGame game = game();
         boolean racing = game != null && game.getIsInGame();
         if (this.optionsButton != null) {
             this.optionsButton.active = isHost && !racing;

@@ -67,6 +67,7 @@ export function createIndex(lock, core, viewer) {
 
 export function packDefaults() {
   return {
+    'overrides/options.txt': 'soundCategory_music:0.0\n',
     'overrides/config/replaymod.json': JSON.stringify({ recording: {
       recordSingleplayer: false, recordServer: false, autoStartRecording: false,
     } }, null, 2) + '\n',
@@ -74,9 +75,10 @@ export function packDefaults() {
       '# Clean pack defaults; recording remains opt-in.\nenabled=false\nreplayModRecordingDisabled=true\n',
     'overrides/ZSG-ROOMS-SETUP.txt':
       'ZSG Rooms\n\nOpen ZSG Rooms from the Minecraft title screen to create or join a room.\n'
+      + 'Music starts at 0%; change it in Options > Music & Sounds. Other sound volumes keep their defaults.\n'
       + 'Recording is optional: Settings > Recording > Record Local Worlds. Wait for library setup before entering a world.\n'
       + 'ReplayMod automatic recording is disabled to avoid recording twice.\n'
-      + 'Use Java 17 in the launcher. This pack does not override Java paths, memory, keybinds or launch commands.\n'
+      + 'Java 17 is recommended in the launcher. This pack does not override Java paths, memory, keybinds or launch commands.\n'
       + 'Optional picker/loading artwork: download zsg-rooms-filter-gallery.zip from the release, put it in resourcepacks and enable it.\n'
       + 'This is a Rooms/practice pack, not a certified leaderboard-legal speedrunning pack.\n'
       + `Setup and sources: ${repository}\n`,

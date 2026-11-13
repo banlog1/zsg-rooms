@@ -36,6 +36,7 @@ public class ZsgRoomsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         zsgrooms.modid.replay.ReplayPrototype.initialize();
+        zsgrooms.modid.ui.TutorialOnboarding.initialize();
         ClientSidePacketRegistry.INSTANCE.register(ZsgRoomNetworking.ROOM_ACTION, (context, buffer) -> {
             String action = buffer.readString(64);
             String roomName = buffer.readString(64);

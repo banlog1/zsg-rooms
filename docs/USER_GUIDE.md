@@ -25,16 +25,100 @@ contains:
 - `Join Room`: connect to an existing room.
 - Gear button: choose HUD position, ruined-portal repair, update checks, and seed debug logging.
 
-## Create Room Fields
+## Guided Tutorial
+
+On the first launch with tutorial support, choose **No**, **A quick one**, or
+**Yes, full**. The choice is remembered for this instance. The quick tour covers
+personal settings, creating/joining rooms, sharing a code, and room settings.
+The full tour adds filters, rules, race formats, tournaments, recording and replays.
+
+Try the highlighted category, rule preset, recording detail or camera menu to see
+the available choices and an explanation of the selected option. Recording and
+seed-retention checkboxes can also be tried. These practice selections stay within
+the tour; use **Next** when you are ready to continue. Other highlighted controls
+advance to their next step. **Back** revisits a step; the close button or Escape
+leaves the tour (Escape closes an open choice menu first). This practice view never
+connects to a room, starts a race, copies a real code, or changes your settings.
+Reopen either tour through **ZSG Rooms > Settings > General > Guided tutorial**
+while outside a world. Its choice is stored in `config/zsg-rooms-tutorial.properties`.
+
+## Importing Settings
+
+Use the small import-arrow button beside **ZSG Rooms** on the Minecraft title
+screen (hover for **Import or save settings**), or go to
+**ZSG Rooms > Settings > General > Import settings**. Importing is available
+outside a world. Choose a nearby MultiMC/Prism instance or browse to an instance
+folder (its `.minecraft` or `minecraft` folder also works).
+
+The instance list shows saved MultiMC/Prism display names and Minecraft versions
+when available. The launcher label is shown when its local config identifies it;
+missing or ambiguous metadata is marked unknown. Hover a row to see the full
+name, version and folder path, including when two instances share a name. The
+selected instance stays identified during category selection and review.
+
+The **Saved Settings** tab stores named snapshots of the same supported Minecraft
+and StandardSettings options. **Save Current** first saves live Minecraft options;
+the snapshot also captures saved StandardSettings overrides, including disabled
+and world-join values. It is not a full backup of every mod's configuration.
+Snapshots are individual JSON files under
+`config/zsg-rooms-import/snapshots`, with names and saved dates in the list.
+Open a snapshot to rename, export, delete, or **Review Restore**. **Import File**
+adds an exported snapshot to the list without applying it. Restore uses the same
+category preview, restart requirement, shared-settings confirmation, and undo
+backup as an instance import. Saving or deleting snapshots does not replace the
+automatic undo backup. Existing snapshots are never overwritten just because
+their names match.
+
+Select the categories to copy, then review the individual changes and skipped
+options. The importer supports compatible Minecraft controls, mouse, video,
+audio, chat/accessibility, language and appearance settings. Installed mods'
+registered keybinds are included. Known compatible settings can be imported
+from other Minecraft versions; unsupported values, old numeric key codes and
+unknown settings are skipped, not guessed.
+
+When StandardSettings is installed here, its supported JSON settings are
+included in the corresponding categories. Enabled/disabled states and separate
+world-generation/world-join values are preserved. Existing enabled reset
+overrides are also updated when necessary so they do not undo an imported
+Minecraft setting. Legacy `standardoptions.txt`, other mod-specific configuration
+files, accounts, worlds, mod JARs, resource packs, launcher/JVM settings and
+replay paths are not copied.
+
+**Import on Next Launch** stages the changes; it does not alter live settings.
+**Close the Minecraft instance completely and relaunch it from your launcher.**
+Returning to the title screen, rejoining a world or reloading resources is not
+enough. The confirmation screen offers **Close Minecraft**, **Later**, and
+**Cancel Pending Changes**. Close the source instance before previewing if you
+want its latest saved settings.
+
+Imports read shared StandardSettings files without modifying them. If this
+instance uses a shared file, importing StandardSettings requires confirmation
+to switch this instance to a local copy. Other instances are unaffected.
+Relative shared-file pointers must first be changed to absolute paths.
+
+A backup is saved in `config/zsg-rooms-import` before changes are applied on
+launch. **Undo Last Import** stages restoration for the next launch, including
+any previous shared-file link. Undo restores the backed-up files in full, so
+settings changed after the import are also reverted. Only the most recent
+completed import can be undone. The importer reports its last result when
+opened again and recovers interrupted imports from the backup.
+
+## Creating a Room
+
+`Create Room` connects immediately and opens your lobby; it does not start a
+race. The connection can be cancelled. New rooms use **ZSG Rooms Mode**,
+**Standard ZSG Rooms** rules with cheats off, **1 seed**, **1 finisher**,
+**10 player places**, and tournaments off. Share the code with friends, then
+change settings from the lobby before selecting `Start Race`.
+
+The host can change these in lobby `Options` and `Game Rules`:
 
 | Field | Meaning |
 | --- | --- |
-| Room | Generated room code. Share this exact code with guests. |
-| Relay | Cloudflare Worker hostname or URL. A bare `workers.dev` hostname is accepted; the mod adds HTTPS/WSS automatically. |
-| Players | Maximum room size. The relay enforces the synchronized value. |
+| Players | Maximum room size (2-64), never smaller than the current roster. Locked during races and active tournaments. The relay enforces the synchronized value. |
 | Race | Opens Race Format. Seeds per race (1-20) and Finishers are independent; both default to 1. Hover either control for its rules. |
 | Filter | Seed source used when the host starts the next race. |
-| Manual | Enabled only for `Manual Seed`; accepts a Minecraft numeric or text seed. |
+| Manual | Shown only when `Manual Seed` is selected; accepts a Minecraft numeric or text seed. |
 | Game Rules | Host-only gameplay modifications copied into the room snapshot. |
 
 `Spawn Near Filter Structure` can move an unusually distant filtered route to
@@ -45,10 +129,18 @@ destination. If no safe dry spot is found, the original spawn is retained.
 It applies to filters with a known route structure, including ZSG Rooms bank
 filters; manual, random, and room-code seeds are unchanged.
 
-Room codes are hidden by default on both the setup screen and in the lobby.
+Room codes are hidden by default on both the join screen and in the lobby.
 `Show` reveals the code locally, while `Copy` always copies the real code even
-while it is concealed. The relay hostname is saved to
-`config/zsg-rooms-relay.txt` after a successful connection.
+while it is concealed in the lobby. The join screen has show/hide and paste
+buttons beside the code field.
+
+The default relay requires no setup. To use your own relay, open `Connection
+settings` from the join/error screen or `Settings > General > Room connection`
+before creating a room. A hostname or HTTP(S)/WS(S) URL is accepted; bare
+hostnames use HTTPS/WSS. `Use default` restores the built-in address, and
+`Setup guide` opens the deployment instructions after confirmation.
+The address is saved to `config/zsg-rooms-relay.txt` when applied or after a
+successful connection. Everyone joining must use the same relay.
 
 ## Seed Sources
 
@@ -73,10 +165,12 @@ retried up to three times and have an overall 75-second timeout.
 
 ## Joining a Room
 
-Guests enter the same relay hostname and room code. The guest's filter and game
-rule controls do not override the host. After the WebSocket welcome, the host
+Guests paste or enter the host's room code and select `Join`. There are no guest
+filter or rule controls. After the WebSocket welcome, the host
 sends a complete room snapshot containing players, seed/filter, rules, chat,
-progress, and current loading state.
+progress, and current loading state. The lobby opens only after that snapshot
+includes the guest. A missing/full room is reported separately from a connection
+problem. Retry, go back, or open connection settings as appropriate.
 
 The UUID sent in the profile action is used to render the player's skin. It is
 not repeatedly fetched as gameplay state.
@@ -88,7 +182,7 @@ not repeatedly fetched as gameplay state.
 - `Mute` / `Unmute`: locally hides or restores another runner's typed chat and
   advancement notifications in the lobby and active run. Seed votes, forfeits,
   results, and other race-critical messages remain visible.
-- `Options`: host-only selection for the filter used by the next seed.
+- `Options`: host-only filter, manual seed, race format, tournament, and player capacity settings.
 - `Start Race`: host-only. Consumes the prepared seed, or waits for the
   remainder of the matching preparation, and launches it once.
 - `Share Seed`: writes the current internal seed value to room chat.
@@ -332,7 +426,7 @@ Update checks are optional and can be disabled in Room Settings.
 
 | Path | Purpose |
 | --- | --- |
-| `config/zsg-rooms-relay.txt` | Last successful relay hostname. |
+| `config/zsg-rooms-relay.txt` | Applied or last successful relay address. |
 | `config/zsg-rooms-ui.txt` | Match HUD corner. |
 | `config/zsg-rooms-hud.properties` | Local HUD appearance and player rotation preferences. |
 | `config/zsg-rooms-rp-repair.txt` | Ruined-portal repair preference. |

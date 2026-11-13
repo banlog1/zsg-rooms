@@ -44,7 +44,7 @@ public class RoomSetupScreen extends Screen {
     private boolean disablePauseWorldSaves;
     private boolean roomCodeVisible;
     private boolean helpVisible;
-    private String selectedSeedType = "zsg";
+    private String selectedSeedType = RoomEntryDefaults.FILTER;
     private String statusText;
 
     public RoomSetupScreen(Screen parent, boolean createMode) {

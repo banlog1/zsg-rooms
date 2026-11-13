@@ -25,6 +25,18 @@ public final class FilterPickerSmoke implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (Boolean.getBoolean("zsgrooms.roomEntrySmoke")) {
+            new RoomEntrySmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.tutorialSmoke")) {
+            new TutorialSmoke().initialize();
+            return;
+        }
+        if (Boolean.getBoolean("zsgrooms.settingsImportSmoke")) {
+            new SettingsImportSmoke().initialize();
+            return;
+        }
         if (Boolean.getBoolean("zsgrooms.personalSettingsSmoke")) {
             new PersonalSettingsSmoke().initialize();
             return;

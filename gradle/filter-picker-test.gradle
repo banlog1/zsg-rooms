@@ -1,5 +1,6 @@
 // Fabric API 0.18 reads one mod root, so keep dev resources beside classes.
 tasks.named('compileJava') { destinationDirectory = layout.buildDirectory.dir('filter-picker-main') }
+sourceSets.main.output.classesDirs.setFrom(layout.buildDirectory.dir('filter-picker-main'))
 sourceSets.main.output.resourcesDir = tasks.named('compileJava').get().destinationDirectory.get().asFile
 tasks.named('processResources') { destinationDir = sourceSets.main.output.resourcesDir }
 
@@ -18,6 +19,13 @@ if (project.hasProperty('loadingWorldPreview')) {
 if (project.hasProperty('roomWorldCreationSmoke')) {
     dependencies {
         modRuntimeOnly files('libs/atum-2.7.2+1.16-1.16.1.jar')
+        modRuntimeOnly fileTree(dir: 'libs', include: 'speedrunapi-*.jar')
+    }
+}
+if (project.hasProperty('settingsImportSmoke')) {
+    dependencies {
+        modRuntimeOnly files('run/replay-playback-test/reference-mods/standardsettings-2.3+1.16-1.16.1.jar')
+        modRuntimeOnly files('replay-prototype/build/reference/replaymod-1.16.1-2.6.27.jar')
         modRuntimeOnly fileTree(dir: 'libs', include: 'speedrunapi-*.jar')
     }
 }
@@ -45,11 +53,18 @@ loom {
             vmArg "-Dzsgrooms.roomWorldCreationSmoke=${project.hasProperty('roomWorldCreationSmoke')}"
             vmArg "-Dzsgrooms.loadingPositionSmoke=${project.hasProperty('loadingPositionSmoke')}"
             vmArg "-Dzsgrooms.personalSettingsSmoke=${project.hasProperty('personalSettingsSmoke')}"
+            vmArg "-Dzsgrooms.tutorialSmoke=${project.hasProperty('tutorialSmoke')}"
+            vmArg "-Dzsgrooms.roomEntrySmoke=${project.hasProperty('roomEntrySmoke')}"
+            vmArg "-Dzsgrooms.settingsImportSmoke=${project.hasProperty('settingsImportSmoke')}"
+            vmArg "-Dzsgrooms.settingsImportApplySmoke=${project.hasProperty('settingsImportApplySmoke')}"
+            if (project.hasProperty('settingsImportDiscoveryFrom'))
+                vmArg "-Dzsgrooms.settingsImportDiscoveryFrom=${project.property('settingsImportDiscoveryFrom')}"
         }
     }
 }
 tasks.named('runFilterPickerTest') {
-    if (project.hasProperty('personalSettingsSmoke')) {
+    if (project.hasProperty('settingsImportSmoke') || project.hasProperty('tutorialSmoke') || project.hasProperty('roomEntrySmoke')) environment 'ALSOFT_DRIVERS', 'null'
+    if (project.hasProperty('personalSettingsSmoke') || project.hasProperty('settingsImportSmoke') || project.hasProperty('tutorialSmoke') || project.hasProperty('roomEntrySmoke')) {
         maxHeapSize = '2g'
         jvmArgs '-XX:ActiveProcessorCount=4'
     }
@@ -60,10 +75,11 @@ tasks.named('runFilterPickerTest') {
     }
     doFirst {
         ext.startedAt = System.currentTimeMillis()
+        if (project.hasProperty('tutorialSmoke')) delete file('run/filter-picker-test/config/zsg-rooms-tutorial.properties')
         def pack = file('build/distributions/zsg-rooms-filter-gallery.zip')
         if (!pack.exists()) throw new GradleException('Build the image pack with scripts/Build-FilterGalleryPack.ps1 first')
         copy { from pack; into 'run/filter-picker-test/resourcepacks' }
-        file('run/filter-picker-test/options.txt').text = 'resourcePacks:["file/zsg-rooms-filter-gallery.zip"]\nguiScale:2\nmaxFps:60\npauseOnLostFocus:false\n'
+        file('run/filter-picker-test/options.txt').text = 'resourcePacks:["file/zsg-rooms-filter-gallery.zip"]\nguiScale:2\nmaxFps:60\npauseOnLostFocus:false\nsoundCategory_master:0.0\nsoundCategory_music:0.0\n'
     }
     doLast {
         def log = file('run/filter-picker-test/logs/latest.log')
@@ -76,6 +92,9 @@ tasks.named('runFilterPickerTest') {
                 || log.text.contains('[RaceFormatSmoke] FAILED')
                 || log.text.contains('[TournamentSmoke] FAILED')
                 || log.text.contains('[PersonalSettingsSmoke] FAILED')
+                || log.text.contains('[SettingsImportSmoke] FAILED')
+                || log.text.contains('[TutorialSmoke] FAILED')
+                || log.text.contains('[RoomEntrySmoke] FAILED')
                 || log.text.contains('[TournamentRaceSmoke] FAILED')
                 || log.text.contains('[AaModeSmoke] FAILED')) {
             throw new GradleException('Filter picker smoke test failed; see run/filter-picker-test/logs/latest.log')

@@ -22,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.Deque;
 import java.util.Map;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -31,11 +32,109 @@ public class RoomWebSocketTransport {
     private static final String RELAY_ENVIRONMENT = "ZSG_ROOMS_RELAY";
     private static final Path RELAY_CONFIG = Paths.get("config", "zsg-rooms-relay.txt");
 
-    private static RelayConnection connection;
+    private static volatile RelayConnection connection;
     private static String relayUrl = configuredRelayUrl();
-    private static String status = "Room relay offline";
+    private static volatile String status = "Room relay offline";
 
     private RoomWebSocketTransport() {
+    }
+
+    /** Starts the handshake off-thread. The caller activates an accepted room on the client thread. */
+    public static synchronized ConnectionAttempt beginConnection(String endpoint, String roomName, String playerName, boolean host) {
+        final RelayConnection candidate;
+        try {
+            candidate = new RelayConnection(validateRelayUrl(endpoint), roomName, playerName, host);
+        } catch (Exception error) {
+            return new ConnectionAttempt(usefulMessage(error));
+        }
+        stop();
+        connection = candidate;
+        status = host ? "Creating room..." : "Joining room...";
+        ConnectionAttempt attempt = new ConnectionAttempt(candidate, endpoint);
+        attempt.worker.start();
+        return attempt;
+    }
+
+    public static final class ConnectionAttempt {
+        private final RelayConnection candidate;
+        private final String endpoint;
+        private final Thread worker;
+        private volatile boolean done, cancelled, connected;
+        private volatile String error = "";
+        private boolean activated;
+
+        private ConnectionAttempt(String error) {
+            candidate = null; endpoint = ""; worker = null; this.error = error; done = true;
+        }
+
+        private ConnectionAttempt(RelayConnection candidate, String endpoint) {
+            this.candidate = candidate; this.endpoint = endpoint;
+            worker = new Thread(() -> {
+                boolean opened = false;
+                String failure = "";
+                try {
+                    opened = candidate.connectOnce();
+                    if (!opened) failure = candidate.getJoinError();
+                } catch (Exception exception) { failure = usefulMessage(exception); }
+                synchronized (RoomWebSocketTransport.class) {
+                    if (cancelled || connection != candidate) {
+                        candidate.close();
+                    } else if (!opened) {
+                        candidate.close(); connection = null; error = failure; status = failure;
+                    } else connected = true;
+                    done = true;
+                }
+            }, "ZSG Room Connection");
+            worker.setDaemon(true);
+        }
+
+        public boolean isDone() { return done; }
+        public boolean isConnected() { return connected && !cancelled && connection == candidate && candidate.isOpen(); }
+        public String error() { return !error.isEmpty() || candidate == null ? error : candidate.getJoinError(); }
+
+        /** Call only after the host exists locally, or a guest's authoritative snapshot includes them. */
+        public boolean activate() {
+            synchronized (RoomWebSocketTransport.class) {
+                if (!connected || cancelled || connection != candidate || !candidate.enableReconnect()) return false;
+                if (!activated) {
+                    activated = true;
+                    relayUrl = displayRelayUrl(endpoint);
+                    saveRelayUrl(relayUrl);
+                    if (candidate.host) {
+                        candidate.sendSnapshot();
+                        candidate.ensureSeedPrefetch();
+                    }
+                    status = candidate.host ? "Hosting through secure room relay" : "Connected through secure room relay";
+                }
+                return true;
+            }
+        }
+
+        public void cancel() {
+            synchronized (RoomWebSocketTransport.class) {
+                cancelled = true;
+                if (candidate != null && connection == candidate) stop();
+                else if (candidate != null) candidate.close();
+            }
+            if (worker != null) worker.interrupt();
+        }
+    }
+
+    public static String validateRelayUrl(String endpoint) {
+        String normalized = normalizeRelayUrl(endpoint);
+        URI uri = URI.create(normalized);
+        String scheme = uri.getScheme();
+        if (!("https".equals(scheme) || "wss".equals(scheme) || "http".equals(scheme) || "ws".equals(scheme))
+                || uri.getHost() == null || uri.getPort() > 65535 || uri.getPort() == 0
+                || uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+            throw new IllegalArgumentException("Use a relay hostname or an http(s)/ws(s) URL without login details, query or fragment.");
+        }
+        return normalized;
+    }
+
+    public static synchronized void configureRelayUrl(String endpoint) {
+        relayUrl = displayRelayUrl(validateRelayUrl(endpoint));
+        saveRelayUrl(relayUrl);
     }
 
     public static synchronized boolean host(String endpoint, String roomName, String playerName) {
@@ -177,15 +276,18 @@ public class RoomWebSocketTransport {
             throw new IllegalArgumentException("Enter the deployed relay URL");
         }
         String normalized = endpoint.trim();
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        if (!normalized.startsWith("https://")
-                && !normalized.startsWith("http://")
-                && !normalized.startsWith("wss://")
-                && !normalized.startsWith("ws://")) {
+        int separator = normalized.indexOf("://");
+        if (separator >= 0) {
+            String scheme = normalized.substring(0, separator).toLowerCase(Locale.ROOT);
+            if (!scheme.equals("https") && !scheme.equals("http") && !scheme.equals("wss") && !scheme.equals("ws"))
+                throw new IllegalArgumentException("Use an http(s) or ws(s) relay URL.");
+            normalized = scheme + normalized.substring(separator);
+        } else {
             normalized = "https://" + normalized;
         }
+        int prefixLength = normalized.indexOf("://") + 3;
+        while (normalized.length() > prefixLength && normalized.endsWith("/"))
+            normalized = normalized.substring(0, normalized.length() - 1);
         return normalized;
     }
 
@@ -195,9 +297,7 @@ public class RoomWebSocketTransport {
         }
         String display = endpoint.trim();
         if (display.startsWith("https://")) display = display.substring(8);
-        else if (display.startsWith("http://")) display = display.substring(7);
         else if (display.startsWith("wss://")) display = display.substring(6);
-        else if (display.startsWith("ws://")) display = display.substring(5);
         while (display.endsWith("/")) {
             display = display.substring(0, display.length() - 1);
         }
@@ -280,9 +380,13 @@ public class RoomWebSocketTransport {
         }
 
         private boolean open() throws IOException {
-            boolean opened = connectOnce();
-            this.reconnectEnabled = opened;
-            return opened;
+            return connectOnce() && enableReconnect();
+        }
+
+        private synchronized boolean enableReconnect() {
+            if (this.closing || connection != this || !isOpen()) return false;
+            this.reconnectEnabled = true;
+            return true;
         }
 
         private boolean connectOnce() throws IOException {
@@ -396,6 +500,8 @@ public class RoomWebSocketTransport {
                 seedSelectionChanged();
                 ensureSeedPrefetch();
                 sendSnapshot();
+            } else if ("capacity".equals(type)) {
+                if (ZsgRooms.changeRoomCapacity(this.roomName, player, value)) sendSnapshot();
             } else if ("seed_change".equals(type)) {
                 boolean newRequest = isNewSeedChangeRequest(player);
                 boolean ready = ZsgRooms.registerSeedChangeRequest(player);
@@ -448,7 +554,7 @@ public class RoomWebSocketTransport {
                 sendSnapshot();
                 return;
             }
-            if ("start".equals(type) || "filter".equals(type) || "rules".equals(type)) {
+            if ("start".equals(type) || "filter".equals(type) || "rules".equals(type) || "capacity".equals(type)) {
                 send("error", player, "Only the host can use that control");
                 return;
             }
@@ -730,7 +836,7 @@ public class RoomWebSocketTransport {
 
         @Override
         public void onText(SimpleWebSocketClient source, String message) {
-            if (source != this.socket) {
+            if (!currentSource(source)) {
                 return;
             }
             Map<String, String> decoded = RoomProtocol.decode(message);
@@ -759,9 +865,12 @@ public class RoomWebSocketTransport {
 
             if (this.host) {
                 long received = RaceFinishArbiter.now();
-                runOnClientThread(() -> handleGuestAction(type, decoded.get("player"), decoded.get("value"), received));
+                runOnClientThread(() -> {
+                    if (currentSource(source)) handleGuestAction(type, decoded.get("player"), decoded.get("value"), received);
+                });
             } else {
                 runOnClientThread(() -> {
+                    if (!currentSource(source)) return;
                     String value = decoded.get("value");
                     InGame localGame = ZsgRooms.getGame(decoded.get("room"));
                     if ("launch".equals(type) && !zsgrooms.modid.TournamentRaceClient.isLaunchPayload(value)
@@ -806,8 +915,8 @@ public class RoomWebSocketTransport {
         }
 
         @Override
-        public void onClosed(SimpleWebSocketClient source, String reason) {
-            if (source != this.socket) {
+        public synchronized void onClosed(SimpleWebSocketClient source, String reason) {
+            if (!currentSource(source)) {
                 return;
             }
             this.welcomed = false;
@@ -820,6 +929,7 @@ public class RoomWebSocketTransport {
             }
 
             String closeReason = reason == null || reason.trim().isEmpty() ? "Room relay disconnected" : reason;
+            if (!this.reconnectEnabled && "Relay did not accept the room connection".equals(this.joinError)) this.joinError = closeReason;
             status = closeReason;
             ZsgRooms.LOGGER.warn("Relay connection lost for room {}: {}", this.roomName, closeReason);
             if (this.reconnectEnabled) {
@@ -907,16 +1017,31 @@ public class RoomWebSocketTransport {
         }
 
         private void close() {
-            this.closing = true;
-            this.reconnectEnabled = false;
-            Thread reconnect = this.reconnectThread;
+            SimpleWebSocketClient current;
+            Thread reconnect;
+            CountDownLatch latch;
+            boolean graceful;
+            synchronized (this) {
+                graceful = this.reconnectEnabled && isOpen();
+                this.closing = true;
+                this.reconnectEnabled = false;
+                reconnect = this.reconnectThread;
+                current = this.socket;
+                latch = this.welcomeLatch;
+            }
+            // Never take the socket writer lock while holding the connection monitor.
             if (reconnect != null) {
                 reconnect.interrupt();
             }
-            SimpleWebSocketClient current = this.socket;
+            if (latch != null) latch.countDown();
             if (current != null) {
-                current.close();
+                if (graceful) current.close();
+                else current.abort();
             }
+        }
+
+        private boolean currentSource(SimpleWebSocketClient source) {
+            return !this.closing && connection == this && source == this.socket;
         }
 
         private static class PendingAction {

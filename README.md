@@ -79,8 +79,8 @@ and SpeedrunAPI versions. The versions used by this project are recorded in
 https://github.com/banlog1/zsg-rooms/releases/latest/download/zsg-rooms-multimc.zip
 ```
 
-3. Wait for the mods to download, select **Java 17** in the instance's Java
-   settings, and launch. Open **ZSG Rooms** from the title screen.
+3. Wait for the mods to download, then launch. **Java 17 is recommended** and can
+   be selected in the instance's Java settings. Open **ZSG Rooms** from the title screen.
 
 The pack pins Minecraft 1.16.1, Fabric 0.19.3 and the full 26-mod racing/replay
 suite, including ReplayMod. Downloads are hash-checked. Internet access and
@@ -93,6 +93,38 @@ automatic recording is already disabled to avoid two recorders running together.
 This is a Rooms/practice setup, not a certified leaderboard-legal pack.
 Importing creates a fresh instance; it does not update an existing instance.
 The in-game updater updates the ZSG mods, not the complete third-party suite.
+
+### Optional Windows Install With ToolScreen
+
+The normal pack above remains available without ToolScreen. On **Windows 10/11**,
+use this separate link in MultiMC's **Add Instance > Import from ZIP** to include
+the official ToolScreen installer alongside the same 26-mod suite:
+
+```text
+https://github.com/banlog1/zsg-rooms/releases/latest/download/zsg-rooms-multimc-toolscreen.zip
+```
+
+1. After importing, leave Minecraft closed. Right-click the new instance and choose
+   **Instance Folder**, not Minecraft Folder.
+2. Double-click **Toolscreen-1.5.2-double-click-me.exe** and follow ToolScreen's
+   setup for this instance. The installer is already in the right folder: no
+   separate download or moving files is needed. It configures its launch hook.
+3. Launch Minecraft. **Java 17 is recommended** and can be selected in the instance
+   settings. In fullscreen, **Ctrl+I** opens ToolScreen settings.
+
+Importing alone does not execute or enable ToolScreen. Windows/security prompts
+may appear because ToolScreen injects an overlay into Minecraft. Review them
+yourself; our pack never disables antivirus or adds exclusions. You can cancel
+setup and use Rooms normally. Do not bypass a security block just to complete
+setup; use the standard pack and investigate it first.
+
+To remove ToolScreen, close Minecraft and run its installer again, choosing
+**Uninstall**. The Rooms updater does not manage ToolScreen. The installer is
+version-pinned and hash-verified, and includes its MIT license. No personal
+profiles, Java paths or memory settings are bundled. This variant targets
+MultiMC on Windows; use the standard pack on other platforms.
+
+[ToolScreen project and support](https://github.com/jojoe77777/Toolscreen).
 
 ### Manual Install
 
@@ -112,16 +144,24 @@ the victory screen.
 
 1. Open Minecraft and select `ZSG Rooms` on the title screen.
 2. Select `Create Room`.
-3. Leave the relay at its default or enter your own deployed Worker hostname.
-4. Pick a filter and open `Game Rules...` if the defaults should change.
-5. Create the room and share the displayed room code.
-6. Wait for the other runners, then select `Start Race`.
+3. The mod connects and opens your lobby. Copy the room code and share it.
+4. New rooms use **ZSG Rooms Mode**, **Standard ZSG Rooms** rules (cheats off),
+   **1 seed**, **1 finisher**, and **10 player places**. Tournaments start off.
+   Change these in lobby **Options** and **Game Rules**.
+5. Wait for the other runners, then select `Start Race`. Creating a room does
+   not start a race; you can cancel while connecting.
 
 ### Guest
 
 1. Open `ZSG Rooms` and select `Join Room`.
-2. Enter the same relay hostname and room code as the host.
+2. Paste or enter the host's room code and select `Join`.
 3. Join the lobby. No port forwarding, VPN, or tunnel application is required.
+
+Both players use the default relay unless they have configured a custom one.
+For a custom relay, open **Connection settings** on the join/error screen, or
+**Settings > General > Room connection** before creating a room. Hosts and
+guests must use the same relay. This screen also links to the setup guide.
+Connection failures offer a retry without changing the room's settings.
 
 The host requests the seed. Each client loads that same seed locally, reports
 `world_ready`, and remains paused until the room releases everyone together.
@@ -135,8 +175,7 @@ change the selected seed or filter, and require no relay deployment.
 
 ## Race Sequences And Placements
 
-Open **Race Format** from the **Race** row when creating a room, or from lobby
-**Options**. **Seeds per race** (1-20) and **Finishers** are separate settings,
+Open **Race Format** from lobby **Options**. **Seeds per race** (1-20) and **Finishers** are separate settings,
 both defaulting to **1**. One seed is a regular race; larger values form a shared,
 ordered sequence. Everyone must use the sequence-capable
 mod version. The host prepares the whole sequence before the synchronized first
@@ -173,7 +212,7 @@ penalized skips instead. No relay deployment is needed for these changes.
 
 ## Filter Picker
 
-Click the filter button during room creation, or open **Options** from the lobby,
+Open **Options** from the lobby and click the filter button
 to choose from **ZSG Rooms**, **Existing Filters**, and **Other**. Select a named
 tile instead of cycling through every filter. Lobby changes take effect after
 **Apply**. Manual seed entry remains available under **Other**.

@@ -5,7 +5,7 @@ import java.util.zip.ZipFile
 def packTest = tasks.register('easyInstallPackTest', Exec) {
     group = 'verification'
     description = 'Tests the easy-install manifest and privacy-safe defaults (Node.js 22+).'
-    commandLine 'node', '--test', 'scripts/Build-EasyInstallPack.test.mjs'
+    commandLine 'node', '--test', 'scripts/Build-EasyInstallPack.test.mjs', 'scripts/Build-ToolscreenPack.test.mjs'
 }
 
 def packMetadata = tasks.register('easyInstallMetadata', Exec) {
@@ -21,7 +21,7 @@ def packMetadata = tasks.register('easyInstallMetadata', Exec) {
 }
 
 // MultiMC detects modrinth.index.json by content, including when the archive ends in .zip.
-def packFiles = ['modrinth.index.json', 'overrides/config/replaymod.json',
+def packFiles = ['modrinth.index.json', 'overrides/options.txt', 'overrides/config/replaymod.json',
                  'overrides/config/zsg-rooms-replay.properties', 'overrides/ZSG-ROOMS-SETUP.txt']
 def packs = ['zip', 'mrpack'].collect { extension ->
     tasks.register(extension == 'zip' ? 'easyInstallPack' : 'easyInstallMrpack', Zip) {
@@ -43,10 +43,78 @@ def packs = ['zip', 'mrpack'].collect { extension ->
                 if (index.files.size() != 26 || index.versionId != project.version.toString()) {
                     throw new GradleException('Incorrect easy-install release manifest')
                 }
+                def options = zip.getInputStream(zip.getEntry('overrides/options.txt')).withCloseable {
+                    it.getText('UTF-8')
+                }
+                if (options != 'soundCategory_music:0.0\n') {
+                    throw new GradleException('Easy-install defaults must mute only music')
+                }
             }
         }
     }
 }
+
+def toolscreen = new JsonSlurper().parse(file('pack/toolscreen.lock.json'), 'UTF-8')
+def toolscreenMetadata = tasks.register('toolScreenPackMetadata', Exec) {
+    dependsOn packMetadata
+    inputs.files('pack/mods.lock.json', 'pack/toolscreen.lock.json', 'pack/Toolscreen-LICENSE.txt',
+            'scripts/Build-ToolscreenPack.mjs', 'scripts/Build-EasyInstallPack.mjs',
+            "build/libs/zsg-rooms-${project.version}.jar",
+            "replay-viewer/build/libs/zsg-replay-viewer-${replayViewerVersion}.jar")
+    inputs.property 'coreVersion', project.version.toString()
+    inputs.property 'viewerVersion', replayViewerVersion.toString()
+    outputs.dir layout.buildDirectory.dir('toolscreen-pack')
+    commandLine(['node', 'scripts/Build-ToolscreenPack.mjs', '--build',
+                 project.version.toString(), replayViewerVersion.toString()]
+            + (gradle.startParameter.offline ? ['--offline'] : []))
+}
+
+def toolscreenFiles = packFiles + [toolscreen.file, 'Toolscreen-LICENSE.txt',
+                                  'TOOLSCREEN-SETUP.txt', 'toolscreen-release.json']
+def toolscreenPack = tasks.register('easyInstallToolscreenPack', Zip) {
+    group = 'distribution'
+    description = 'Builds the optional Windows/MultiMC pack with the verified ToolScreen installer.'
+    dependsOn toolscreenMetadata
+    from(layout.buildDirectory.dir('toolscreen-pack')) { include toolscreenFiles }
+    archiveFileName = 'zsg-rooms-multimc-toolscreen.zip'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+    includeEmptyDirs = false
+    doLast {
+        new ZipFile(archiveFile.get().asFile).withCloseable { zip ->
+            def names = zip.entries().toList().findAll { !it.directory }*.name
+            if (names.toSet() != toolscreenFiles.toSet() || names.size() != toolscreenFiles.size()) {
+                throw new GradleException('Unexpected or missing ToolScreen pack contents')
+            }
+            def index = zip.getInputStream(zip.getEntry('modrinth.index.json')).withCloseable {
+                new JsonSlurper().parse(it, 'UTF-8')
+            }
+            def standard = new JsonSlurper().parse(file('build/easy-install-metadata/modrinth.index.json'), 'UTF-8')
+            if (index.files != standard.files || index.dependencies != standard.dependencies
+                    || index.versionId != project.version.toString()) {
+                throw new GradleException('ToolScreen pack must contain the unchanged 26-mod suite')
+            }
+            def installer = zip.getEntry(toolscreen.file)
+            def digest = MessageDigest.getInstance('SHA-256')
+            zip.getInputStream(installer).withCloseable { stream ->
+                byte[] buffer = new byte[8192]
+                int count
+                while ((count = stream.read(buffer)) != -1) digest.update(buffer, 0, count)
+            }
+            if (installer.size != toolscreen.fileSize || digest.digest().encodeHex().toString() != toolscreen.sha256) {
+                throw new GradleException('ToolScreen installer checksum mismatch in release archive')
+            }
+            packFiles.findAll { it.startsWith('overrides/') }.each { name ->
+                def actual = zip.getInputStream(zip.getEntry(name)).withCloseable { it.getText('UTF-8') }
+                if (actual != file("build/easy-install-metadata/${name}").getText('UTF-8')) {
+                    throw new GradleException("ToolScreen pack changed standard defaults: ${name}")
+                }
+            }
+        }
+    }
+}
+packs.add(toolscreenPack)
 
 // Build the companion separately first. Stage only explicitly named, validated artifacts.
 def galleryPack = tasks.register('filterGalleryPack', Zip) {
@@ -124,11 +192,27 @@ tasks.register('stageRelease', Sync) {
 https://github.com/banlog1/zsg-rooms/releases/download/v${project.version}/zsg-rooms-multimc.zip
 ```
 
-3. Wait for installation to finish, select **Java 17** in the instance's Java settings, and launch. Open **ZSG Rooms** from the title screen.
+3. Wait for installation to finish, then launch. **Java 17 is recommended** and can be selected in the instance's Java settings. Open **ZSG Rooms** from the title screen.
 
 Use a current MultiMC version with Modrinth-pack support. The import installs Minecraft 1.16.1, Fabric Loader 0.19.3 and the 26-mod racing/replay suite, including Rooms, Replay Viewer, ReplayMod and SpeedRunIGT. Internet access and your own Minecraft account are required.
 
 Recording is optional: enable it under **Settings > Recording**. ReplayMod automatic recording is already disabled to avoid recording twice. This is a Rooms/practice suite, not a certified leaderboard-legal pack.
+
+### Optional: Windows + ToolScreen
+
+The standard link above stays ToolScreen-free. For **Windows 10/11**, use this separate link in **Add Instance > Import from ZIP** instead:
+
+```text
+https://github.com/banlog1/zsg-rooms/releases/download/v${project.version}/zsg-rooms-multimc-toolscreen.zip
+```
+
+1. After import, leave Minecraft closed. Right-click the new instance and choose **Instance Folder**, not Minecraft Folder.
+2. Double-click **${toolscreen.file}** and follow ToolScreen's setup for this instance. It is already in the right folder; there is nothing extra to download or move. The installer configures its launch hook.
+3. Launch Minecraft. **Java 17 is recommended** and can be selected in the instance settings. In fullscreen, **Ctrl+I** opens ToolScreen settings.
+
+This includes the same 26 mods plus the official, checksum-pinned **ToolScreen ${toolscreen.version}** installer and its MIT license. Importing does not execute it. ToolScreen uses DLL injection for overlays, so Windows/security prompts may appear: review them yourself. Our pack does not disable antivirus or add exclusions. You can cancel setup and use Rooms normally, or use the standard pack. To uninstall ToolScreen, close Minecraft and run its installer again, choosing **Uninstall**.
+
+This variant targets MultiMC on Windows; use the standard pack on other platforms. ToolScreen updates are separate from the Rooms updater. [Official ToolScreen project](https://github.com/jojoe77777/Toolscreen).
 """, 'UTF-8')
         new File(output, 'release-details.md').setText("""## Manual Downloads
 
@@ -139,6 +223,7 @@ Already using Rooms? The in-game updater updates Rooms and an already-installed 
 - **${viewerSources.name}**: viewer source, not an installable mod. GPL-3.0-or-later; the core remains CC0-1.0. Full build scripts are in the tagged source archive.
 - **zsg-rooms-filter-gallery.zip**: optional picker and loading artwork. Put it in `resourcepacks` and enable it in Minecraft, not in `mods`. The images are not bundled in either mod.
 - **zsg-rooms-multimc.mrpack**: the same installation pack for other compatible launchers.
+- **zsg-rooms-multimc-toolscreen.zip**: optional Windows/MultiMC variant with the ToolScreen installer. Follow the one-time setup above; do not put this ZIP in `mods`.
 
 For manual installs, disable ReplayMod's Record Singleplayer, Record Server, and Automatic Recording options before enabling ZSG recording. SpeedRunIGT is needed during recording for RTA/IGT data.
 
@@ -153,6 +238,7 @@ ${hash(viewerSources)}  ${viewerSources.name}
 ${hash(new File(output, 'zsg-rooms-filter-gallery.zip'))}  zsg-rooms-filter-gallery.zip
 ${hash(new File(output, 'zsg-rooms-multimc.zip'))}  zsg-rooms-multimc.zip
 ${hash(new File(output, 'zsg-rooms-multimc.mrpack'))}  zsg-rooms-multimc.mrpack
+${hash(new File(output, 'zsg-rooms-multimc-toolscreen.zip'))}  zsg-rooms-multimc-toolscreen.zip
 ```
 
 </details>
